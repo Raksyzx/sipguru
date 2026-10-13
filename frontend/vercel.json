@@ -1,12 +1,7 @@
-[
-  {
-    "name": "sipguru-frontend",
-    "src": "index.html",
-    "use": "@vercel/static"
-  },
-  {
-    "name": "sipguru-frontend-build",
-    "src": "dist/**",
-    "use": "@vercel/static"
-  }
-]
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "framework": "vite"
+}
