@@ -1,0 +1,12 @@
+[
+  {
+    "name": "sipguru-frontend",
+    "src": "index.html",
+    "use": "@vercel/static"
+  },
+  {
+    "name": "sipguru-frontend-build",
+    "src": "dist/**",
+    "use": "@vercel/static"
+  }
+]

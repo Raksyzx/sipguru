@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+backend/venv/
+venv/
+.env
+.env.local
+.env.production
+
+# Build outputs
+dist/
+build/
+*.pyc
+__pycache__/
+*.pyo
+.pytest_cache/
+.coverage
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temp
+tmp/
+temp/
+*.tmp
+
+# Vercel
+.vercel
+
+# Railway
+.railway
