@@ -13,6 +13,7 @@ httpx==0.26.0
 openpyxl==3.1.2
 reportlab==4.0.9
 requests==2.31.0
+supabase==2.0.3
 
 # Optional: For local development
 python-dotenv==1.0.1
