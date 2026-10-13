@@ -1,7 +1,7 @@
 """Database dependency - auto-selects correct DB client based on DEVELOPMENT mode"""
-from src.config import settings
+from src.config import settings, is_development
 
-if settings.DEVELOPMENT:
+if is_development():
     from src.local_db import LocalDBClient
     def get_db():
         return LocalDBClient()

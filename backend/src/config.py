@@ -39,9 +39,13 @@ class Settings(BaseSettings):
     ]
     
     # Mode
-    DEVELOPMENT: bool = False
+    DEVELOPMENT: int = 0  # 0=Production (Supabase), 1=Development (SQLite)
     
     class Config:
         env_file = ".env"
 
 settings = Settings()
+
+# Helper: convert DEVELOPMENT to boolean
+def is_development() -> bool:
+    return bool(settings.DEVELOPMENT)
