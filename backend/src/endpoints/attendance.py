@@ -11,10 +11,10 @@ from pydantic import BaseModel
 from src.auth import verify_hmac_token
 from src.config import settings
 from src.deps import get_current_user
-from src.local_db import LocalDBClient
+from src.database import get_db
 
 router = APIRouter()
-db = LocalDBClient()
+db = get_db()
 
 
 class Geolocation(BaseModel):

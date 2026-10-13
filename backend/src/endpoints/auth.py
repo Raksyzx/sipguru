@@ -1,13 +1,19 @@
 from src.config import settings
 from src.auth import create_jwt, verify_jwt, generate_device_fingerprint, hash_otp
-from src.local_db import LocalDBClient
 
 from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import Optional
 
+# Import correct DB client based on DEVELOPMENT mode
+if settings.DEVELOPMENT:
+    from src.local_db import LocalDBClient
+    db = LocalDBClient()
+else:
+    from src.supabase import SupabaseClient
+    db = SupabaseClient()
+
 router = APIRouter()
-db = LocalDBClient()
 
 # Pydantic Models
 class LoginRequest(BaseModel):

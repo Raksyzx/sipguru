@@ -6,12 +6,12 @@ from datetime import datetime
 import httpx
 import os
 
-from src.local_db import LocalDBClient
+from src.database import get_db
 from src.deps import get_current_user
 from src.config import settings
 
 router = APIRouter()
-db = LocalDBClient()
+db = get_db()
 
 # Telegram configuration
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")

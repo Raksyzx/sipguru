@@ -7,11 +7,11 @@ from typing import Optional
 import io
 import json
 
-from src.local_db import LocalDBClient
+from src.database import get_db
 from src.deps import get_current_user, require_admin
 
 router = APIRouter()
-db = LocalDBClient()
+db = get_db()
 
 
 def _get_date_range(period: str, year: int, month: int, week: int = None):

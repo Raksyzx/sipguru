@@ -1,5 +1,5 @@
 from src.config import settings
-from src.local_db import LocalDBClient
+from src.database import get_db
 from src.auth import generate_hmac_token
 from src.deps import get_current_user, require_admin
 
@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
 router = APIRouter()
-db = LocalDBClient()
+db = get_db()
 
 
 class GenerateQRRequest(BaseModel):

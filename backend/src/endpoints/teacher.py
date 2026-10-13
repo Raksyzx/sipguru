@@ -1,11 +1,11 @@
 from src.config import settings
-from src.local_db import LocalDBClient
+from src.database import get_db
 
 from fastapi import APIRouter, HTTPException, Depends
 from src.deps import get_current_user as verify_jwt
 
 router = APIRouter()
-db = LocalDBClient()
+db = get_db()
 
 @router.get("/todays-schedule")
 async def get_todays_schedule(

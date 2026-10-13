@@ -1,11 +1,11 @@
 from src.config import settings
-from src.local_db import LocalDBClient
+from src.database import get_db
 
 from fastapi import APIRouter, HTTPException, Request, Depends
 from src.deps import get_current_user, require_admin
 
 router = APIRouter()
-db = LocalDBClient()
+db = get_db()
 
 @router.get("/stats/daily")
 async def get_daily_stats(
