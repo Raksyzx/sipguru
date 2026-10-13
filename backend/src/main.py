@@ -30,7 +30,9 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    return {"message": "SIPGURU API is running", "version": "1.0.0", "database": "SQLite"}
+    from src.config import is_development
+    db_type = "SQLite" if is_development() else "Supabase"
+    return {"message": "SIPGURU API is running", "version": "1.0.0", "database": db_type}
 
 @app.get("/health")
 async def health():
