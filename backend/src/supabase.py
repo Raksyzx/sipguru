@@ -51,17 +51,20 @@ class SupabaseClient:
     
     def create_user(self, email: str, name: str, nip: str, 
                     role: str = "teacher", phone: str = None,
-                    school_id: str = None) -> str:
+                    school_id: str = None, password_hash: str = None) -> str:
         """Create new teacher user"""
         client = self._get_client()
-        result = client.table("users").insert({
+        data = {
             "email": email,
             "name": name,
             "nip": nip,
             "role": role,
             "phone": phone,
             "school_id": school_id
-        }).execute()
+        }
+        if password_hash:
+            data["password_hash"] = password_hash
+        result = client.table("users").insert(data).execute()
         return result.data[0]["id"]
     
     # School operations
