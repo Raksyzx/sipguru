@@ -65,6 +65,8 @@ class SupabaseClient:
         if password_hash:
             data["password_hash"] = password_hash
         result = client.table("users").insert(data).execute()
+        if not result.data:
+            raise Exception(f"Failed to create user: {result}")
         return result.data[0]["id"]
     
     # School operations
@@ -323,4 +325,32 @@ class SupabaseClient:
         """Get all teachers (admin only)"""
         client = self._get_client()
         result = client.table("users").select("*").eq("role", "teacher").execute()
+        return result.data
+
+    def is_email_taken(self, email: str, exclude_id: str = None) -> bool:
+        """Check if email already exists"""
+        client = self._get_client()
+        query = client.table("users").select("id").eq("email", email)
+        if exclude_id:
+            query = query.neq("id", exclude_id)
+        result = query.execute()
+        return len(result.data) > 0
+
+    def is_nip_taken(self, nip: str, exclude_id: str = None) -> bool:
+        """Check if NIP already exists"""
+        client = self._get_client()
+        query = client.table("users").select("id").eq("nip", nip)
+        if exclude_id:
+            query = query.neq("id", exclude_id)
+        result = query.execute()
+        return len(result.data) > 0
+
+    # Jurusan operations
+    def get_all_jurusan(self, school_id: str = None) -> List[dict]:
+        """Get all jurusan"""
+        client = self._get_client()
+        query = client.table("jurusan").select("*")
+        if school_id:
+            query = query.eq("school_id", school_id)
+        result = query.execute()
         return result.data
