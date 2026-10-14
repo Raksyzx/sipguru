@@ -35,7 +35,7 @@ class VerifyDeviceRequest(BaseModel):
 @router.post("/login", response_model=LoginResponse)
 async def login(request: Request, data: LoginRequest):
     """Custom JWT login with SQLite"""
-    user = db.verify_credentials(data.email, data.password)
+    user = await db.verify_credentials(data.email, data.password)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
@@ -45,7 +45,7 @@ async def login(request: Request, data: LoginRequest):
     )
     
     # Check device binding
-    existing_binding = db.get_device_binding(user["id"], device_fingerprint)
+    existing_binding = await db.get_device_binding(user["id"], device_fingerprint)
     
     # Create JWT
     access_token = create_jwt({
@@ -60,7 +60,7 @@ async def login(request: Request, data: LoginRequest):
     }, expires_minutes=60*24*7)
     
     # Update device binding
-    db.create_device_binding(user["id"], device_fingerprint)
+    await db.create_device_binding(user["id"], device_fingerprint)
     
     return LoginResponse(
         access_token=access_token,
@@ -73,25 +73,25 @@ async def login(request: Request, data: LoginRequest):
 @router.post("/verify-device")
 async def verify_device(data: VerifyDeviceRequest):
     """Verify OTP for device unbinding"""
-    user = db.get_user_by_email(data.email)
+    user = await db.get_user_by_email(data.email)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    binding = db.get_pending_unbind_binding(user["id"])
+    binding = await db.get_pending_unbind_binding(user["id"])
     if not binding:
         raise HTTPException(status_code=400, detail="No pending unbind request")
     
     if len(data.otp) != 6 or not data.otp.isdigit():
         raise HTTPException(status_code=400, detail="Invalid OTP format")
     
-    db.unlink_device(binding["id"])
+    await db.unlink_device(binding["id"])
     
     return {"message": "Device successfully unbound"}
 
 @router.post("/request-unbind")
 async def request_unbind(request: Request, data: VerifyDeviceRequest):
     """Request OTP for device unbinding"""
-    user = db.get_user_by_email(data.email)
+    user = await db.get_user_by_email(data.email)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -100,7 +100,7 @@ async def request_unbind(request: Request, data: VerifyDeviceRequest):
         request.client.host if request.client else "unknown"
     )
     
-    binding = db.get_device_binding(user["id"], device_fingerprint)
+    binding = await db.get_device_binding(user["id"], device_fingerprint)
     if not binding or not binding.get("is_active", True):
         raise HTTPException(status_code=400, detail="Device not bound or already unbound")
     
@@ -108,6 +108,6 @@ async def request_unbind(request: Request, data: VerifyDeviceRequest):
     otp = secrets.token_hex(3)[:6]
     otp_hash = hash_otp(otp)
     
-    db.update_unbind_request(binding["id"], otp_hash)
+    await db.update_unbind_request(binding["id"], otp_hash)
     
     return {"message": "OTP sent to email"}
