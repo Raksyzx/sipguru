@@ -17,19 +17,25 @@ class SupabaseClient:
     
     # User operations
     def verify_credentials(self, email: str, password: str) -> Optional[dict]:
-        """Verify email+password via Supabase Auth"""
+        """Verify email+password against public.users table"""
         client = self._get_client()
-        result = client.auth.sign_in_with_password({
-            "email": email,
-            "password": password
-        })
-        if result.user:
-            return {
-                "id": result.user.id,
-                "email": result.user.email,
-                "role": "teacher"  # Default, check DB for actual role
-            }
-        return None
+        result = client.table("users").select("*").eq("email", email).execute()
+        if not result.data:
+            return None
+        
+        user = result.data[0]
+        # Verify password using bcrypt (stored in password_hash column)
+        import bcrypt
+        if not user.get("password_hash"):
+            return None
+        if not bcrypt.checkpw(password.encode(), user["password_hash"].encode()):
+            return None
+        
+        return {
+            "id": user["id"],
+            "email": user["email"],
+            "role": user.get("role", "teacher")
+        }
     
     def get_user(self, user_id: str) -> Optional[dict]:
         """Get user by ID"""
