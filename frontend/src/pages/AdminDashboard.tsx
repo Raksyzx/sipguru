@@ -128,6 +128,10 @@ const AdminDashboard = () => {
     room_id: "",
   });
 
+  // Add Room Modal State
+  const [addRoomModal, setAddRoomModal] = useState({ open: false, name: "", room_code: "", geofence_radius: 150 });
+  const [addRoomLoading, setAddRoomLoading] = useState(false);
+
   // Reset Password Modal State
   const [resetPasswordModal, setResetPasswordModal] = useState<ResetPasswordModal>({
     open: false,
@@ -203,8 +207,10 @@ const AdminDashboard = () => {
         setQrRoom("QR Token");
       }
       setCopied(false);
-    } catch {
-      setMsg("Gagal generate QR token");
+      setMsg(""); // Clear success
+    } catch (err: any) {
+      const errorMsg = err?.response?.data?.detail || "Gagal generate QR token";
+      setMsg(errorMsg);
     }
   };
 
@@ -237,6 +243,8 @@ const AdminDashboard = () => {
       const res = await api.get("/admin/subjects");
       setSubjects(res.data?.subjects || []);
       setNewSubject({ name: "", code: "", description: "", jurusan_id: "" });
+      setMsg("Mata pelajaran berhasil ditambah!");
+      setTimeout(() => setMsg(""), 3000);
     } catch {
       setMsg("Gagal menambah mata pelajaran");
     }
@@ -254,6 +262,8 @@ const AdminDashboard = () => {
       const res = await api.get("/admin/grades");
       setGrades(res.data?.grades || []);
       setNewGrade({ name: "", grade_level: 1, jurusan_id: "" });
+      setMsg("Kelas berhasil ditambah!");
+      setTimeout(() => setMsg(""), 3000);
     } catch {
       setMsg("Gagal menambah kelas");
     }
@@ -273,8 +283,33 @@ const AdminDashboard = () => {
       const res = await api.get("/admin/jurusan");
       setJurusanList(res.data?.jurusan || []);
       setNewJurusan({ name: "", code: "", description: "" });
+      setMsg("Jurusan berhasil ditambah!");
+      setTimeout(() => setMsg(""), 3000);
     } catch {
       setMsg("Gagal menambah jurusan");
+    }
+  };
+
+  const addRoom = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addRoomModal.name || !addRoomModal.room_code) return;
+    setAddRoomLoading(true);
+    try {
+      await api.post("/admin/rooms", {
+        name: addRoomModal.name,
+        room_code: addRoomModal.room_code,
+        geofence_radius: addRoomModal.geofence_radius,
+        school_id: "00000000-0000-0000-0000-000000000001",
+      });
+      const res = await api.get("/admin/rooms");
+      setRooms(res.data?.rooms || []);
+      setAddRoomModal({ open: false, name: "", room_code: "", geofence_radius: 150 });
+      setMsg("Ruangan berhasil ditambah!");
+      setTimeout(() => setMsg(""), 3000);
+    } catch {
+      setMsg("Gagal menambah ruangan");
+    } finally {
+      setAddRoomLoading(false);
     }
   };
 
@@ -283,6 +318,8 @@ const AdminDashboard = () => {
       await api.delete(`/admin/jurusan/${id}`);
       const res = await api.get("/admin/jurusan");
       setJurusanList(res.data?.jurusan || []);
+      setMsg("Jurusan berhasil dihapus!");
+      setTimeout(() => setMsg(""), 3000);
     } catch {
       setMsg("Gagal menghapus jurusan");
     }
@@ -313,6 +350,8 @@ const AdminDashboard = () => {
         end_time: "12:00",
         room_id: "",
       });
+      setMsg("Jadwal kelas berhasil ditambah!");
+      setTimeout(() => setMsg(""), 3000);
     } catch {
       setMsg("Gagal menambah jadwal kelas");
     }
@@ -323,6 +362,8 @@ const AdminDashboard = () => {
       await api.delete(`/admin/subjects/${id}`);
       const res = await api.get("/admin/subjects");
       setSubjects(res.data?.subjects || []);
+      setMsg("Mata pelajaran berhasil dihapus!");
+      setTimeout(() => setMsg(""), 3000);
     } catch {
       setMsg("Gagal menghapus mata pelajaran");
     }
@@ -333,6 +374,8 @@ const AdminDashboard = () => {
       await api.delete(`/admin/grades/${id}`);
       const res = await api.get("/admin/grades");
       setGrades(res.data?.grades || []);
+      setMsg("Kelas berhasil dihapus!");
+      setTimeout(() => setMsg(""), 3000);
     } catch {
       setMsg("Gagal menghapus kelas");
     }
@@ -343,6 +386,8 @@ const AdminDashboard = () => {
       await api.delete(`/admin/grade-schedules/${id}`);
       const res = await api.get("/admin/grade-schedules");
       setGradeSchedules(res.data?.grade_schedules || []);
+      setMsg("Jadwal kelas berhasil dihapus!");
+      setTimeout(() => setMsg(""), 3000);
     } catch {
       setMsg("Gagal menghapus jadwal");
     }
@@ -393,6 +438,7 @@ const AdminDashboard = () => {
       
       await api.put(`/admin/teachers/${editTeacherModal.teacherId}`, updateData);
       setMsg(`Data guru ${editTeacherModal.teacherName} berhasil diupdate`);
+      setTimeout(() => setMsg(""), 3000);
       setEditTeacherModal({ open: false, teacherId: "", teacherName: "", teacherEmail: "", teacherNip: "", newPassword: "", confirmNewPassword: "" });
       // Reload teachers
       const res = await api.get("/admin/teachers");
@@ -411,6 +457,7 @@ const AdminDashboard = () => {
     try {
       await api.delete(`/admin/teachers/${teacherId}`);
       setMsg(`Guru ${teacherName} berhasil dihapus`);
+      setTimeout(() => setMsg(""), 3000);
       // Reload teachers
       const res = await api.get("/admin/teachers");
       setTeachers(res.data?.teachers || []);
@@ -444,6 +491,7 @@ const AdminDashboard = () => {
         password: newTeacherForm.password,
       });
       setMsg(`Guru ${newTeacherForm.name} berhasil ditambahkan`);
+      setTimeout(() => setMsg(""), 3000);
       setNewTeacherForm({ name: "", nip: "", email: "", phone: "", password: "", confirmPassword: "" });
       // Reload teachers
       const res = await api.get("/admin/teachers");
@@ -473,6 +521,7 @@ const AdminDashboard = () => {
         new_password: newPassword,
       });
       setMsg(`Password guru ${resetPasswordModal.teacherName} berhasil direset`);
+      setTimeout(() => setMsg(""), 3000);
       setResetPasswordModal({ open: false, teacherId: "", teacherName: "", teacherEmail: "" });
     } catch (err: any) {
       setMsg(err.response?.data?.detail || "Gagal mereset password");
@@ -750,7 +799,16 @@ const AdminDashboard = () => {
             {tab === "qr" && (
               <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
                 <div className="glass-card-light p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Generate QR Absensi</h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Generate QR Absensi</h3>
+                    <button
+                      onClick={() => setAddRoomModal({ open: true, name: "", room_code: "", geofence_radius: 150 })}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                    >
+                      <QrCode className="w-4 h-4 inline mr-1" />
+                      Tambah Ruangan
+                    </button>
+                  </div>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
                     Pilih jadwal kelas untuk generate token QR. Token berlaku 30 detik.
                   </p>
@@ -788,6 +846,81 @@ const AdminDashboard = () => {
                       {copied ? <Check className="w-4 h-4 text-green-600 dark:text-green-400" /> : <Copy className="w-4 h-4" />}
                       {copied ? "Tersalin!" : "Salin token"}
                     </button>
+                  </div>
+                )}
+                
+                {/* Add Room Modal */}
+                {addRoomModal.open && (
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+                    onClick={() => setAddRoomModal({ open: false, name: "", room_code: "", geofence_radius: 150 })}
+                  >
+                    <div
+                      className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Tambah Ruangan</h3>
+                        <button
+                          onClick={() => setAddRoomModal({ open: false, name: "", room_code: "", geofence_radius: 150 })}
+                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <form onSubmit={addRoom} className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nama Ruangan</label>
+                          <input
+                            type="text"
+                            placeholder="Contoh: Ruang Komputer 1"
+                            value={addRoomModal.name}
+                            onChange={(e) => setAddRoomModal({ ...addRoomModal, name: e.target.value })}
+                            className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kode Ruangan</label>
+                          <input
+                            type="text"
+                            placeholder="Contoh: RK01"
+                            value={addRoomModal.room_code}
+                            onChange={(e) => setAddRoomModal({ ...addRoomModal, room_code: e.target.value })}
+                            className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Radius Geofence (meter)</label>
+                          <input
+                            type="number"
+                            placeholder="150"
+                            value={addRoomModal.geofence_radius}
+                            onChange={(e) => setAddRoomModal({ ...addRoomModal, geofence_radius: parseInt(e.target.value) || 150 })}
+                            className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                            min="1"
+                            max="1000"
+                          />
+                        </div>
+                        <div className="flex gap-3 pt-4">
+                          <button
+                            type="button"
+                            onClick={() => setAddRoomModal({ open: false, name: "", room_code: "", geofence_radius: 150 })}
+                            className="flex-1 px-4 py-2 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"
+                          >
+                            Batal
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={addRoomLoading}
+                            className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                          >
+                            {addRoomLoading ? "Menyimpan..." : "Simpan Ruangan"}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
                   </div>
                 )}
               </div>
@@ -892,20 +1025,58 @@ const AdminDashboard = () => {
                     {subjects.length === 0 && (
                       <p className="p-4 text-sm text-gray-500 dark:text-gray-400">Belum ada mata pelajaran.</p>
                     )}
-                    {subjects.map((s) => (
-                      <div key={s.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">{s.name}</p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">{s.code} {s.description && `• ${s.description}`}</p>
+                    {subjects.map((s) => {
+                      // Find related grade schedules to show class and teacher info
+                      const relatedSchedules = gradeSchedules.filter(gs => gs.subject_id === s.id);
+                      const uniqueClasses = Array.from(new Set(relatedSchedules.map(gs => gs.grade_name))).filter(Boolean);
+                      const uniqueTeachers = Array.from(new Set(relatedSchedules.map(gs => gs.teacher_name))).filter(Boolean);
+                      
+                      return (
+                        <div key={s.id} className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <div>
+                              <p className="font-medium text-gray-900 dark:text-white">{s.name}</p>
+                              <p className="text-sm text-gray-600 dark:text-gray-400">
+                                {s.code} {s.description && `• ${s.description}`}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => deleteSubject(s.id)}
+                              className="px-3 py-1 text-sm bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-950/50 transition-colors"
+                            >
+                              Hapus
+                            </button>
+                          </div>
+                          
+                          {/* Enhanced info display */}
+                          <div className="mt-3 space-y-2">
+                            {s.jurusan_id && (
+                              <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                <GraduationCap className="w-3 h-3" />
+                                <span>Jurusan: {jurusanList.find(j => j.id === s.jurusan_id)?.name || 'N/A'}</span>
+                              </div>
+                            )}
+                            {uniqueClasses.length > 0 && (
+                              <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                <BookOpen className="w-3 h-3" />
+                                <span>Kelas: {uniqueClasses.join(', ')}</span>
+                              </div>
+                            )}
+                            {uniqueTeachers.length > 0 && (
+                              <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                <Users className="w-3 h-3" />
+                                <span>Guru: {uniqueTeachers.join(', ')}</span>
+                              </div>
+                            )}
+                            {uniqueClasses.length === 0 && uniqueTeachers.length === 0 && (
+                              <p className="text-xs text-gray-400 dark:text-gray-500 italic">
+                                Belum dijadwalkan - Tambahkan ke jadwal kelas untuk menampilkan info lengkap
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <button
-                          onClick={() => deleteSubject(s.id)}
-                          className="px-3 py-1 text-sm bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-950/50 transition-colors"
-                        >
-                          Hapus
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
