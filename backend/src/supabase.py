@@ -354,3 +354,240 @@ class SupabaseClient:
             query = query.eq("school_id", school_id)
         result = query.execute()
         return result.data
+
+    def get_jurusan(self, jurusan_id: str) -> Optional[dict]:
+        """Get jurusan by ID"""
+        client = self._get_client()
+        result = client.table("jurusan").select("*").eq("id", jurusan_id).execute()
+        return result.data[0] if result.data else None
+
+    def create_jurusan(self, school_id: str, name: str, code: str, description: str = None) -> str:
+        """Create new jurusan"""
+        client = self._get_client()
+        result = client.table("jurusan").insert({
+            "school_id": school_id,
+            "name": name,
+            "code": code,
+            "description": description
+        }).execute()
+        return result.data[0]["id"]
+
+    def update_jurusan(self, jurusan_id: str, **fields) -> bool:
+        """Update jurusan"""
+        client = self._get_client()
+        result = client.table("jurusan").update(fields).eq("id", jurusan_id).execute()
+        return bool(result.data)
+
+    def delete_jurusan(self, jurusan_id: str) -> bool:
+        """Delete jurusan"""
+        client = self._get_client()
+        result = client.table("jurusan").delete().eq("id", jurusan_id).execute()
+        return bool(result.data)
+
+    # Subjects operations
+    def get_all_subjects(self, school_id: str = None) -> List[dict]:
+        """Get all subjects"""
+        client = self._get_client()
+        query = client.table("subjects").select("*")
+        if school_id:
+            query = query.eq("school_id", school_id)
+        result = query.execute()
+        return result.data
+
+    def get_subject(self, subject_id: str) -> Optional[dict]:
+        """Get subject by ID"""
+        client = self._get_client()
+        result = client.table("subjects").select("*").eq("id", subject_id).execute()
+        return result.data[0] if result.data else None
+
+    def create_subject(self, name: str, code: str, jurusan_id: str, school_id: str, description: str = None) -> str:
+        """Create new subject"""
+        client = self._get_client()
+        result = client.table("subjects").insert({
+            "name": name,
+            "code": code,
+            "jurusan_id": jurusan_id,
+            "school_id": school_id,
+            "description": description
+        }).execute()
+        return result.data[0]["id"]
+
+    def update_subject(self, subject_id: str, **fields) -> bool:
+        """Update subject"""
+        client = self._get_client()
+        result = client.table("subjects").update(fields).eq("id", subject_id).execute()
+        return bool(result.data)
+
+    def delete_subject(self, subject_id: str) -> bool:
+        """Delete subject"""
+        client = self._get_client()
+        result = client.table("subjects").delete().eq("id", subject_id).execute()
+        return bool(result.data)
+
+    # Grades operations
+    def get_all_grades(self, school_id: str = None) -> List[dict]:
+        """Get all grades"""
+        client = self._get_client()
+        query = client.table("grades").select("*")
+        if school_id:
+            query = query.eq("school_id", school_id)
+        result = query.execute()
+        return result.data
+
+    def get_grade(self, grade_id: str) -> Optional[dict]:
+        """Get grade by ID"""
+        client = self._get_client()
+        result = client.table("grades").select("*").eq("id", grade_id).execute()
+        return result.data[0] if result.data else None
+
+    def create_grade(self, jurusan_id: str, school_id: str, name: str, grade_level: int) -> str:
+        """Create new grade"""
+        client = self._get_client()
+        result = client.table("grades").insert({
+            "jurusan_id": jurusan_id,
+            "school_id": school_id,
+            "name": name,
+            "grade_level": grade_level
+        }).execute()
+        return result.data[0]["id"]
+
+    def update_grade(self, grade_id: str, **fields) -> bool:
+        """Update grade"""
+        client = self._get_client()
+        result = client.table("grades").update(fields).eq("id", grade_id).execute()
+        return bool(result.data)
+
+    def delete_grade(self, grade_id: str) -> bool:
+        """Delete grade"""
+        client = self._get_client()
+        result = client.table("grades").delete().eq("id", grade_id).execute()
+        return bool(result.data)
+
+    # Grade Schedules operations
+    def get_all_grade_schedules(self, school_id: str = None) -> List[dict]:
+        """Get all grade schedules"""
+        client = self._get_client()
+        query = client.table("grade_schedules").select("*")
+        if school_id:
+            query = query.eq("school_id", school_id)
+        result = query.execute()
+        return result.data
+
+    def get_grade_schedules_by_grade(self, grade_id: str) -> List[dict]:
+        """Get grade schedules by grade"""
+        client = self._get_client()
+        result = client.table("grade_schedules").select("*").eq("grade_id", grade_id).execute()
+        return result.data
+
+    def get_grade_schedules_by_teacher(self, teacher_id: str) -> List[dict]:
+        """Get grade schedules by teacher"""
+        client = self._get_client()
+        result = client.table("grade_schedules").select("*").eq("teacher_id", teacher_id).execute()
+        return result.data
+
+    def get_grade_schedule(self, schedule_id: str) -> Optional[dict]:
+        """Get grade schedule by ID"""
+        client = self._get_client()
+        result = client.table("grade_schedules").select("*").eq("id", schedule_id).execute()
+        return result.data[0] if result.data else None
+
+    def create_grade_schedule(self, grade_id: str, subject_id: str, teacher_id: str,
+                             day_of_week: str, start_time: str, end_time: str,
+                             room_id: str = None) -> str:
+        """Create new grade schedule"""
+        client = self._get_client()
+        result = client.table("grade_schedules").insert({
+            "grade_id": grade_id,
+            "subject_id": subject_id,
+            "teacher_id": teacher_id,
+            "day_of_week": day_of_week,
+            "start_time": start_time,
+            "end_time": end_time,
+            "room_id": room_id
+        }).execute()
+        return result.data[0]["id"]
+
+    def update_grade_schedule(self, schedule_id: str, **fields) -> bool:
+        """Update grade schedule"""
+        client = self._get_client()
+        result = client.table("grade_schedules").update(fields).eq("id", schedule_id).execute()
+        return bool(result.data)
+
+    def delete_grade_schedule(self, schedule_id: str) -> bool:
+        """Delete grade schedule"""
+        client = self._get_client()
+        result = client.table("grade_schedules").delete().eq("id", schedule_id).execute()
+        return bool(result.data)
+
+    # QR Token operations
+    def get_all_qr_tokens(self, active_only: bool = True) -> List[dict]:
+        """Get all QR tokens"""
+        client = self._get_client()
+        query = client.table("qr_tokens").select("*")
+        if active_only:
+            query = query.eq("is_active", True)
+        result = query.execute()
+        return result.data
+
+    def get_qr_tokens_by_schedule(self, schedule_id: str) -> List[dict]:
+        """Get QR tokens by schedule"""
+        client = self._get_client()
+        result = client.table("qr_tokens").select("*").eq("schedule_id", schedule_id).execute()
+        return result.data
+
+    def create_qr_token(self, schedule_id: str, room_id: str, grade_id: str,
+                       subject_id: str, teacher_id: str, token: str, expires_at: str) -> str:
+        """Create new QR token"""
+        client = self._get_client()
+        result = client.table("qr_tokens").insert({
+            "schedule_id": schedule_id,
+            "room_id": room_id,
+            "grade_id": grade_id,
+            "subject_id": subject_id,
+            "teacher_id": teacher_id,
+            "token": token,
+            "expires_at": expires_at
+        }).execute()
+        return result.data[0]["id"]
+
+    def deactivate_qr_token(self, token_id: str) -> bool:
+        """Deactivate QR token"""
+        client = self._get_client()
+        result = client.table("qr_tokens").update({"is_active": False}).eq("id", token_id).execute()
+        return bool(result.data)
+
+    # User operations (additional)
+    def update_user(self, user_id: str, **fields) -> bool:
+        """Update user"""
+        client = self._get_client()
+        result = client.table("users").update(fields).eq("id", user_id).execute()
+        return bool(result.data)
+
+    def delete_user(self, user_id: str) -> bool:
+        """Delete user"""
+        client = self._get_client()
+        result = client.table("users").delete().eq("id", user_id).execute()
+        return bool(result.data)
+
+    # Leave operations (additional)
+    def get_all_leaves(self, status: str = None) -> List[dict]:
+        """Get all leave requests"""
+        client = self._get_client()
+        query = client.table("leave_requests").select("*")
+        if status:
+            query = query.eq("status", status)
+        result = query.execute()
+        return result.data
+
+    # Schedule operations (additional)
+    def update_schedule(self, schedule_id: str, **fields) -> bool:
+        """Update schedule"""
+        client = self._get_client()
+        result = client.table("schedules").update(fields).eq("id", schedule_id).execute()
+        return bool(result.data)
+
+    def delete_schedule(self, schedule_id: str) -> bool:
+        """Delete schedule"""
+        client = self._get_client()
+        result = client.table("schedules").delete().eq("id", schedule_id).execute()
+        return bool(result.data)
