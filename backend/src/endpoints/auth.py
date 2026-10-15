@@ -5,13 +5,9 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import Optional
 
-# Import correct DB client based on DEVELOPMENT mode
-if settings.DEVELOPMENT:
-    from src.local_db import LocalDBClient
-    db = LocalDBClient()
-else:
-    from src.supabase import SupabaseClient
-    db = SupabaseClient()
+# Import correct DB client via database.py helper
+from src.database import get_db
+db = get_db()
 
 router = APIRouter()
 
