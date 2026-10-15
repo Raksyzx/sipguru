@@ -1126,20 +1126,61 @@ const AdminDashboard = () => {
                     {grades.length === 0 && (
                       <p className="p-4 text-sm text-gray-500 dark:text-gray-400">Belum ada kelas.</p>
                     )}
-                    {grades.map((g) => (
-                      <div key={g.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">{g.name}</p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">Jurusan: {g.jurusan_name || "N/A"} • Tingkat {g.grade_level}</p>
+                    {grades.map((g) => {
+                      // Get jurusan name from multiple sources
+                      const jurusanName = g.jurusan_name || 
+                                         (g.jurusan_id ? jurusanList.find(j => j.id === g.jurusan_id)?.name : null) || 
+                                         'N/A';
+                      
+                      // Get related schedules info
+                      const relatedSchedules = gradeSchedules.filter(gs => gs.grade_id === g.id);
+                      const uniqueSubjects = Array.from(new Set(relatedSchedules.map(gs => gs.subject_name))).filter(Boolean);
+                      const uniqueTeachers = Array.from(new Set(relatedSchedules.map(gs => gs.teacher_name))).filter(Boolean);
+                      
+                      return (
+                        <div key={g.id} className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <div>
+                              <p className="font-medium text-gray-900 dark:text-white">{g.name}</p>
+                              <p className="text-sm text-gray-600 dark:text-gray-400">
+                                Tingkat {g.grade_level}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => deleteGrade(g.id)}
+                              className="px-3 py-1 text-sm bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-950/50 transition-colors"
+                            >
+                              Hapus
+                            </button>
+                          </div>
+                          
+                          {/* Enhanced info display */}
+                          <div className="mt-2 space-y-2">
+                            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                              <GraduationCap className="w-3 h-3" />
+                              <span>Jurusan: {jurusanName}</span>
+                            </div>
+                            {uniqueSubjects.length > 0 && (
+                              <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                <BookOpen className="w-3 h-3" />
+                                <span>Mapel: {uniqueSubjects.join(', ')}</span>
+                              </div>
+                            )}
+                            {uniqueTeachers.length > 0 && (
+                              <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                <Users className="w-3 h-3" />
+                                <span>Guru: {uniqueTeachers.join(', ')}</span>
+                              </div>
+                            )}
+                            {uniqueSubjects.length === 0 && uniqueTeachers.length === 0 && (
+                              <p className="text-xs text-gray-400 dark:text-gray-500 italic">
+                                Belum ada jadwal - Tambahkan ke jadwal kelas untuk menampilkan info lengkap
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <button
-                          onClick={() => deleteGrade(g.id)}
-                          className="px-3 py-1 text-sm bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-950/50 transition-colors"
-                        >
-                          Hapus
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>

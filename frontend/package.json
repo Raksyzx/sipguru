@@ -2,6 +2,7 @@
   "name": "sipguru-frontend",
   "version": "1.0.0",
   "description": "SIPGURU - Teacher Attendance System Frontend",
+  "author": "Raksyz <rakanovianyudistira@gmail.com>",
   "type": "module",
   "scripts": {
     "dev": "vite",
