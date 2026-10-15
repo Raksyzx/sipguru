@@ -1,0 +1,20 @@
+[env]
+# SIPGURU - ESP32 QR Attendance Simulator
+# Synced with Railway Backend: https://sipguru-production.up.railway.app
+
+chip = "esp32"
+wifi = "Wokwi-GUEST"
+
+# NTP Time Server (WIB - Western Indonesian Time)
+ntpServer1 = "pool.ntp.org"
+ntpServer2 = "time.nist.gov"
+timezone = "UTC-7"
+
+# Backend Configuration
+backend_url = "https://sipguru-production.up.railway.app"
+
+# QR Token Settings
+qr_token_validity = 30000  # 30 seconds
+
+# Debug
+serial_baud = 115200
