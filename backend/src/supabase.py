@@ -465,12 +465,19 @@ class SupabaseClient:
 
     # Grade Schedules operations
     def get_all_grade_schedules(self, school_id: str = None) -> List[dict]:
-        """Get all grade schedules"""
+        """Get all grade schedules (optionally filtered by school via grades table)"""
         client = self._get_client()
-        query = client.table("grade_schedules").select("*")
+        # grade_schedules doesn't have school_id, so we join with grades
         if school_id:
-            query = query.eq("school_id", school_id)
-        result = query.execute()
+            # First get all grades for this school
+            grades_result = client.table("grades").select("id").eq("school_id", school_id).execute()
+            grade_ids = [g["id"] for g in grades_result.data]
+            if not grade_ids:
+                return []
+            # Then get schedules for these grades
+            result = client.table("grade_schedules").select("*").in_("grade_id", grade_ids).execute()
+        else:
+            result = client.table("grade_schedules").select("*").execute()
         return result.data
 
     def get_grade_schedules_by_grade(self, grade_id: str) -> List[dict]:
