@@ -478,7 +478,27 @@ class SupabaseClient:
             result = client.table("grade_schedules").select("*").in_("grade_id", grade_ids).execute()
         else:
             result = client.table("grade_schedules").select("*").execute()
-        return result.data
+        
+        schedules = result.data or []
+        # Enrich with names (same as get_grade_schedules_by_grade)
+        enriched = []
+        for s in schedules:
+            grade = self.get_grade(s["grade_id"])
+            subject = self.get_subject(s["subject_id"])
+            teacher = self.get_user(s["teacher_id"])
+            room = self.get_room(s.get("room_id")) if s.get("room_id") else None
+            jurusan = None
+            if grade and grade.get("jurusan_id"):
+                jurusan = self.get_jurusan(grade["jurusan_id"])
+            enriched.append({
+                **s,
+                "grade_name": grade["name"] if grade else "N/A",
+                "subject_name": subject["name"] if subject else "N/A",
+                "teacher_name": teacher["name"] if teacher else "N/A",
+                "room_name": room["name"] if room else "N/A",
+                "jurusan_name": jurusan["name"] if jurusan else "N/A"
+            })
+        return enriched
 
     def get_grade_schedules_by_grade(self, grade_id: str) -> List[dict]:
         """Get grade schedules by grade with JOINs for names"""
