@@ -291,6 +291,15 @@ const AdminDashboard = () => {
   const addSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSchedule.grade_id || !newSchedule.subject_id || !newSchedule.teacher_id) return;
+    
+    // Validate: Mapel dan Kelas harus satu jurusan
+    const grade = grades.find(g => g.id === newSchedule.grade_id);
+    const subject = subjects.find(s => s.id === newSchedule.subject_id);
+    if (grade?.jurusan_id && subject?.jurusan_id && grade.jurusan_id !== subject.jurusan_id) {
+      setMsg("Mapel dan kelas harus satu jurusan!");
+      return;
+    }
+    
     try {
       await api.post("/admin/grade-schedules", newSchedule);
       const res = await api.get("/admin/grade-schedules");
