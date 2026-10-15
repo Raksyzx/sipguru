@@ -481,22 +481,66 @@ class SupabaseClient:
         return result.data
 
     def get_grade_schedules_by_grade(self, grade_id: str) -> List[dict]:
-        """Get grade schedules by grade"""
+        """Get grade schedules by grade with JOINs for names"""
         client = self._get_client()
-        result = client.table("grade_schedules").select("*").eq("grade_id", grade_id).execute()
-        return result.data
+        # Supabase doesn't support JOINs, so we fetch and enrich manually
+        result = client.table("grade_schedules").select("*").eq("grade_id", grade_id).eq("is_active", True).execute()
+        schedules = result.data or []
+        # Enrich with names
+        enriched = []
+        for s in schedules:
+            grade = self.get_grade(s["grade_id"])
+            subject = self.get_subject(s["subject_id"])
+            teacher = self.get_user(s["teacher_id"])
+            room = self.get_room(s.get("room_id")) if s.get("room_id") else None
+            enriched.append({
+                **s,
+                "grade_name": grade["name"] if grade else "N/A",
+                "subject_name": subject["name"] if subject else "N/A",
+                "teacher_name": teacher["name"] if teacher else "N/A",
+                "room_name": room["name"] if room else "N/A"
+            })
+        return enriched
 
     def get_grade_schedules_by_teacher(self, teacher_id: str) -> List[dict]:
-        """Get grade schedules by teacher"""
+        """Get grade schedules by teacher with JOINs for names"""
         client = self._get_client()
-        result = client.table("grade_schedules").select("*").eq("teacher_id", teacher_id).execute()
-        return result.data
+        result = client.table("grade_schedules").select("*").eq("teacher_id", teacher_id).eq("is_active", True).execute()
+        schedules = result.data or []
+        # Enrich with names
+        enriched = []
+        for s in schedules:
+            grade = self.get_grade(s["grade_id"])
+            subject = self.get_subject(s["subject_id"])
+            teacher = self.get_user(s["teacher_id"])
+            room = self.get_room(s.get("room_id")) if s.get("room_id") else None
+            enriched.append({
+                **s,
+                "grade_name": grade["name"] if grade else "N/A",
+                "subject_name": subject["name"] if subject else "N/A",
+                "teacher_name": teacher["name"] if teacher else "N/A",
+                "room_name": room["name"] if room else "N/A"
+            })
+        return enriched
 
     def get_grade_schedule(self, schedule_id: str) -> Optional[dict]:
-        """Get grade schedule by ID"""
+        """Get grade schedule by ID with JOINs for names"""
         client = self._get_client()
         result = client.table("grade_schedules").select("*").eq("id", schedule_id).execute()
-        return result.data[0] if result.data else None
+        if not result.data:
+            return None
+        s = result.data[0]
+        grade = self.get_grade(s["grade_id"])
+        subject = self.get_subject(s["subject_id"])
+        teacher = self.get_user(s["teacher_id"])
+        room = self.get_room(s.get("room_id")) if s.get("room_id") else None
+        return {
+            **s,
+            "grade_name": grade["name"] if grade else "N/A",
+            "subject_name": subject["name"] if subject else "N/A",
+            "teacher_name": teacher["name"] if teacher else "N/A",
+            "room_name": room["name"] if room else "N/A"
+        }
 
     def create_grade_schedule(self, grade_id: str, subject_id: str, teacher_id: str,
                              day_of_week: str, start_time: str, end_time: str,
