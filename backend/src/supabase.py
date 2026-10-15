@@ -108,6 +108,28 @@ class SupabaseClient:
         }).execute()
         return result.data[0]["id"]
     
+    def update_room(self, room_id: str, name: str = None, room_code: str = None,
+                   geofence_radius: int = None, geolocation: str = None) -> bool:
+        """Update room"""
+        client = self._get_client()
+        fields = {}
+        if name:
+            fields["name"] = name
+        if room_code:
+            fields["room_code"] = room_code
+        if geofence_radius is not None:
+            fields["geofence_radius"] = geofence_radius
+        if geolocation:
+            fields["geolocation"] = geolocation
+        result = client.table("rooms").update(fields).eq("id", room_id).execute()
+        return bool(result.data)
+    
+    def delete_room(self, room_id: str) -> bool:
+        """Delete room"""
+        client = self._get_client()
+        result = client.table("rooms").delete().eq("id", room_id).execute()
+        return bool(result.data)
+    
     # Schedule operations
     def get_schedule_by_teacher_and_day(self, teacher_id: str, 
                                         day_of_week: str, 

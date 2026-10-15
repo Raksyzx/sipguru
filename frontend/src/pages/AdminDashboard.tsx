@@ -33,6 +33,8 @@ interface Room {
   id: string;
   name: string;
   room_code: string;
+  geofence_radius?: number;
+  geolocation?: string;
 }
 
 interface Leave {
@@ -130,6 +132,7 @@ const AdminDashboard = () => {
 
   // Add Room Modal State
   const [addRoomModal, setAddRoomModal] = useState({ open: false, name: "", room_code: "", geofence_radius: 150 });
+  const [editRoomModal, setEditRoomModal] = useState({ open: false, id: "", name: "", room_code: "", geofence_radius: 150 });
   const [addRoomLoading, setAddRoomLoading] = useState(false);
 
   // Reset Password Modal State
@@ -310,6 +313,38 @@ const AdminDashboard = () => {
       setMsg("Gagal menambah ruangan");
     } finally {
       setAddRoomLoading(false);
+    }
+  };
+
+  const updateRoom = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editRoomModal.id) return;
+    try {
+      await api.put(`/admin/rooms/${editRoomModal.id}`, {
+        name: editRoomModal.name,
+        room_code: editRoomModal.room_code,
+        geofence_radius: editRoomModal.geofence_radius,
+      });
+      const res = await api.get("/admin/rooms");
+      setRooms(res.data?.rooms || []);
+      setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150 });
+      setMsg("Ruangan berhasil diupdate!");
+      setTimeout(() => setMsg(""), 3000);
+    } catch {
+      setMsg("Gagal mengupdate ruangan");
+    }
+  };
+
+  const deleteRoom = async (id: string) => {
+    if (!confirm("Hapus ruangan ini?")) return;
+    try {
+      await api.delete(`/admin/rooms/${id}`);
+      const res = await api.get("/admin/rooms");
+      setRooms(res.data?.rooms || []);
+      setMsg("Ruangan berhasil dihapus!");
+      setTimeout(() => setMsg(""), 3000);
+    } catch {
+      setMsg("Gagal menghapus ruangan");
     }
   };
 
@@ -849,6 +884,50 @@ const AdminDashboard = () => {
                   </div>
                 )}
                 
+                {/* Room List with Geofence Customization */}
+                <div className="glass-card-light overflow-hidden mt-6">
+                  <div className="p-6 border-b border-gray-100 dark:border-gray-800">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Daftar Ruangan</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Kustomisasi radius geofence per ruangan</p>
+                  </div>
+                  <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {rooms.length === 0 && (
+                      <p className="p-4 text-sm text-gray-500 dark:text-gray-400">Belum ada ruangan. Klik "Tambah Ruangan" untuk memulai.</p>
+                    )}
+                    {rooms.map((r) => (
+                      <div key={r.id} className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-white">{r.name}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">Kode: {r.room_code}</p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="px-3 py-1 text-xs font-medium bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 rounded-full">
+                              Radius: {r.geofence_radius || 150}m
+                            </span>
+                            <button
+                              onClick={() => setEditRoomModal({ open: true, id: r.id, name: r.name, room_code: r.room_code, geofence_radius: r.geofence_radius || 150 })}
+                              className="px-3 py-1 text-xs bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-950/50 transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => deleteRoom(r.id)}
+                              className="px-3 py-1 text-xs bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-950/50 transition-colors"
+                            >
+                              Hapus
+                            </button>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 text-xs text-gray-500 dark:text-gray-400">
+                          <span>Geofence aktif: <span className="font-medium text-emerald-600 dark:text-emerald-400">{r.geofence_radius || 150}m</span></span>
+                          <span>Lokasi: {r.geolocation || 'Belum diset'}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Add Room Modal */}
                 {addRoomModal.open && (
                   <div
@@ -917,6 +996,80 @@ const AdminDashboard = () => {
                             className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
                           >
                             {addRoomLoading ? "Menyimpan..." : "Simpan Ruangan"}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
+
+                {/* Edit Room Modal */}
+                {editRoomModal.open && (
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+                    onClick={() => setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150 })}
+                  >
+                    <div
+                      className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Edit Ruangan</h3>
+                        <button
+                          onClick={() => setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150 })}
+                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <form onSubmit={updateRoom} className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nama Ruangan</label>
+                          <input
+                            type="text"
+                            placeholder="Contoh: Ruang Komputer 1"
+                            value={editRoomModal.name}
+                            onChange={(e) => setEditRoomModal({ ...editRoomModal, name: e.target.value })}
+                            className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kode Ruangan</label>
+                          <input
+                            type="text"
+                            placeholder="Contoh: RK01"
+                            value={editRoomModal.room_code}
+                            onChange={(e) => setEditRoomModal({ ...editRoomModal, room_code: e.target.value })}
+                            className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Radius Geofence (meter)</label>
+                          <input
+                            type="number"
+                            placeholder="150"
+                            value={editRoomModal.geofence_radius}
+                            onChange={(e) => setEditRoomModal({ ...editRoomModal, geofence_radius: parseInt(e.target.value) || 150 })}
+                            className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                            min="1"
+                            max="1000"
+                          />
+                        </div>
+                        <div className="flex gap-3 pt-4">
+                          <button
+                            type="button"
+                            onClick={() => setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150 })}
+                            className="flex-1 px-4 py-2 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"
+                          >
+                            Batal
+                          </button>
+                          <button
+                            type="submit"
+                            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                          >
+                            Simpan Perubahan
                           </button>
                         </div>
                       </form>

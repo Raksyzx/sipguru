@@ -182,6 +182,39 @@ async def create_room(
     )
     return {"message": "Room created", "room_id": room_id}
 
+@router.put("/rooms/{room_id}")
+async def update_room(
+    room_id: str,
+    data: dict,
+    auth_user: dict = Depends(require_admin)
+):
+    """Update room geofence radius (admin only)"""
+    room = db.get_room(room_id)
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    
+    success = db.update_room(
+        room_id=room_id,
+        name=data.get("name"),
+        room_code=data.get("room_code"),
+        geofence_radius=data.get("geofence_radius"),
+        geolocation=data.get("geolocation")
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update room")
+    return {"message": "Room updated"}
+
+@router.delete("/rooms/{room_id}")
+async def delete_room(
+    room_id: str,
+    auth_user: dict = Depends(require_admin)
+):
+    """Delete room (admin only)"""
+    success = db.delete_room(room_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Room not found")
+    return {"message": "Room deleted"}
+
 @router.get("/schedules")
 async def get_schedules(
     auth_user: dict = Depends(require_admin)
