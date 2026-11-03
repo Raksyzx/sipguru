@@ -348,7 +348,8 @@ const AdminDashboard = () => {
     }
   };
 
-  const deleteJurusan = async (id: string) => {
+  const deleteJurusan = async (id: string, name: string) => {
+    if (!window.confirm(`Yakin ingin menghapus jurusan "${name}"? Tindakan ini tidak dapat dibatalkan.`)) return;
     try {
       await api.delete(`/admin/jurusan/${id}`);
       const res = await api.get("/admin/jurusan");
@@ -357,6 +358,7 @@ const AdminDashboard = () => {
       setTimeout(() => setMsg(""), 3000);
     } catch {
       setMsg("Gagal menghapus jurusan");
+      setTimeout(() => setMsg(""), 3000);
     }
   };
 
@@ -392,7 +394,8 @@ const AdminDashboard = () => {
     }
   };
 
-  const deleteSubject = async (id: string) => {
+  const deleteSubject = async (id: string, name: string) => {
+    if (!window.confirm(`Yakin ingin menghapus mapel "${name}"?`)) return;
     try {
       await api.delete(`/admin/subjects/${id}`);
       const res = await api.get("/admin/subjects");
@@ -401,10 +404,12 @@ const AdminDashboard = () => {
       setTimeout(() => setMsg(""), 3000);
     } catch {
       setMsg("Gagal menghapus mata pelajaran");
+      setTimeout(() => setMsg(""), 3000);
     }
   };
 
-  const deleteGrade = async (id: string) => {
+  const deleteGrade = async (id: string, name: string) => {
+    if (!window.confirm(`Yakin ingin menghapus kelas "${name}"?`)) return;
     try {
       await api.delete(`/admin/grades/${id}`);
       const res = await api.get("/admin/grades");
@@ -413,6 +418,7 @@ const AdminDashboard = () => {
       setTimeout(() => setMsg(""), 3000);
     } catch {
       setMsg("Gagal menghapus kelas");
+      setTimeout(() => setMsg(""), 3000);
     }
   };
 
@@ -1194,7 +1200,7 @@ const AdminDashboard = () => {
                               </p>
                             </div>
                             <button
-                              onClick={() => deleteSubject(s.id)}
+                              onClick={() => deleteSubject(s.id, s.name)}
                               className="px-3 py-1 text-sm bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-950/50 transition-colors"
                             >
                               Hapus
@@ -1300,7 +1306,7 @@ const AdminDashboard = () => {
                               </p>
                             </div>
                             <button
-                              onClick={() => deleteGrade(g.id)}
+                              onClick={() => deleteGrade(g.id, g.name)}
                               className="px-3 py-1 text-sm bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-950/50 transition-colors"
                             >
                               Hapus
@@ -1387,7 +1393,7 @@ const AdminDashboard = () => {
                           <p className="text-sm text-gray-600 dark:text-gray-400">{j.code} {j.description && `• ${j.description}`}</p>
                         </div>
                         <button
-                          onClick={() => deleteJurusan(j.id)}
+                          onClick={() => deleteJurusan(j.id, j.name)}
                           className="px-3 py-1 text-sm bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-950/50 transition-colors"
                         >
                           Hapus

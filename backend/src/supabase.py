@@ -401,8 +401,13 @@ class SupabaseClient:
         return bool(result.data)
 
     def delete_jurusan(self, jurusan_id: str) -> bool:
-        """Delete jurusan"""
+        """Delete jurusan with cascade (remove from grades & subjects first)"""
         client = self._get_client()
+        # 1. Remove jurusan_id from grades that reference it
+        client.table("grades").update({"jurusan_id": None}).eq("jurusan_id", jurusan_id).execute()
+        # 2. Remove jurusan_id from subjects that reference it
+        client.table("subjects").update({"jurusan_id": None}).eq("jurusan_id", jurusan_id).execute()
+        # 3. Delete jurusan
         result = client.table("jurusan").delete().eq("id", jurusan_id).execute()
         return bool(result.data)
 
