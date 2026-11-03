@@ -629,7 +629,8 @@ class SupabaseClient:
         return result.data
 
     def create_qr_token(self, schedule_id: str, room_id: str, grade_id: str,
-                       subject_id: str, teacher_id: str, token: str, expires_at: str) -> str:
+                       subject_id: str, teacher_id: str, token: str, expires_at: str,
+                       token_type: str = 'entry', state: str = 'scheduled') -> str:
         """Create new QR token"""
         client = self._get_client()
         result = client.table("qr_tokens").insert({
@@ -639,9 +640,47 @@ class SupabaseClient:
             "subject_id": subject_id,
             "teacher_id": teacher_id,
             "token": token,
-            "expires_at": expires_at
+            "expires_at": expires_at,
+            "token_type": token_type,
+            "state": state
         }).execute()
         return result.data[0]["id"]
+    
+    def update_qr_token_state(self, token: str, state: str, scanned_at: str = None) -> bool:
+        """Update QR token state (entry scanned, exit scanned, etc)"""
+        client = self._get_client()
+        update_data = {"state": state}
+        if scanned_at:
+            update_data["scanned_at"] = scanned_at
+        result = client.table("qr_tokens").update(update_data).eq("token", token).execute()
+        return bool(result.data)
+    
+    def get_qr_token(self, token: str) -> Optional[dict]:
+        """Get QR token by token string"""
+        client = self._get_client()
+        result = client.table("qr_tokens").select("*").eq("token", token).eq("is_active", True).execute()
+        return result.data[0] if result.data else None
+    
+    def get_schedules_by_room_and_day(self, room_id: str, day_of_week: str) -> List[dict]:
+        """Get all grade schedules for a room on a specific day"""
+        client = self._get_client()
+        result = client.table("grade_schedules").select("""
+            *,
+            grades(name),
+            subjects(name),
+            users(name),
+            rooms(name)
+        """).eq("room_id", room_id).eq("day_of_week", day_of_week).eq("is_active", True).execute()
+        return result.data
+    
+    def update_schedule_state(self, schedule_id: str, state: str, early_start: str = None) -> bool:
+        """Update schedule state (for early request approval)"""
+        client = self._get_client()
+        update_data = {"state": state}
+        if early_start:
+            update_data["start_time"] = early_start.split("T")[1][:5]
+        result = client.table("grade_schedules").update(update_data).eq("id", schedule_id).execute()
+        return bool(result.data)
 
     def deactivate_qr_token(self, token_id: str) -> bool:
         """Deactivate QR token"""

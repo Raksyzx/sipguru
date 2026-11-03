@@ -89,10 +89,12 @@ async def submit_attendance(
     
     QR tokens bound to grade_schedules (jurusan/kelas+mapel+guru+room) are validated
     against the teacher's identity and the schedule.
+    Updates QR token state to 'entry_scanned' or 'exit_scanned' based on token_type.
     """
     teacher_id = auth_user["user_id"]
     now = datetime.now()
     reasons: list[str] = []
+    token_type = "entry"  # Default to entry
 
     # Layer 1: QR token
     token_data = verify_hmac_token(data.qr_token, settings.JWT_SECRET)
@@ -111,6 +113,8 @@ async def submit_attendance(
             # Check schedule matches (optional - could cross-check with schedule_id in token)
             if qr_token_data["schedule_id"] != token_data["schedule_id"]:
                 reasons.append("QR token tidak cocok dengan jadwal")
+            # Get token type for state update
+            token_type = qr_token_data.get("token_type", "entry")
 
     room = db.get_room(data.room_id)
     if not room:
@@ -154,6 +158,9 @@ async def submit_attendance(
         lateness_minutes=lateness,
     )
 
+    # Update QR token state to scanned
+    db.update_qr_token_state(data.qr_token, f"{token_type}_scanned", now.isoformat())
+
     msg = "Presensi berhasil" if status == "on_time" else f"Terlambat {lateness} menit"
     return {
         "message": msg,
@@ -172,6 +179,7 @@ async def submit_attendance(
             "timestamp": now.strftime("%H:%M:%S"),
             "status_text": "TEPAT WAKTU" if status == "on_time" else f"TERLAMBAT {lateness} MENIT",
             "status_color": "green" if status == "on_time" else "orange",
+            "token_type": token_type,  # For ESP32 to know if entry or exit
         }
     }
 

@@ -50,15 +50,17 @@ class LocalDBClient:
         """)
         
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS rooms (
+            CREATE TABLE IF NOT EXISTS qr_tokens (
                 id TEXT PRIMARY KEY,
-                school_id TEXT NOT NULL,
-                name TEXT NOT NULL,
-                room_code TEXT UNIQUE NOT NULL,
-                geofence_radius INTEGER DEFAULT 150,
-                geolocation TEXT,
+                schedule_id TEXT NOT NULL,
+                token TEXT UNIQUE NOT NULL,
+                expires_at TEXT NOT NULL,
+                is_used INTEGER DEFAULT 0,
+                used_at TEXT,
+                token_type TEXT DEFAULT 'entry',
+                state TEXT DEFAULT 'scheduled',
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (school_id) REFERENCES schools(id)
+                FOREIGN KEY (schedule_id) REFERENCES schedules(id)
             )
         """)
         
@@ -199,6 +201,19 @@ class LocalDBClient:
         """)
 
         cursor.execute("""
+            CREATE TABLE IF NOT EXISTS rooms (
+                id TEXT PRIMARY KEY,
+                school_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                room_code TEXT UNIQUE NOT NULL,
+                geofence_radius INTEGER DEFAULT 150,
+                geolocation TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (school_id) REFERENCES schools(id)
+            )
+        """)
+        
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS qr_tokens (
                 id TEXT PRIMARY KEY,
                 schedule_id TEXT NOT NULL,
@@ -209,6 +224,9 @@ class LocalDBClient:
                 token TEXT UNIQUE NOT NULL,
                 expires_at TEXT NOT NULL,
                 is_active INTEGER DEFAULT 1,
+                token_type TEXT DEFAULT 'entry',
+                state TEXT DEFAULT 'scheduled',
+                scanned_at TEXT,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (schedule_id) REFERENCES grade_schedules(id),
                 FOREIGN KEY (room_id) REFERENCES rooms(id),
@@ -1036,15 +1054,16 @@ class LocalDBClient:
 
     # QR Token operations
     def create_qr_token(self, schedule_id: str, room_id: str, grade_id: str,
-                        subject_id: str, teacher_id: str, token: str, expires_at: str) -> str:
+                        subject_id: str, teacher_id: str, token: str, expires_at: str,
+                        token_type: str = 'entry', state: str = 'scheduled') -> str:
         """Create QR token record"""
         qr_id = self._generate_id()
         conn = self._get_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO qr_tokens (id, schedule_id, room_id, grade_id, subject_id, teacher_id, token, expires_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (qr_id, schedule_id, room_id, grade_id, subject_id, teacher_id, token, expires_at))
+            INSERT INTO qr_tokens (id, schedule_id, room_id, grade_id, subject_id, teacher_id, token, expires_at, token_type, state)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (qr_id, schedule_id, room_id, grade_id, subject_id, teacher_id, token, expires_at, token_type, state))
         conn.commit()
         conn.close()
         return qr_id
@@ -1110,6 +1129,56 @@ class LocalDBClient:
         conn = self._get_connection()
         cursor = conn.cursor()
         cursor.execute("UPDATE qr_tokens SET is_active = 0 WHERE id = ?", (qr_id,))
+        conn.commit()
+        conn.close()
+        return cursor.rowcount > 0
+    
+    def update_qr_token_state(self, token: str, state: str, scanned_at: str = None) -> bool:
+        """Update QR token state (entry scanned, exit scanned, etc)"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        if scanned_at:
+            cursor.execute("""
+                UPDATE qr_tokens SET state = ?, scanned_at = ? WHERE token = ?
+            """, (state, scanned_at, token))
+        else:
+            cursor.execute("""
+                UPDATE qr_tokens SET state = ? WHERE token = ?
+            """, (state, token))
+        conn.commit()
+        conn.close()
+        return cursor.rowcount > 0
+    
+    def get_schedules_by_room_and_day(self, room_id: str, day_of_week: str) -> List[Dict]:
+        """Get all grade schedules for a room on a specific day"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT gs.*, g.name as grade_name, s.name as subject_name, u.name as teacher_name, r.name as room_name
+            FROM grade_schedules gs
+            JOIN grades g ON gs.grade_id = g.id
+            JOIN subjects s ON gs.subject_id = s.id
+            JOIN users u ON gs.teacher_id = u.id
+            JOIN rooms r ON gs.room_id = r.id
+            WHERE gs.room_id = ? AND gs.day_of_week = ? AND gs.is_active = 1
+            ORDER BY gs.start_time
+        """, (room_id, day_of_week))
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+    
+    def update_schedule_state(self, schedule_id: str, state: str, early_start: str = None) -> bool:
+        """Update schedule state (for early request approval)"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        if early_start:
+            cursor.execute("""
+                UPDATE grade_schedules SET start_time = ?, state = ? WHERE id = ?
+            """, (early_start.split("T")[1][:5], state, schedule_id))
+        else:
+            cursor.execute("""
+                UPDATE grade_schedules SET state = ? WHERE id = ?
+            """, (state, schedule_id))
         conn.commit()
         conn.close()
         return cursor.rowcount > 0

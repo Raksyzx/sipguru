@@ -241,3 +241,166 @@ async def delete_qr_token(
     if not success:
         raise HTTPException(status_code=404, detail="QR token not found")
     return {"message": "QR token deactivated"}
+
+
+@router.get("/room-state/{room_code}")
+async def get_room_state(room_code: str):
+    """Get current room state and schedule for ESP32 auto-QR system"""
+    from datetime import datetime, timedelta
+    
+    room = db.get_room_by_code(room_code)
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    
+    room_id = room["id"]
+    now = datetime.now()
+    current_time = now.strftime("%H:%M")
+    day_of_week = now.strftime("%A").upper()
+    
+    # Get today's schedules for this room
+    schedules = db.get_schedules_by_room_and_day(room_id, day_of_week)
+    
+    current_schedule = None
+    next_schedule = None
+    state = "IDLE"
+    
+    for schedule in schedules:
+        start_time = schedule.get("start_time", "00:00")
+        end_time = schedule.get("end_time", "00:00")
+        
+        # Check if current class is active (within class time + 10 min grace)
+        start_dt = datetime.strptime(start_time, "%H:%M")
+        end_dt = datetime.strptime(end_time, "%H:%M")
+        grace_end = end_dt + timedelta(minutes=10)
+        
+        if start_dt <= now.replace(second=0, microsecond=0) <= grace_end:
+            current_schedule = schedule
+            # Check if entry has been scanned
+            qr_tokens = db.get_qr_tokens_by_schedule(schedule["id"])
+            entry_scanned = any(t.get("token_type") == "entry" and t.get("scanned_at") for t in qr_tokens)
+            exit_scanned = any(t.get("token_type") == "exit" and t.get("scanned_at") for t in qr_tokens)
+            
+            if exit_scanned:
+                state = "CLASS_ENDED"
+            elif entry_scanned:
+                state = "CLASS_ACTIVE"
+            elif now > end_dt + timedelta(minutes=10):
+                state = "TEACHER_ABSENT"
+            else:
+                state = "CLASS_ACTIVE"
+            break
+        
+        # Check if this is the next class (within 15 minutes)
+        if start_dt > now.replace(second=0, microsecond=0):
+            minutes_until = (start_dt - now).total_seconds() / 60
+            if minutes_until <= 15 and next_schedule is None:
+                next_schedule = schedule
+                if minutes_until <= 15:
+                    state = "PRE_CLASS" if state == "IDLE" else state
+    
+    return {
+        "room_id": room_id,
+        "room_code": room_code,
+        "room_name": room.get("name"),
+        "current_time": current_time,
+        "day_of_week": day_of_week,
+        "state": state,
+        "current_schedule": current_schedule,
+        "next_schedule": next_schedule
+    }
+
+
+@router.post("/auto-token/{schedule_id}")
+async def generate_auto_qr_token(
+    schedule_id: str,
+    token_type: str = "entry"  # "entry" or "exit"
+):
+    """Auto-generate QR token for current/next schedule (for ESP32)"""
+    from datetime import datetime, timedelta
+    
+    schedule = db.get_grade_schedule(schedule_id)
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    
+    room_id = schedule.get("room_id")
+    if not room_id:
+        raise HTTPException(status_code=400, detail="Schedule must have a room assigned")
+    
+    room = db.get_room(room_id)
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    
+    # Generate token
+    token = generate_hmac_token(
+        room_id=room_id,
+        schedule_id=schedule_id,
+        subject_id=schedule.get("subject_id"),
+        teacher_id=schedule.get("teacher_id"),
+        grade_id=schedule.get("grade_id"),
+        expiry_seconds=settings.QR_EXPIRY_SECONDS,
+        secret=settings.JWT_SECRET
+    )
+    
+    expires_at = (datetime.now() + timedelta(seconds=settings.QR_EXPIRY_SECONDS)).isoformat()
+    qr_id = db.create_qr_token(
+        schedule_id=schedule_id,
+        room_id=room_id,
+        grade_id=schedule["grade_id"],
+        subject_id=schedule["subject_id"],
+        teacher_id=schedule["teacher_id"],
+        token=token,
+        expires_at=expires_at,
+        token_type=token_type,
+        state="scheduled"
+    )
+    
+    # Get names for display
+    grade = db.get_grade(schedule["grade_id"])
+    subject = db.get_subject(schedule["subject_id"])
+    teacher = db.get_user(schedule["teacher_id"])
+    
+    return {
+        "qr_id": qr_id,
+        "token": token,
+        "token_type": token_type,
+        "schedule_id": schedule_id,
+        "room_id": room_id,
+        "subject_name": subject.get("name") if subject else "N/A",
+        "teacher_name": teacher.get("name") if teacher else "N/A",
+        "grade_name": grade.get("name") if grade else "N/A",
+        "room_name": room.get("name"),
+        "expires_at": expires_at,
+        "expires_in": settings.QR_EXPIRY_SECONDS
+    }
+
+
+@router.post("/early-request")
+async def request_early_class(
+    schedule_id: str,
+    requested_start: str,  # ISO format datetime
+    auth_user: dict = Depends(get_current_user)
+):
+    """Teacher requests to start class early (if previous slot is empty)"""
+    from datetime import datetime
+    
+    schedule = db.get_grade_schedule(schedule_id)
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    
+    if schedule.get("teacher_id") != auth_user.get("user_id"):
+        raise HTTPException(status_code=403, detail="Not authorized for this schedule")
+    
+    # Check if previous time slot is empty (simplified: just check if room is free)
+    room_id = schedule.get("room_id")
+    requested_dt = datetime.fromisoformat(requested_start)
+    
+    # TODO: Check if room is free at requested time
+    # For now, just mark the schedule as early_approved
+    db.update_schedule_state(schedule_id, "early_approved", requested_start)
+    
+    return {
+        "message": "Early class request submitted",
+        "schedule_id": schedule_id,
+        "requested_start": requested_start,
+        "status": "pending_approval"  # Admin can approve via admin endpoint
+    }
