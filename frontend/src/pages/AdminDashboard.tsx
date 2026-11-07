@@ -949,11 +949,11 @@ const AdminDashboard = () => {
                 {/* Add Room Modal */}
                 {addRoomModal.open && (
                   <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm"
                     onClick={() => setAddRoomModal({ open: false, name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
                   >
                     <div
-                      className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200 motion-reduce:animate-none"
+                      className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200 motion-reduce:animate-none shadow-2xl"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-between mb-4">
@@ -1059,11 +1059,11 @@ const AdminDashboard = () => {
                 {/* Edit Room Modal */}
                 {editRoomModal.open && (
                   <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm"
                     onClick={() => setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
                   >
                     <div
-                      className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200 motion-reduce:animate-none"
+                      className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200 motion-reduce:animate-none shadow-2xl"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-between mb-4">
@@ -1488,11 +1488,11 @@ const AdminDashboard = () => {
                 {/* Map Picker Modal */}
                 {showMapPicker && tempLocation && (
                   <div
-                    className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+                    className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 backdrop-blur-sm"
                     onClick={() => setShowMapPicker(false)}
                   >
                     <div
-                      className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-2xl mx-4 animate-in zoom-in-95 duration-200"
+                      className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-2xl mx-4 animate-in zoom-in-95 duration-200 shadow-2xl"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-between mb-4">
@@ -1855,8 +1855,8 @@ const AdminDashboard = () => {
 
               {/* Animated Delete Confirmation Modal */}
               {confirmDelete && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-                  <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-card dark:shadow-emerald-glow max-w-md w-full p-6 animate-in zoom-in-95 duration-200 border border-gray-200 dark:border-stone-800">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                  <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-2xl dark:shadow-emerald-glow max-w-md w-full p-6 animate-in zoom-in-95 duration-200 border border-gray-200 dark:border-stone-800">
                     <div className="flex items-center gap-4 mb-4">
                       <div className="w-12 h-12 bg-red-100 dark:bg-red-950/30 rounded-full flex items-center justify-center flex-shrink-0">
                         <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -1894,8 +1894,8 @@ const AdminDashboard = () => {
 
               {/* Animated Edit Confirmation Modal */}
               {confirmEdit && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-                  <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-card dark:shadow-emerald-glow max-w-md w-full p-6 animate-in zoom-in-95 duration-200 border border-gray-200 dark:border-stone-800">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                  <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-2xl dark:shadow-emerald-glow max-w-md w-full p-6 animate-in zoom-in-95 duration-200 border border-gray-200 dark:border-stone-800">
                     <div className="flex items-center gap-4 mb-4">
                       <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-950/30 rounded-full flex items-center justify-center flex-shrink-0">
                         <svg className="w-6 h-6 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
