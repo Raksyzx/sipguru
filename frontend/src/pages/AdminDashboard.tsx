@@ -1786,7 +1786,7 @@ const AdminDashboard = () => {
 
               {/* Success/Error Toast Notification */}
               {toast && (
-                <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
+                <div className="fixed top-6 right-6 z-50 animate-in slide-in-from-top-4 slide-in-from-right-4 fade-in duration-300">
                   <div className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-card ${
                     toast.type === 'success' 
                       ? 'bg-emerald-600 text-white' 
