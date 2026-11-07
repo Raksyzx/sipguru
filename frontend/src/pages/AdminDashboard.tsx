@@ -949,8 +949,7 @@ const AdminDashboard = () => {
                 {/* Add Room Modal */}
                 {addRoomModal.open && (
                   <div
-                    style={{ position: 'fixed', inset: 0, zIndex: 9999 }}
-                    className="flex items-center justify-center bg-black/50 backdrop-blur-sm"
+                    className="modal-fixed-overlay flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
                     onClick={() => setAddRoomModal({ open: false, name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
                   >
                     <div
@@ -1060,8 +1059,7 @@ const AdminDashboard = () => {
                 {/* Edit Room Modal */}
                 {editRoomModal.open && (
                   <div
-                    style={{ position: 'fixed', inset: 0, zIndex: 9999 }}
-                    className="flex items-center justify-center bg-black/50 backdrop-blur-sm"
+                    className="modal-fixed-overlay flex items-center justify-center bg-black/50 backdrop-blur-sm"
                     onClick={() => setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
                   >
                     <div
@@ -1490,8 +1488,7 @@ const AdminDashboard = () => {
                 {/* Map Picker Modal */}
                         {showMapPicker && tempLocation && (
                           <div
-                            style={{ position: 'fixed', inset: 0, zIndex: 10000 }}
-                            className="flex items-center justify-center bg-black/70 backdrop-blur-sm"
+                            className="modal-fixed-overlay flex items-center justify-center bg-black/70 backdrop-blur-sm"
                             onClick={() => setShowMapPicker(false)}
                           >
                     <div
@@ -1680,7 +1677,7 @@ const AdminDashboard = () => {
               {/* Reset Password Modal */}
               {resetPasswordModal.open && (
                 <div
-                  className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+                  className="modal-fixed-overlay flex items-center justify-center bg-black/50"
                   onClick={() => setResetPasswordModal({ open: false, teacherId: "", teacherName: "", teacherEmail: "" })}
                 >
                   <div
@@ -1755,7 +1752,7 @@ const AdminDashboard = () => {
               {/* Edit Teacher Modal */}
               {editTeacherModal.open && (
                 <div
-                  className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+                  className="modal-fixed-overlay flex items-center justify-center bg-black/50"
                   onClick={() => setEditTeacherModal({ open: false, teacherId: "", teacherName: "", teacherEmail: "", teacherNip: "", newPassword: "", confirmNewPassword: "" })}
                 >
                   <div
@@ -1859,8 +1856,7 @@ const AdminDashboard = () => {
               {/* Animated Delete Confirmation Modal */}
               {confirmDelete && (
                 <div
-                  style={{ position: 'fixed', inset: 0, zIndex: 9999 }}
-                  className="flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+                  className="modal-fixed-overlay flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
                 >
                   <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-2xl dark:shadow-emerald-glow max-w-md w-full p-6 animate-in zoom-in-95 duration-200 border border-gray-200 dark:border-stone-800">
                     <div className="flex items-center gap-4 mb-4">
