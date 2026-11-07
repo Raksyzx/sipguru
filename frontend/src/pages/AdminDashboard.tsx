@@ -16,10 +16,12 @@ import {
   FileOutput,
   Sun,
   Moon,
+  MapPin,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useAuthStore } from "../stores";
 import { useTheme } from "../contexts/ThemeContext";
+import { MapPicker } from "../components/MapPicker";
 import api from "../lib/api";
 
 // Jurusan dihapus — belum ada endpoint backend, tab dinonaktifkan sementara
@@ -134,9 +136,12 @@ const AdminDashboard = () => {
   });
 
   // Add Room Modal State
-  const [addRoomModal, setAddRoomModal] = useState({ open: false, name: "", room_code: "", geofence_radius: 150 });
-  const [editRoomModal, setEditRoomModal] = useState({ open: false, id: "", name: "", room_code: "", geofence_radius: 150 });
+  const [addRoomModal, setAddRoomModal] = useState({ open: false, name: "", room_code: "", geofence_radius: 150, geolocation: "" });
+  const [editRoomModal, setEditRoomModal] = useState({ open: false, id: "", name: "", room_code: "", geofence_radius: 150, geolocation: "" });
   const [addRoomLoading, setAddRoomLoading] = useState(false);
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [mapMode, setMapMode] = useState<'add' | 'edit'>('add');
+  const [tempLocation, setTempLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   // Reset Password Modal State
   const [resetPasswordModal, setResetPasswordModal] = useState<ResetPasswordModal>({
@@ -363,15 +368,15 @@ const AdminDashboard = () => {
         name: addRoomModal.name,
         room_code: addRoomModal.room_code,
         geofence_radius: addRoomModal.geofence_radius,
+        geolocation: addRoomModal.geolocation,
         school_id: "00000000-0000-0000-0000-000000000001",
       });
       const res = await api.get("/admin/rooms");
       setRooms(res.data?.rooms || []);
-      setAddRoomModal({ open: false, name: "", room_code: "", geofence_radius: 150 });
-      setMsg("Ruangan berhasil ditambah!");
-      setTimeout(() => setMsg(""), 3000);
+      setAddRoomModal({ open: false, name: "", room_code: "", geofence_radius: 150, geolocation: "" });
+      showToast("Ruangan berhasil ditambah!", 'success');
     } catch {
-      setMsg("Gagal menambah ruangan");
+      showToast("Gagal menambah ruangan", 'error');
     } finally {
       setAddRoomLoading(false);
     }
@@ -385,14 +390,14 @@ const AdminDashboard = () => {
         name: editRoomModal.name,
         room_code: editRoomModal.room_code,
         geofence_radius: editRoomModal.geofence_radius,
+        geolocation: editRoomModal.geolocation,
       });
       const res = await api.get("/admin/rooms");
       setRooms(res.data?.rooms || []);
-      setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150 });
-      setMsg("Ruangan berhasil diupdate!");
-      setTimeout(() => setMsg(""), 3000);
+      setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150, geolocation: "" });
+      showToast("Ruangan berhasil diupdate!", 'success');
     } catch {
-      setMsg("Gagal mengupdate ruangan");
+      showToast("Gagal mengupdate ruangan", 'error');
     }
   };
 
@@ -850,7 +855,7 @@ const AdminDashboard = () => {
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Generate QR Absensi</h3>
                     <button
-                      onClick={() => setAddRoomModal({ open: true, name: "", room_code: "", geofence_radius: 150 })}
+                      onClick={() => setAddRoomModal({ open: true, name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
                     >
                       <QrCode className="w-4 h-4 inline mr-1" />
@@ -919,7 +924,7 @@ const AdminDashboard = () => {
                               Radius: {r.geofence_radius || 150}m
                             </span>
                             <button
-                              onClick={() => setEditRoomModal({ open: true, id: r.id, name: r.name, room_code: r.room_code, geofence_radius: r.geofence_radius || 150 })}
+                              onClick={() => setEditRoomModal({ open: true, id: r.id, name: r.name, room_code: r.room_code, geofence_radius: r.geofence_radius || 150, geolocation: r.geolocation || "" })}
                               className="px-3 py-1 text-xs bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-950/50 transition-colors"
                             >
                               Edit
@@ -945,7 +950,7 @@ const AdminDashboard = () => {
                 {addRoomModal.open && (
                   <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-                    onClick={() => setAddRoomModal({ open: false, name: "", room_code: "", geofence_radius: 150 })}
+                    onClick={() => setAddRoomModal({ open: false, name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
                   >
                     <div
                       className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200 motion-reduce:animate-none"
@@ -954,7 +959,7 @@ const AdminDashboard = () => {
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Tambah Ruangan</h3>
                         <button
-                          onClick={() => setAddRoomModal({ open: false, name: "", room_code: "", geofence_radius: 150 })}
+                          onClick={() => setAddRoomModal({ open: false, name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
                           className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                         >
                           ✕
@@ -995,10 +1000,45 @@ const AdminDashboard = () => {
                             max="1000"
                           />
                         </div>
+                        
+                        {/* Geolocation with Map Picker */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
+                            <MapPin className="w-4 h-4 text-emerald-600" />
+                            Lokasi Geofence
+                          </label>
+                          <div className="flex gap-2 mb-2">
+                            <input
+                              type="text"
+                              placeholder="Lat, Lng (klik peta untuk set)"
+                              value={addRoomModal.geolocation}
+                              onChange={(e) => setAddRoomModal({ ...addRoomModal, geolocation: e.target.value })}
+                              className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                              readOnly
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMapMode('add');
+                                const [lat, lng] = addRoomModal.geolocation ? addRoomModal.geolocation.split(',').map(Number) : [-6.2088, 106.8456];
+                                setTempLocation({ lat, lng });
+                                setShowMapPicker(true);
+                              }}
+                              className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
+                            >
+                              Pilih di Peta
+                            </button>
+                          </div>
+                          {addRoomModal.geolocation && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              Koordinat: {addRoomModal.geolocation}
+                            </p>
+                          )}
+                        </div>
                         <div className="flex gap-3 pt-4">
                           <button
                             type="button"
-                            onClick={() => setAddRoomModal({ open: false, name: "", room_code: "", geofence_radius: 150 })}
+                            onClick={() => setAddRoomModal({ open: false, name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
                             className="flex-1 px-4 py-2 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"
                           >
                             Batal
@@ -1020,7 +1060,7 @@ const AdminDashboard = () => {
                 {editRoomModal.open && (
                   <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-                    onClick={() => setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150 })}
+                    onClick={() => setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
                   >
                     <div
                       className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200 motion-reduce:animate-none"
@@ -1029,7 +1069,7 @@ const AdminDashboard = () => {
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Edit Ruangan</h3>
                         <button
-                          onClick={() => setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150 })}
+                          onClick={() => setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
                           className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                         >
                           ✕
@@ -1070,10 +1110,45 @@ const AdminDashboard = () => {
                             max="1000"
                           />
                         </div>
+                        
+                        {/* Geolocation with Map Picker */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
+                            <MapPin className="w-4 h-4 text-emerald-600" />
+                            Lokasi Geofence
+                          </label>
+                          <div className="flex gap-2 mb-2">
+                            <input
+                              type="text"
+                              placeholder="Lat, Lng (klik peta untuk set)"
+                              value={editRoomModal.geolocation}
+                              onChange={(e) => setEditRoomModal({ ...editRoomModal, geolocation: e.target.value })}
+                              className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                              readOnly
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMapMode('edit');
+                                const [lat, lng] = editRoomModal.geolocation ? editRoomModal.geolocation.split(',').map(Number) : [-6.2088, 106.8456];
+                                setTempLocation({ lat, lng });
+                                setShowMapPicker(true);
+                              }}
+                              className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
+                            >
+                              Pilih di Peta
+                            </button>
+                          </div>
+                          {editRoomModal.geolocation && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              Koordinat: {editRoomModal.geolocation}
+                            </p>
+                          )}
+                        </div>
                         <div className="flex gap-3 pt-4">
                           <button
                             type="button"
-                            onClick={() => setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150 })}
+                            onClick={() => setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
                             className="flex-1 px-4 py-2 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"
                           >
                             Batal
@@ -1409,6 +1484,64 @@ const AdminDashboard = () => {
                     ))}
                   </div>
                 </div>
+
+                {/* Map Picker Modal */}
+                {showMapPicker && tempLocation && (
+                  <div
+                    className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+                    onClick={() => setShowMapPicker(false)}
+                  >
+                    <div
+                      className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-2xl mx-4 animate-in zoom-in-95 duration-200"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                          <MapPin className="w-5 h-5 text-emerald-600" />
+                          Pilih Lokasi Geofence
+                        </h3>
+                        <button
+                          onClick={() => setShowMapPicker(false)}
+                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      
+                      <MapPicker
+                        initialLat={tempLocation.lat}
+                        initialLng={tempLocation.lng}
+                        radius={mapMode === 'add' ? addRoomModal.geofence_radius : editRoomModal.geofence_radius}
+                        onLocationSelect={(lat, lng) => {
+                          const locationStr = `${lat}, ${lng}`;
+                          if (mapMode === 'add') {
+                            setAddRoomModal({ ...addRoomModal, geolocation: locationStr });
+                          } else {
+                            setEditRoomModal({ ...editRoomModal, geolocation: locationStr });
+                          }
+                          setTempLocation({ lat, lng });
+                        }}
+                      />
+                      
+                      <div className="flex gap-3 mt-4">
+                        <button
+                          type="button"
+                          onClick={() => setShowMapPicker(false)}
+                          className="flex-1 px-4 py-2 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"
+                        >
+                          Batal
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowMapPicker(false)}
+                          className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+                        >
+                          Gunakan Lokasi Ini
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
