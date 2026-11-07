@@ -14,12 +14,10 @@ import {
   CalendarDays,
   Briefcase,
   FileOutput,
-  Trash2,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useAuthStore } from "../stores";
 import api from "../lib/api";
-import { ConfirmModal } from "../components/ConfirmModal";
 
 // Jurusan dihapus — belum ada endpoint backend, tab dinonaktifkan sementara
 
@@ -170,10 +168,6 @@ const AdminDashboard = () => {
     confirmPassword: "",
   });
   const [addTeacherLoading, setAddTeacherLoading] = useState(false);
-
-  // Confirm Delete State
-  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; type: 'jurusan' | 'subject' | 'grade' } | null>(null);
-  const [confirmDeleteLoading, setConfirmDeleteLoading] = useState(false);
 
   useEffect(() => {
     const load = async () => {
