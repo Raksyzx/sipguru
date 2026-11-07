@@ -9,9 +9,12 @@ import {
   QrCode,
   User,
   CalendarX,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useAuthStore } from "../stores";
+import { useTheme } from "../contexts/ThemeContext";
 import api from "../lib/api";
 
 interface Schedule {
@@ -71,6 +74,9 @@ const TeacherDashboard = () => {
     reason: "",
     schedule_id: "",
   });
+
+  // Theme
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     const load = async () => {
@@ -166,6 +172,14 @@ const TeacherDashboard = () => {
               title="Keluar"
             >
               <LogOut className="w-5 h-5" />
+            </button>
+            {/* Theme Toggle */}
+            <button
+              onClick={toggleTheme}
+              className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-lg transition-colors"
+              title={theme === "dark" ? "Mode Terang" : "Mode Gelap"}
+            >
+              {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
           </div>
         </div>

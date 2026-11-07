@@ -14,9 +14,12 @@ import {
   CalendarDays,
   Briefcase,
   FileOutput,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useAuthStore } from "../stores";
+import { useTheme } from "../contexts/ThemeContext";
 import api from "../lib/api";
 
 // Jurusan dihapus — belum ada endpoint backend, tab dinonaktifkan sementara
@@ -168,6 +171,9 @@ const AdminDashboard = () => {
     confirmPassword: "",
   });
   const [addTeacherLoading, setAddTeacherLoading] = useState(false);
+
+  // Theme
+  const { theme, toggleTheme } = useTheme();
 
   // Animated Confirmation Modals
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; type: 'jurusan' | 'subject' | 'grade' | 'teacher' | 'room' | 'schedule' | 'leave' } | null>(null);
@@ -618,6 +624,14 @@ const AdminDashboard = () => {
                 title="Keluar"
               >
                 <LogOut className="w-4 h-4" />
+              </button>
+              {/* Theme Toggle */}
+              <button
+                onClick={toggleTheme}
+                className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors dark:hover:bg-emerald-950/30"
+                title={theme === "dark" ? "Mode Terang" : "Mode Gelap"}
+              >
+                {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
             </div>
           </div>
