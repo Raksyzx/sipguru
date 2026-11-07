@@ -14,10 +14,12 @@ import {
   CalendarDays,
   Briefcase,
   FileOutput,
+  Trash2,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useAuthStore } from "../stores";
 import api from "../lib/api";
+import { ConfirmModal } from "../components/ConfirmModal";
 
 // Jurusan dihapus — belum ada endpoint backend, tab dinonaktifkan sementara
 
@@ -168,6 +170,10 @@ const AdminDashboard = () => {
     confirmPassword: "",
   });
   const [addTeacherLoading, setAddTeacherLoading] = useState(false);
+
+  // Confirm Delete State
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; type: 'jurusan' | 'subject' | 'grade' } | null>(null);
+  const [confirmDeleteLoading, setConfirmDeleteLoading] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -592,7 +598,7 @@ const AdminDashboard = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-stone-950">
       <div className="flex h-screen">
         {/* Sidebar */}
-        <div className="w-64 bg-white dark:bg-stone-900 border-r border-gray-200 dark:border-stone-800 hidden md:flex flex-col shadow-[0_4px_20px_rgba(0,0,0,0.04)] dark:shadow-none">
+        <div className="w-64 bg-white dark:bg-stone-900 border-r border-gray-200 dark:border-stone-800 hidden md:flex flex-col shadow-card dark:shadow-none">
           <div className="p-6 border-b border-gray-200 dark:border-stone-800">
             <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
               SIPGURU
@@ -612,7 +618,7 @@ const AdminDashboard = () => {
           </nav>
           <div className="p-4 border-t border-gray-200 dark:border-stone-800">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-tr from-emerald-600 to-emerald-500 rounded-full flex items-center justify-center text-white shadow-[0_6px_15px_rgba(16,185,129,0.25)]">
+              <div className="w-10 h-10 bg-gradient-to-tr from-emerald-600 to-emerald-500 rounded-full flex items-center justify-center text-white shadow-emerald-glow">
                 <span className="font-bold">{user?.name?.charAt(0) || "A"}</span>
               </div>
               <div className="flex-1 min-w-0">
@@ -649,7 +655,7 @@ const AdminDashboard = () => {
           </div>
 
           {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto bg-gray-50/50 dark:bg-stone-950/50 p-4 md:p-8 animate-in fade-in duration-500">
+          <div className="flex-1 overflow-y-auto bg-gray-50/50 dark:bg-stone-950/50 p-4 md:p-8 animate-in fade-in duration-500 motion-reduce:animate-none">
             <div className="flex justify-between items-center mb-6 md:mb-8">
               <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
                 {tab === "dashboard" ? "Dashboard" : tab === "guru" ? "Data Guru" : tab === "qr" ? "QR Ruangan" : tab === "izin" ? "Permohonan Izin" : tab === "mapel" ? "Mata Pelajaran" : tab === "kelas" ? "Kelas" : tab === "jurusan" ? "Jurusan" : "Jadwal Kelas"}
@@ -668,14 +674,14 @@ const AdminDashboard = () => {
             {tab === "dashboard" && (
               <>
                 {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8 animate-in slide-in-from-bottom-4 duration-500">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8 animate-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none">
                   {[
                     { label: "Total Guru", value: teachers.length, icon: Users, bg: "bg-emerald-500" },
                     { label: "Hari Ini Presensi", value: stats.total, icon: CheckCircle, bg: "bg-green-500" },
                     { label: "Terlambat", value: stats.late, icon: Clock, bg: "bg-amber-500" },
                     { label: "Izin Pending", value: pending.length, icon: Calendar, bg: "bg-blue-500" },
                   ].map(({ label, value, icon: Icon, bg }) => (
-                    <div key={label} className="glass-card-light p-6 transition-all duration-300 hover:-translate-y-1">
+                    <div key={label} className="glass-card-light p-6 transition-colors duration-300 hover:-translate-y-1 hover:shadow-lg motion-reduce:transition-none motion-reduce:hover:translate-y-0 motion-reduce:hover:shadow-none">
                       <div className="flex items-center gap-4">
                         <div className={`p-3 rounded-xl ${bg} text-white shadow-lg`}>
                           <Icon className="w-6 h-6" />
@@ -690,7 +696,7 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Teachers List */}
-                <div className="glass-card-light overflow-hidden animate-in slide-in-from-bottom-4 duration-500 delay-100">
+                <div className="glass-card-light overflow-hidden animate-in slide-in-from-bottom-4 duration-500 delay-100 motion-reduce:animate-none">
                   <div className="p-6 border-b border-gray-100 dark:border-gray-800">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Daftar Guru</h3>
                   </div>
@@ -719,7 +725,7 @@ const AdminDashboard = () => {
             )}
 
             {tab === "guru" && (
-              <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
+              <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none">
                 {/* Add Teacher Form */}
                 <div className="glass-card-light p-6">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tambah Guru</h3>
@@ -776,7 +782,7 @@ const AdminDashboard = () => {
                       className="btn-primary w-full py-2 text-sm disabled:opacity-50"
                     >
                       {addTeacherLoading ? (
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 inline" fill="none" viewBox="0 0 24 24">
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 inline" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                         </svg>
@@ -838,7 +844,7 @@ const AdminDashboard = () => {
             )}
 
             {tab === "qr" && (
-              <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
+              <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none">
                 <div className="glass-card-light p-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Generate QR Absensi</h3>
@@ -866,7 +872,7 @@ const AdminDashboard = () => {
                         </div>
                         <button
                           onClick={() => generateQR(s.id)}
-                          className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors shadow-[0_6px_15px_rgba(16,185,129,0.25)]"
+                          className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors shadow-emerald-glow"
                         >
                           Generate
                         </button>
@@ -898,7 +904,7 @@ const AdminDashboard = () => {
                   </div>
                   <div className="divide-y divide-gray-100 dark:divide-gray-800">
                     {rooms.length === 0 && (
-                      <p className="p-4 text-sm text-gray-500 dark:text-gray-400">Belum ada ruangan. Klik "Tambah Ruangan" untuk memulai.</p>
+                      <p className="p-4 text-sm text-gray-500 dark:text-gray-400">Belum ada ruangan. Klik tombol "Tambah Ruangan" untuk memulai.</p>
                     )}
                     {rooms.map((r) => (
                       <div key={r.id} className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
@@ -941,7 +947,7 @@ const AdminDashboard = () => {
                     onClick={() => setAddRoomModal({ open: false, name: "", room_code: "", geofence_radius: 150 })}
                   >
                     <div
-                      className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200"
+                      className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200 motion-reduce:animate-none"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-between mb-4">
@@ -1016,7 +1022,7 @@ const AdminDashboard = () => {
                     onClick={() => setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150 })}
                   >
                     <div
-                      className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200"
+                      className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200 motion-reduce:animate-none"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-between mb-4">
@@ -1107,13 +1113,13 @@ const AdminDashboard = () => {
                           {l.status === "pending" ? "Menunggu" : l.status === "approved" ? "Disetujui" : "Ditolak"}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{l.start_date} – {l.end_date}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{l.start_date} sampai {l.end_date}</p>
                       <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{l.reason}</p>
                       {l.status === "pending" && (
                         <div className="flex gap-2">
                           <button
                             onClick={() => decideLeave(l.id, true)}
-                            className="px-3 py-1 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors shadow-[0_4px_10px_rgba(16,185,129,0.2)]"
+                            className="px-3 py-1 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors shadow-emerald-btn"
                           >
                             Setujui
                           </button>
@@ -1132,7 +1138,7 @@ const AdminDashboard = () => {
             )}
 
             {tab === "mapel" && (
-              <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
+              <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none">
                 <div className="glass-card-light p-6">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tambah Mata Pelajaran</h3>
                   <form onSubmit={addSubject} className="space-y-3">
@@ -1242,7 +1248,7 @@ const AdminDashboard = () => {
             )}
 
             {tab === "kelas" && (
-              <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
+              <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none">
                 <div className="glass-card-light p-6">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tambah Kelas</h3>
                   <form onSubmit={addGrade} className="space-y-3">
@@ -1346,7 +1352,7 @@ const AdminDashboard = () => {
             )}
 
             {tab === "jurusan" && (
-              <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
+              <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none">
                 <div className="glass-card-light p-6">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tambah Jurusan</h3>
                   <form onSubmit={addJurusan} className="space-y-3">
@@ -1406,7 +1412,7 @@ const AdminDashboard = () => {
             )}
 
             {tab === "jadwal" && (
-              <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
+              <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none">
                 <div className="glass-card-light p-6">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tambah Jadwal Kelas</h3>
                   <form onSubmit={addSchedule} className="space-y-3">
@@ -1504,7 +1510,7 @@ const AdminDashboard = () => {
                           </button>
                         </div>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {s.day_of_week === "Monday" ? "Senin" : s.day_of_week === "Tuesday" ? "Selasa" : s.day_of_week === "Wednesday" ? "Rabu" : s.day_of_week === "Thursday" ? "Kamis" : "Jumat"} • {s.start_time} – {s.end_time}
+                          {s.day_of_week === "Monday" ? "Senin" : s.day_of_week === "Tuesday" ? "Selasa" : s.day_of_week === "Wednesday" ? "Rabu" : s.day_of_week === "Thursday" ? "Kamis" : "Jumat"} • {s.start_time} sampai {s.end_time}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">Guru: {s.teacher_name || "N/A"}</p>
                       </div>
@@ -1515,7 +1521,7 @@ const AdminDashboard = () => {
             )}
 
             {tab === "laporan" && (
-              <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
+              <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none">
                 <div className="glass-card-light p-6">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Laporan Absensi</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
@@ -1523,7 +1529,7 @@ const AdminDashboard = () => {
                   </p>
                   <a
                     href="/admin/reports"
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors shadow-[0_6px_15px_rgba(16,185,129,0.25)]"
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors shadow-emerald-glow"
                   >
                     <FileOutput className="w-5 h-5" />
                     Buka Halaman Laporan
@@ -1541,7 +1547,7 @@ const AdminDashboard = () => {
                   onClick={() => setResetPasswordModal({ open: false, teacherId: "", teacherName: "", teacherEmail: "" })}
                 >
                   <div
-                    className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200"
+                    className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200 motion-reduce:animate-none"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="flex items-center justify-between mb-4">
@@ -1550,7 +1556,7 @@ const AdminDashboard = () => {
                         onClick={() => setResetPasswordModal({ open: false, teacherId: "", teacherName: "", teacherEmail: "" })}
                         className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                       </button>
                     </div>
                     <div className="mb-4 p-4 bg-gray-50 dark:bg-stone-800 rounded-xl">
@@ -1595,7 +1601,7 @@ const AdminDashboard = () => {
                           className="flex-1 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
                         >
                           {resetPasswordLoading ? (
-                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                             </svg>
@@ -1616,7 +1622,7 @@ const AdminDashboard = () => {
                   onClick={() => setEditTeacherModal({ open: false, teacherId: "", teacherName: "", teacherEmail: "", teacherNip: "", newPassword: "", confirmNewPassword: "" })}
                 >
                   <div
-                    className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200"
+                    className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200 motion-reduce:animate-none"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="flex items-center justify-between mb-4">
@@ -1625,7 +1631,7 @@ const AdminDashboard = () => {
                         onClick={() => setEditTeacherModal({ open: false, teacherId: "", teacherName: "", teacherEmail: "", teacherNip: "", newPassword: "", confirmNewPassword: "" })}
                         className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                       </button>
                     </div>
                     <form onSubmit={handleEditTeacher} className="space-y-4">
@@ -1699,7 +1705,7 @@ const AdminDashboard = () => {
                           className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
                         >
                           {editTeacherLoading ? (
-                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                             </svg>

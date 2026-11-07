@@ -58,6 +58,9 @@ export default {
         'soft': '0 8px 30px rgba(0, 0, 0, 0.08)',
         'glow': '0 0 40px rgba(16, 185, 129, 0.15)',
         'inner-soft': 'inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+        'card': '0 4px 20px rgba(0, 0, 0, 0.04)',
+        'emerald-glow': '0 6px 15px rgba(16, 185, 129, 0.25)',
+        'emerald-btn': '0 4px 10px rgba(16, 185, 129, 0.2)',
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-out',
