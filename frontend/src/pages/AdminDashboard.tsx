@@ -949,7 +949,8 @@ const AdminDashboard = () => {
                 {/* Add Room Modal */}
                 {addRoomModal.open && (
                   <div
-                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+                    style={{ position: 'fixed', inset: 0, zIndex: 9999 }}
+                    className="flex items-center justify-center bg-black/50 backdrop-blur-sm"
                     onClick={() => setAddRoomModal({ open: false, name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
                   >
                     <div
@@ -1059,7 +1060,8 @@ const AdminDashboard = () => {
                 {/* Edit Room Modal */}
                 {editRoomModal.open && (
                   <div
-                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+                    style={{ position: 'fixed', inset: 0, zIndex: 9999 }}
+                    className="flex items-center justify-center bg-black/50 backdrop-blur-sm"
                     onClick={() => setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
                   >
                     <div
@@ -1486,11 +1488,12 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Map Picker Modal */}
-                {showMapPicker && tempLocation && (
-                  <div
-                    className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 backdrop-blur-sm"
-                    onClick={() => setShowMapPicker(false)}
-                  >
+                        {showMapPicker && tempLocation && (
+                          <div
+                            style={{ position: 'fixed', inset: 0, zIndex: 10000 }}
+                            className="flex items-center justify-center bg-black/70 backdrop-blur-sm"
+                            onClick={() => setShowMapPicker(false)}
+                          >
                     <div
                       className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-2xl mx-4 animate-in zoom-in-95 duration-200 shadow-2xl"
                       onClick={(e) => e.stopPropagation()}
@@ -1855,7 +1858,10 @@ const AdminDashboard = () => {
 
               {/* Animated Delete Confirmation Modal */}
               {confirmDelete && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                <div
+                  style={{ position: 'fixed', inset: 0, zIndex: 9999 }}
+                  className="flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+                >
                   <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-2xl dark:shadow-emerald-glow max-w-md w-full p-6 animate-in zoom-in-95 duration-200 border border-gray-200 dark:border-stone-800">
                     <div className="flex items-center gap-4 mb-4">
                       <div className="w-12 h-12 bg-red-100 dark:bg-red-950/30 rounded-full flex items-center justify-center flex-shrink-0">
@@ -1894,7 +1900,10 @@ const AdminDashboard = () => {
 
               {/* Animated Edit Confirmation Modal */}
               {confirmEdit && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                <div
+                  style={{ position: 'fixed', inset: 0, zIndex: 9999 }}
+                  className="flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+                >
                   <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-2xl dark:shadow-emerald-glow max-w-md w-full p-6 animate-in zoom-in-95 duration-200 border border-gray-200 dark:border-stone-800">
                     <div className="flex items-center gap-4 mb-4">
                       <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-950/30 rounded-full flex items-center justify-center flex-shrink-0">
@@ -1933,7 +1942,10 @@ const AdminDashboard = () => {
 
               {/* Success/Error Toast Notification */}
               {toast && (
-                <div className="fixed top-6 right-6 z-50 animate-in slide-in-from-top-4 slide-in-from-right-4 fade-in duration-300">
+                <div
+                  style={{ position: 'fixed', top: '1.5rem', right: '1.5rem', zIndex: 10001 }}
+                  className="animate-in slide-in-from-top-4 slide-in-from-right-4 fade-in duration-300"
+                >
                   <div className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-card ${
                     toast.type === 'success' 
                       ? 'bg-emerald-600 text-white' 
