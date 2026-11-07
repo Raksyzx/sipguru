@@ -169,6 +169,61 @@ const AdminDashboard = () => {
   });
   const [addTeacherLoading, setAddTeacherLoading] = useState(false);
 
+  // Animated Confirmation Modals
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; type: 'jurusan' | 'subject' | 'grade' | 'teacher' | 'room' | 'schedule' | 'leave' } | null>(null);
+  const [confirmEdit, setConfirmEdit] = useState<{ id: string; name: string; type: string; onConfirm: () => void } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showDeleteConfirm = (id: string, name: string, type: 'jurusan' | 'subject' | 'grade' | 'teacher' | 'room' | 'schedule' | 'leave') => {
+    setConfirmDelete({ id, name, type });
+  };
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!confirmDelete) return;
+    try {
+      await api.delete(`/admin/${confirmDelete.type}/${confirmDelete.id}`);
+      // Refresh data
+      if (confirmDelete.type === 'jurusan') {
+        const res = await api.get("/admin/jurusan");
+        setJurusanList(res.data?.jurusan || []);
+      } else if (confirmDelete.type === 'subject') {
+        const res = await api.get("/admin/subjects");
+        setSubjects(res.data?.subjects || []);
+      } else if (confirmDelete.type === 'grade') {
+        const res = await api.get("/admin/grades");
+        setGrades(res.data?.grades || []);
+      } else if (confirmDelete.type === 'teacher') {
+        const res = await api.get("/admin/teachers");
+        setTeachers(res.data?.teachers || []);
+      } else if (confirmDelete.type === 'room') {
+        const res = await api.get("/admin/rooms");
+        setRooms(res.data?.rooms || []);
+      } else if (confirmDelete.type === 'schedule') {
+        const res = await api.get("/admin/grade-schedules");
+        setGradeSchedules(res.data?.grade_schedules || []);
+      } else if (confirmDelete.type === 'leave') {
+        const res = await api.get("/admin/leaves");
+        setLeaves(res.data?.leaves || []);
+      }
+      showToast(`${confirmDelete.name} berhasil dihapus!`, 'success');
+    } catch {
+      showToast('Gagal menghapus data', 'error');
+    }
+    setConfirmDelete(null);
+  };
+
+  const handleEditConfirm = () => {
+    if (!confirmEdit) return;
+    confirmEdit.onConfirm();
+    showToast(`${confirmEdit.name} berhasil diperbarui!`, 'success');
+    setConfirmEdit(null);
+  };
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -335,31 +390,24 @@ const AdminDashboard = () => {
     }
   };
 
-  const deleteRoom = async (id: string) => {
-    if (!confirm("Hapus ruangan ini?")) return;
-    try {
-      await api.delete(`/admin/rooms/${id}`);
-      const res = await api.get("/admin/rooms");
-      setRooms(res.data?.rooms || []);
-      setMsg("Ruangan berhasil dihapus!");
-      setTimeout(() => setMsg(""), 3000);
-    } catch {
-      setMsg("Gagal menghapus ruangan");
-    }
+  const deleteRoom = async (id: string, name: string) => {
+    showDeleteConfirm(id, name, 'room');
   };
 
   const deleteJurusan = async (id: string, name: string) => {
-    if (!window.confirm(`Yakin ingin menghapus jurusan "${name}"? Tindakan ini tidak dapat dibatalkan.`)) return;
-    try {
-      await api.delete(`/admin/jurusan/${id}`);
-      const res = await api.get("/admin/jurusan");
-      setJurusanList(res.data?.jurusan || []);
-      setMsg("Jurusan berhasil dihapus!");
-      setTimeout(() => setMsg(""), 3000);
-    } catch {
-      setMsg("Gagal menghapus jurusan");
-      setTimeout(() => setMsg(""), 3000);
-    }
+    showDeleteConfirm(id, name, 'jurusan');
+  };
+
+  const deleteSubject = async (id: string, name: string) => {
+    showDeleteConfirm(id, name, 'subject');
+  };
+
+  const deleteGrade = async (id: string, name: string) => {
+    showDeleteConfirm(id, name, 'grade');
+  };
+
+  const deleteSchedule = async (id: string) => {
+    showDeleteConfirm(id, 'Jadwal', 'schedule');
   };
 
   const addSchedule = async (e: React.FormEvent) => {
@@ -370,7 +418,7 @@ const AdminDashboard = () => {
     const grade = grades.find(g => g.id === newSchedule.grade_id);
     const subject = subjects.find(s => s.id === newSchedule.subject_id);
     if (grade?.jurusan_id && subject?.jurusan_id && grade.jurusan_id !== subject.jurusan_id) {
-      setMsg("Mapel dan kelas harus satu jurusan!");
+      showToast("Mapel dan kelas harus satu jurusan!", 'error');
       return;
     }
     
@@ -387,50 +435,9 @@ const AdminDashboard = () => {
         end_time: "12:00",
         room_id: "",
       });
-      setMsg("Jadwal kelas berhasil ditambah!");
-      setTimeout(() => setMsg(""), 3000);
+      showToast("Jadwal kelas berhasil ditambah!", 'success');
     } catch {
-      setMsg("Gagal menambah jadwal kelas");
-    }
-  };
-
-  const deleteSubject = async (id: string, name: string) => {
-    if (!window.confirm(`Yakin ingin menghapus mapel "${name}"?`)) return;
-    try {
-      await api.delete(`/admin/subjects/${id}`);
-      const res = await api.get("/admin/subjects");
-      setSubjects(res.data?.subjects || []);
-      setMsg("Mata pelajaran berhasil dihapus!");
-      setTimeout(() => setMsg(""), 3000);
-    } catch {
-      setMsg("Gagal menghapus mata pelajaran");
-      setTimeout(() => setMsg(""), 3000);
-    }
-  };
-
-  const deleteGrade = async (id: string, name: string) => {
-    if (!window.confirm(`Yakin ingin menghapus kelas "${name}"?`)) return;
-    try {
-      await api.delete(`/admin/grades/${id}`);
-      const res = await api.get("/admin/grades");
-      setGrades(res.data?.grades || []);
-      setMsg("Kelas berhasil dihapus!");
-      setTimeout(() => setMsg(""), 3000);
-    } catch {
-      setMsg("Gagal menghapus kelas");
-      setTimeout(() => setMsg(""), 3000);
-    }
-  };
-
-  const deleteSchedule = async (id: string) => {
-    try {
-      await api.delete(`/admin/grade-schedules/${id}`);
-      const res = await api.get("/admin/grade-schedules");
-      setGradeSchedules(res.data?.grade_schedules || []);
-      setMsg("Jadwal kelas berhasil dihapus!");
-      setTimeout(() => setMsg(""), 3000);
-    } catch {
-      setMsg("Gagal menghapus jadwal");
+      showToast("Gagal menambah jadwal kelas", 'error');
     }
   };
 
@@ -470,7 +477,7 @@ const AdminDashboard = () => {
       // Only include password if changed
       if (editTeacherModal.newPassword && editTeacherModal.newPassword.length >= 6) {
         if (editTeacherModal.newPassword !== editTeacherModal.confirmNewPassword) {
-          setMsg("Konfirmasi password tidak cocok");
+          showToast("Konfirmasi password tidak cocok", 'error');
           setEditTeacherLoading(false);
           return;
         }
@@ -478,33 +485,20 @@ const AdminDashboard = () => {
       }
       
       await api.put(`/admin/teachers/${editTeacherModal.teacherId}`, updateData);
-      setMsg(`Data guru ${editTeacherModal.teacherName} berhasil diupdate`);
-      setTimeout(() => setMsg(""), 3000);
+      showToast(`${editTeacherModal.teacherName} berhasil diperbarui!`, 'success');
       setEditTeacherModal({ open: false, teacherId: "", teacherName: "", teacherEmail: "", teacherNip: "", newPassword: "", confirmNewPassword: "" });
       // Reload teachers
       const res = await api.get("/admin/teachers");
       setTeachers(res.data?.teachers || []);
     } catch (err: any) {
-      setMsg(err.response?.data?.detail || "Gagal mengupdate data guru");
+      showToast(err.response?.data?.detail || "Gagal mengupdate data guru", 'error');
     } finally {
       setEditTeacherLoading(false);
     }
   };
 
   const handleDeleteTeacher = async (teacherId: string, teacherName: string) => {
-    if (!window.confirm(`Apakah Anda yakin ingin menghapus guru ${teacherName}?`)) {
-      return;
-    }
-    try {
-      await api.delete(`/admin/teachers/${teacherId}`);
-      setMsg(`Guru ${teacherName} berhasil dihapus`);
-      setTimeout(() => setMsg(""), 3000);
-      // Reload teachers
-      const res = await api.get("/admin/teachers");
-      setTeachers(res.data?.teachers || []);
-    } catch (err: any) {
-      setMsg(err.response?.data?.detail || "Gagal menghapus guru");
-    }
+    showDeleteConfirm(teacherId, teacherName, 'teacher');
   };
 
   const handleAddTeacher = async (e: React.FormEvent) => {
@@ -531,14 +525,13 @@ const AdminDashboard = () => {
         phone: newTeacherForm.phone || undefined,
         password: newTeacherForm.password,
       });
-      setMsg(`Guru ${newTeacherForm.name} berhasil ditambahkan`);
-      setTimeout(() => setMsg(""), 3000);
+      showToast(`Guru ${newTeacherForm.name} berhasil ditambahkan`, 'success');
       setNewTeacherForm({ name: "", nip: "", email: "", phone: "", password: "", confirmPassword: "" });
       // Reload teachers
       const res = await api.get("/admin/teachers");
       setTeachers(res.data?.teachers || []);
     } catch (err: any) {
-      setMsg(err.response?.data?.detail || "Gagal menambah guru");
+      showToast(err.response?.data?.detail || "Gagal menambah guru", 'error');
     } finally {
       setAddTeacherLoading(false);
     }
@@ -918,7 +911,7 @@ const AdminDashboard = () => {
                               Edit
                             </button>
                             <button
-                              onClick={() => deleteRoom(r.id)}
+                              onClick={() => deleteRoom(r.id, r.name)}
                               className="px-3 py-1 text-xs bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-950/50 transition-colors"
                             >
                               Hapus
@@ -1709,6 +1702,106 @@ const AdminDashboard = () => {
                         </button>
                       </div>
                     </form>
+                  </div>
+                </div>
+              )}
+
+              {/* Animated Delete Confirmation Modal */}
+              {confirmDelete && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                  <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-card dark:shadow-emerald-glow max-w-md w-full p-6 animate-in zoom-in-95 duration-200 border border-gray-200 dark:border-stone-800">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-12 h-12 bg-red-100 dark:bg-red-950/30 rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Hapus Data?</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Tindakan ini tidak dapat dibatalkan</p>
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-stone-800 rounded-lg p-4 mb-6">
+                      <p className="text-sm text-gray-600 dark:text-gray-300">
+                        Anda akan menghapus <span className="font-semibold text-emerald-600 dark:text-emerald-400">{confirmDelete.type}</span>:
+                      </p>
+                      <p className="text-base font-medium text-gray-900 dark:text-white mt-1">"{confirmDelete.name}"</p>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setConfirmDelete(null)}
+                        className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        onClick={handleDeleteConfirm}
+                        className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors shadow-emerald-btn"
+                      >
+                        Ya, Hapus
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Animated Edit Confirmation Modal */}
+              {confirmEdit && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                  <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-card dark:shadow-emerald-glow max-w-md w-full p-6 animate-in zoom-in-95 duration-200 border border-gray-200 dark:border-stone-800">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-950/30 rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg className="w-6 h-6 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Simpan Perubahan?</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Pastikan data sudah benar</p>
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-stone-800 rounded-lg p-4 mb-6">
+                      <p className="text-sm text-gray-600 dark:text-gray-300">
+                        Update data <span className="font-semibold text-emerald-600 dark:text-emerald-400">{confirmEdit.type}</span>:
+                      </p>
+                      <p className="text-base font-medium text-gray-900 dark:text-white mt-1">"{confirmEdit.name}"</p>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setConfirmEdit(null)}
+                        className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        onClick={handleEditConfirm}
+                        className="flex-1 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors shadow-emerald-btn"
+                      >
+                        Ya, Simpan
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Success/Error Toast Notification */}
+              {toast && (
+                <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
+                  <div className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-card ${
+                    toast.type === 'success' 
+                      ? 'bg-emerald-600 text-white' 
+                      : 'bg-red-600 text-white'
+                  }`}>
+                    {toast.type === 'success' ? (
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    )}
+                    <span className="text-sm font-medium">{toast.message}</span>
                   </div>
                 </div>
               )}
