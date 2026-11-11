@@ -506,40 +506,54 @@ class SupabaseClient:
 
     # Grade Schedules operations
     def get_all_grade_schedules(self, school_id: str = None) -> List[dict]:
-        """Get all grade schedules (optionally filtered by school via grades table)"""
+        """Get all grade schedules with enriched data in SINGLE query"""
         client = self._get_client()
-        # grade_schedules doesn't have school_id, so we join with grades
+        
+        # Use Supabase foreign key join syntax (!inner)
+        # This fetches schedule + grade + subject + teacher + room + jurusan in ONE query
+        query = client.table("grade_schedules").select("""
+            *,
+            grade:grades!inner(
+                id,
+                name,
+                jurusan:jurusan!left(id, name, code)
+            ),
+            subject:subjects!inner(id, name, code),
+            teacher:users!inner(id, name, email),
+            room:rooms!left(id, name, room_code)
+        """)
+        
         if school_id:
-            # First get all grades for this school
+            # Filter by school_id via grades table
             grades_result = client.table("grades").select("id").eq("school_id", school_id).execute()
             grade_ids = [g["id"] for g in grades_result.data]
             if not grade_ids:
                 return []
-            # Then get schedules for these grades
-            result = client.table("grade_schedules").select("*").in_("grade_id", grade_ids).execute()
-        else:
-            result = client.table("grade_schedules").select("*").execute()
+            query = query.in_("grade_id", grade_ids)
         
-        schedules = result.data or []
-        # Enrich with names (same as get_grade_schedules_by_grade)
-        enriched = []
-        for s in schedules:
-            grade = self.get_grade(s["grade_id"])
-            subject = self.get_subject(s["subject_id"])
-            teacher = self.get_user(s["teacher_id"])
-            room = self.get_room(s.get("room_id")) if s.get("room_id") else None
-            jurusan = None
-            if grade and grade.get("jurusan_id"):
-                jurusan = self.get_jurusan(grade["jurusan_id"])
-            enriched.append({
-                **s,
-                "grade_name": grade["name"] if grade else "N/A",
-                "subject_name": subject["name"] if subject else "N/A",
-                "teacher_name": teacher["name"] if teacher else "N/A",
-                "room_name": room["name"] if room else "N/A",
-                "jurusan_name": jurusan["name"] if jurusan else "N/A"
+        result = query.execute()
+        
+        # Transform nested response to flat structure
+        schedules = []
+        for s in (result.data or []):
+            schedules.append({
+                "id": s["id"],
+                "grade_id": s["grade_id"],
+                "subject_id": s["subject_id"],
+                "teacher_id": s["teacher_id"],
+                "room_id": s.get("room_id"),
+                "day_of_week": s["day_of_week"],
+                "start_time": s["start_time"],
+                "end_time": s["end_time"],
+                "is_active": s.get("is_active", True),
+                "created_at": s.get("created_at"),
+                "grade_name": s.get("grade", {}).get("name", "N/A"),
+                "jurusan_name": s.get("grade", {}).get("jurusan", {}).get("name") if s.get("grade", {}).get("jurusan") else None,
+                "subject_name": s.get("subject", {}).get("name", "N/A"),
+                "teacher_name": s.get("teacher", {}).get("name", "N/A"),
+                "room_name": s.get("room", {}).get("name", "N/A") if s.get("room") else None
             })
-        return enriched
+        return schedules
 
     def get_grade_schedules_by_grade(self, grade_id: str) -> List[dict]:
         """Get grade schedules by grade with JOINs for names"""
