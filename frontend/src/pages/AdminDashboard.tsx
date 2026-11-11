@@ -22,6 +22,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useAuthStore } from "../stores";
 import { useTheme } from "../contexts/ThemeContext";
 import { MapPicker } from "../components/MapPicker";
+import { LogoutConfirmModal } from "../components/LogoutConfirmModal";
 import api from "../lib/api";
 
 // Jurusan dihapus — belum ada endpoint backend, tab dinonaktifkan sementara
@@ -183,6 +184,7 @@ const AdminDashboard = () => {
   // Animated Confirmation Modals
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; type: 'jurusan' | 'subject' | 'grade' | 'teacher' | 'room' | 'schedule' | 'leave' } | null>(null);
   const [confirmEdit, setConfirmEdit] = useState<{ id: string; name: string; type: string; onConfirm: () => void } | null>(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const showDeleteConfirm = (id: string, name: string, type: 'jurusan' | 'subject' | 'grade' | 'teacher' | 'room' | 'schedule' | 'leave') => {
@@ -624,7 +626,7 @@ const AdminDashboard = () => {
                 <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user?.email}</p>
               </div>
               <button
-                onClick={() => useAuthStore.getState().logout()}
+                onClick={() => setShowLogoutConfirm(true)}
                 className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors dark:hover:bg-red-950/30"
                 title="Keluar"
               >
@@ -1960,6 +1962,16 @@ const AdminDashboard = () => {
                   </div>
                 </div>
               )}
+
+              {/* Logout Confirmation Modal */}
+              <LogoutConfirmModal
+                open={showLogoutConfirm}
+                onConfirm={() => {
+                  setShowLogoutConfirm(false);
+                  useAuthStore.getState().logout();
+                }}
+                onCancel={() => setShowLogoutConfirm(false)}
+              />
             </div>
           );
         };
