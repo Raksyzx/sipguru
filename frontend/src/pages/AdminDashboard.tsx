@@ -107,7 +107,15 @@ interface ResetPasswordModal {
 
 const AdminDashboard = () => {
   const { user } = useAuth();
-  const [tab, setTab] = useState<Tab>("dashboard");
+  const [tab, setTab] = useState<Tab>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("sipguru-active-tab");
+      if (saved && ["dashboard", "guru", "qr", "izin", "jurusan", "mapel", "kelas", "jadwal", "laporan"].includes(saved)) {
+        return saved as Tab;
+      }
+    }
+    return "dashboard";
+  });
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [leaves, setLeaves] = useState<Leave[]>([]);
@@ -582,7 +590,10 @@ const AdminDashboard = () => {
   const nav = (id: Tab, label: string, Icon: typeof LayoutDashboard) => (
     <button
       key={id}
-      onClick={() => setTab(id)}
+      onClick={() => {
+        setTab(id);
+        localStorage.setItem("sipguru-active-tab", id);
+      }}
       className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors duration-200 ${
         tab === id
           ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 font-semibold"
@@ -650,7 +661,10 @@ const AdminDashboard = () => {
             {(["dashboard", "guru", "qr", "izin", "jurusan", "mapel", "kelas", "jadwal", "laporan"] as Tab[]).map((t) => (
               <button
                 key={t}
-                onClick={() => setTab(t)}
+                onClick={() => {
+                  setTab(t);
+                  localStorage.setItem("sipguru-active-tab", t);
+                }}
                 className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                   tab === t
                     ? "bg-emerald-600 text-white dark:bg-emerald-600 dark:text-white"
