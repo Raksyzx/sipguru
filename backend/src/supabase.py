@@ -727,7 +727,7 @@ class SupabaseClient:
         """Get all grade schedules with enriched data - OPTIMIZED BATCH VERSION"""
         client = self._get_client()
         
-        query = client.table("grade_schedules").select("id,grade_id,subject_id,teacher_id,room_id,day_of_week,start_time,end_time,is_active,state")
+        query = client.table("grade_schedules").select("id,grade_id,subject_id,teacher_id,room_id,day_of_week,start_time,end_time,is_active")
         
         if school_id:
             # Filter by school_id via grades table
