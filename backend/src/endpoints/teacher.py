@@ -5,22 +5,64 @@ from fastapi import APIRouter, HTTPException, Depends
 from src.deps import get_current_user as verify_jwt
 from src.supabase import get_day_name_indonesian
 import datetime
+import asyncio
 
 router = APIRouter()
 db = get_db()
+
+# In-memory cache for rarely changing data (schedules, rooms)
+_schedule_cache = {}
+_rooms_cache = None
+_rooms_cache_time = 0
+CACHE_TTL = 300  # 5 minutes
+
+async def _get_cached_rooms():
+    """Get rooms with in-memory caching"""
+    global _rooms_cache, _rooms_cache_time
+    import time
+    now = time.time()
+    if _rooms_cache is not None and (now - _rooms_cache_time) < CACHE_TTL:
+        return _rooms_cache
+    _rooms_cache = await asyncio.get_event_loop().run_in_executor(None, db.get_all_rooms)
+    _rooms_cache_time = now
+    return _rooms_cache
+
+async def _get_cached_teacher_schedules(teacher_id: str):
+    """Get teacher schedules with in-memory caching"""
+    import time
+    cache_key = f"schedules_{teacher_id}"
+    now = time.time()
+    if cache_key in _schedule_cache:
+        cached, cache_time = _schedule_cache[cache_key]
+        if (now - cache_time) < CACHE_TTL:
+            return cached
+    schedules = await asyncio.get_event_loop().run_in_executor(None, db.get_grade_schedules_by_teacher, teacher_id)
+    _schedule_cache[cache_key] = (schedules, now)
+    return schedules
+
+async def _get_cached_teacher_schedules_by_day(teacher_id: str, day_name_en: str):
+    """Get teacher schedules by day with in-memory caching"""
+    import time
+    cache_key = f"schedules_{teacher_id}_{day_name_en}"
+    now = time.time()
+    if cache_key in _schedule_cache:
+        cached, cache_time = _schedule_cache[cache_key]
+        if (now - cache_time) < CACHE_TTL:
+            return cached
+    schedules = await asyncio.get_event_loop().run_in_executor(None, db.get_grade_schedules_by_teacher_and_day, teacher_id, day_name_en)
+    _schedule_cache[cache_key] = (schedules, now)
+    return schedules
 
 @router.get("/todays-schedule")
 async def get_todays_schedule(
     auth_user: dict = Depends(verify_jwt)
 ):
-    """Get teacher's schedule for today with enriched data"""
+    """Get teacher's schedule for today with enriched data - optimized with caching"""
     day_name_en = datetime.datetime.now().strftime("%A")
     day_name = get_day_name_indonesian(day_name_en)
     
-    schedules = db.get_grade_schedules_by_teacher_and_day(
-        auth_user["user_id"],
-        day_name_en
-    )
+    # Use cached fetch
+    schedules = await _get_cached_teacher_schedules_by_day(auth_user["user_id"], day_name_en)
     
     return {"schedules": schedules, "day": day_name}
 
@@ -85,21 +127,41 @@ async def get_profile(
 async def get_my_schedules(
     auth_user: dict = Depends(verify_jwt)
 ):
-    """Get teacher's own grade schedules with enriched data (grade_name, subject_name, room_name, day_name)"""
-    schedules = db.get_grade_schedules_by_teacher(auth_user["user_id"])
+    """Get teacher's own grade schedules with enriched data (grade_name, subject_name, room_name, day_name) - optimized with caching"""
+    schedules = await _get_cached_teacher_schedules(auth_user["user_id"])
     return {"schedules": schedules}
 
 @router.get("/all-schedules")
 async def get_all_schedules(
     auth_user: dict = Depends(verify_jwt)
 ):
-    """Get all teacher's grade schedules (alias for my-schedules)"""
-    schedules = db.get_grade_schedules_by_teacher(auth_user["user_id"])
+    """Get all teacher's grade schedules (alias for my-schedules) - optimized with caching"""
+    schedules = await _get_cached_teacher_schedules(auth_user["user_id"])
     return {"schedules": schedules}
+
+@router.get("/attendance-stats")
+async def get_attendance_stats(
+    auth_user: dict = Depends(verify_jwt),
+    year: int = None,
+    month: int = None
+):
+    """Get attendance statistics using optimized RPC function"""
+    import datetime
+    now = datetime.datetime.now()
+    target_year = year if year is not None else now.year
+    target_month = month if month is not None else now.month
+    
+    # Use the RPC function for fast aggregated stats
+    stats = await asyncio.get_event_loop().run_in_executor(
+        None, db.get_monthly_attendance_stats, target_year, target_month
+    )
+    
+    return {"stats": stats, "year": target_year, "month": target_month}
 
 @router.get("/rooms")
 async def get_rooms(
     auth_user: dict = Depends(verify_jwt)
 ):
-    """Get all rooms (for schedule display)"""
-    return {"rooms": db.get_all_rooms()}
+    """Get all rooms (for schedule display) - optimized with caching"""
+    rooms = await _get_cached_rooms()
+    return {"rooms": rooms}

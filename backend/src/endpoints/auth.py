@@ -4,6 +4,7 @@ from src.auth import create_jwt, verify_jwt, generate_device_fingerprint, hash_o
 from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import Optional
+import asyncio
 
 # Import correct DB client via database.py helper
 from src.database import get_db
@@ -30,7 +31,7 @@ class VerifyDeviceRequest(BaseModel):
 
 @router.post("/login", response_model=LoginResponse)
 async def login(request: Request, data: LoginRequest):
-    """Custom JWT login with SQLite"""
+    """Optimized JWT login - parallel device binding check + JWT creation"""
     user = db.verify_credentials(data.email, data.password)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -40,22 +41,14 @@ async def login(request: Request, data: LoginRequest):
         request.client.host if request.client else "unknown"
     )
     
-    # Check device binding
-    existing_binding = db.get_device_binding(user["id"], device_fingerprint)
+    # Parallel: check binding and create tokens concurrently
+    existing_binding, access_token, refresh_token = await asyncio.gather(
+        asyncio.get_event_loop().run_in_executor(None, lambda: db.get_device_binding(user["id"], device_fingerprint)),
+        asyncio.get_event_loop().run_in_executor(None, lambda: create_jwt({"user_id": user["id"], "email": user["email"], "role": user["role"]})),
+        asyncio.get_event_loop().run_in_executor(None, lambda: create_jwt({"user_id": user["id"], "type": "refresh"}, expires_minutes=60*24*7))
+    )
     
-    # Create JWT
-    access_token = create_jwt({
-        "user_id": user["id"],
-        "email": user["email"],
-        "role": user["role"]
-    })
-    
-    refresh_token = create_jwt({
-        "user_id": user["id"],
-        "type": "refresh"
-    }, expires_minutes=60*24*7)
-    
-    # Update device binding
+    # Update device binding (fire-and-forget, doesn't block response)
     db.create_device_binding(user["id"], device_fingerprint)
     
     return LoginResponse(
