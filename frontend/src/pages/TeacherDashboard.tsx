@@ -15,6 +15,7 @@ import {
 import { useAuth } from "../hooks/useAuth";
 import { useAuthStore } from "../stores";
 import { useTheme } from "../contexts/ThemeContext";
+import { LogoutConfirmModal } from "../components/LogoutConfirmModal";
 import api from "../lib/api";
 
 interface Schedule {
@@ -74,6 +75,15 @@ const TeacherDashboard = () => {
     reason: "",
     schedule_id: "",
   });
+
+  // Logout confirmation state
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  const handleLogout = () => setShowLogoutConfirm(true);
+  const confirmLogout = () => {
+    useAuthStore.getState().logout();
+    setShowLogoutConfirm(false);
+  };
 
   // Theme
   const { theme, toggleTheme } = useTheme();
@@ -167,7 +177,7 @@ const TeacherDashboard = () => {
               <p className="text-sm text-gray-600 dark:text-gray-400">{user?.email}</p>
             </div>
             <button
-              onClick={() => useAuthStore.getState().logout()}
+              onClick={handleLogout}
               className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors"
               title="Keluar"
             >
@@ -424,6 +434,13 @@ const TeacherDashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Logout Confirmation Modal */}
+      <LogoutConfirmModal
+        open={showLogoutConfirm}
+        onConfirm={confirmLogout}
+        onCancel={() => setShowLogoutConfirm(false)}
+      />
     </div>
   );
 };
