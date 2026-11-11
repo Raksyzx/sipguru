@@ -1013,6 +1013,29 @@ class LocalDBClient:
         conn.close()
         return [dict(r) for r in rows]
 
+    def get_grade_schedules_by_teacher_and_day(self, teacher_id: str, day_name_en: str) -> List[Dict]:
+        """Get grade schedules for a specific teacher on a specific day"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT gs.*, g.name as grade_name, s.name as subject_name, u.name as teacher_name, r.name as room_name
+            FROM grade_schedules gs
+            JOIN grades g ON gs.grade_id = g.id
+            JOIN subjects s ON gs.subject_id = s.id
+            JOIN users u ON gs.teacher_id = u.id
+            LEFT JOIN rooms r ON gs.room_id = r.id
+            WHERE gs.teacher_id = ? AND gs.day_of_week = ? AND gs.is_active = 1
+            ORDER BY gs.start_time
+        """, (teacher_id, day_name_en))
+        rows = cursor.fetchall()
+        conn.close()
+        # Add day_name in Indonesian
+        day_indonesian = {
+            "Monday": "Senin", "Tuesday": "Selasa", "Wednesday": "Rabu",
+            "Thursday": "Kamis", "Friday": "Jumat", "Saturday": "Sabtu", "Sunday": "Minggu"
+        }.get(day_name_en, day_name_en)
+        return [{**dict(r), "day_name": day_indonesian} for r in rows]
+
     def create_grade_schedule(self, grade_id: str, subject_id: str, teacher_id: str,
                               day_of_week: str, start_time: str, end_time: str,
                               room_id: str = None) -> str:
