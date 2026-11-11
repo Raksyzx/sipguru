@@ -3,6 +3,8 @@ from src.database import get_db
 
 from fastapi import APIRouter, HTTPException, Depends
 from src.deps import get_current_user as verify_jwt
+from src.supabase import get_day_name_indonesian
+import datetime
 
 router = APIRouter()
 db = get_db()
@@ -11,13 +13,13 @@ db = get_db()
 async def get_todays_schedule(
     auth_user: dict = Depends(verify_jwt)
 ):
-    """Get teacher's schedule for today"""
-    import datetime
-    day_name = datetime.datetime.now().strftime("%A")
+    """Get teacher's schedule for today with enriched data"""
+    day_name_en = datetime.datetime.now().strftime("%A")
+    day_name = get_day_name_indonesian(day_name_en)
     
-    schedules = db.get_schedules_by_teacher_and_day(
+    schedules = db.get_grade_schedules_by_teacher_and_day(
         auth_user["user_id"],
-        day_name
+        day_name_en
     )
     
     return {"schedules": schedules, "day": day_name}
@@ -83,7 +85,15 @@ async def get_profile(
 async def get_my_schedules(
     auth_user: dict = Depends(verify_jwt)
 ):
-    """Get teacher's own grade schedules with jurusan/mapel info"""
+    """Get teacher's own grade schedules with enriched data (grade_name, subject_name, room_name, day_name)"""
+    schedules = db.get_grade_schedules_by_teacher(auth_user["user_id"])
+    return {"schedules": schedules}
+
+@router.get("/all-schedules")
+async def get_all_schedules(
+    auth_user: dict = Depends(verify_jwt)
+):
+    """Get all teacher's grade schedules (alias for my-schedules)"""
     schedules = db.get_grade_schedules_by_teacher(auth_user["user_id"])
     return {"schedules": schedules}
 
