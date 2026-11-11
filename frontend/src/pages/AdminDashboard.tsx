@@ -217,7 +217,18 @@ const AdminDashboard = () => {
     if (!confirmDelete) return;
     try {
       console.log('[DELETE] Attempting to delete:', confirmDelete.type, confirmDelete.id);
-      await api.delete(`/admin/${confirmDelete.type}/${confirmDelete.id}`);
+      // Map type to correct endpoint
+      const endpointMap: Record<string, string> = {
+        jurusan: 'jurusan',
+        subject: 'subjects',
+        grade: 'grades',
+        teacher: 'teachers',
+        room: 'rooms',
+        schedule: 'grade-schedules',
+        leave: 'leaves',
+      };
+      const endpoint = endpointMap[confirmDelete.type] || confirmDelete.type;
+      await api.delete(`/admin/${endpoint}/${confirmDelete.id}`);
       console.log('[DELETE] Success:', confirmDelete.type, confirmDelete.id);
       // Refresh data
       if (confirmDelete.type === 'jurusan') {
