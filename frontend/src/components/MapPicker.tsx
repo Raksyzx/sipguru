@@ -174,14 +174,16 @@ export function MapPicker({
         params.append("bounded", "0"); // 0 = prefer but not restrict
       }
 
-      console.log("[MapPicker] Searching:", query, "URL:", `https://nominatim.openstreetmap.org/search?${params.toString()}`);
+      const url = `https://nominatim.openstreetmap.org/search?${params.toString()}`;
+      console.log("[MapPicker] Searching:", query, "URL:", url);
       
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?${params.toString()}`,
+        url,
         { 
           signal: abortControllerRef.current.signal,
           headers: {
-            "Accept-Language": "id,en"
+            "Accept-Language": "id,en",
+            "User-Agent": "SIPGURU-App/1.0 (https://sipguru.vercel.app)"
           }
         }
       );
@@ -195,7 +197,7 @@ export function MapPicker({
       }
       
       const data: SearchResult[] = await response.json();
-      console.log("[MapPicker] Results count:", data.length);
+      console.log("[MapPicker] Results count:", data.length, "Data:", data.slice(0, 3));
       
       // Sort by importance and type priority
       const typePriority: Record<string, number> = {
@@ -211,8 +213,8 @@ export function MapPicker({
       });
       
       setSearchResults(data);
-      setShowResults(true); // Always show dropdown when we have a query
-      console.log("[MapPicker] State updated - results:", data.length, "showResults:", true);
+      setShowResults(data.length > 0);
+      console.log("[MapPicker] State updated - results:", data.length, "showResults:", data.length > 0);
     } catch (error: any) {
       if (error.name !== "AbortError") {
         console.error("[MapPicker] Search error:", error);
@@ -234,10 +236,17 @@ export function MapPicker({
       clearTimeout(searchTimeoutRef.current);
     }
 
+    // Clear results when input is empty
+    if (value.length < 2) {
+      setSearchResults([]);
+      setShowResults(false);
+      return;
+    }
+
     searchTimeoutRef.current = setTimeout(() => {
       console.log("[MapPicker] Debounced search:", value);
       searchLocation(value);
-    }, 300);
+    }, 400);
   }, [searchLocation]);
 
   // Keyboard navigation
@@ -347,7 +356,11 @@ export function MapPicker({
               onKeyDown={handleKeyDown}
               onFocus={() => {
               console.log("[MapPicker] Focus - query:", searchQuery, "results:", searchResults.length, "showResults:", showResults);
-              searchQuery.length >= 2 && searchResults.length > 0 && setShowResults(true);
+              if (searchQuery.length >= 2 && searchResults.length > 0) {
+                setShowResults(true);
+              } else if (searchQuery.length >= 2) {
+                searchLocation(searchQuery);
+              }
             }}
               placeholder="Cari lokasi, alamat, atau tempat (contoh: SMKN 7 Serang, Monas, Jalan Sudirman)"
               className="flex-1 px-4 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none pr-10"
@@ -387,7 +400,7 @@ export function MapPicker({
         </div>
 
         {/* Search Results Dropdown */}
-                {(showResults || searchResults.length > 0) && (
+        {showResults && searchResults.length > 0 && (
                   <div className="absolute top-full left-0 right-0 mt-1.5 bg-white dark:bg-stone-900 rounded-lg shadow-xl border border-gray-200 dark:border-stone-700 max-h-80 overflow-y-auto z-50 animate-in slide-in-from-top-2 duration-150">
                     {searchResults.map((result, idx) => (
                       <button
