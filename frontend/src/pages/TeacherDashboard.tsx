@@ -392,6 +392,37 @@ const TeacherDashboard = () => {
             </div>
           )}
         </div>
+
+        {/* Jadwal Mengajar Lengkap */}
+        <div className="glass-card-light p-6 animate-stagger-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <CalendarDays className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+            Jadwal Mengajar Lengkap
+          </h3>
+          {loading ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">Memuat jadwal...</p>
+          ) : schedulesList.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">Belum ada jadwal mengajar.</p>
+          ) : (
+            <div className="space-y-3">
+              {schedulesList.map((s) => (
+                <div
+                  key={s.id}
+                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-white/5 rounded-xl transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm text-gray-900 dark:text-white truncate">
+                      {s.grade_name} - {s.subject_name}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      {s.day_of_week} • {s.start_time} – {s.end_time} • {s.room_name || 'Ruangan TBA'}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

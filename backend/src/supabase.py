@@ -4,6 +4,21 @@ from typing import Optional, Dict, Any, List
 from datetime import date, time
 import json
 
+# Day name mapping: English -> Indonesian
+DAY_NAME_MAP = {
+    "Monday": "Senin",
+    "Tuesday": "Selasa",
+    "Wednesday": "Rabu",
+    "Thursday": "Kamis",
+    "Friday": "Jumat",
+    "Saturday": "Sabtu",
+    "Sunday": "Minggu",
+}
+
+def get_day_name_indonesian(day_name_en: str) -> str:
+    """Convert English day name to Indonesian."""
+    return DAY_NAME_MAP.get(day_name_en, day_name_en)
+
 class SupabaseClient:
     def __init__(self):
         self.url = settings.SUPABASE_URL
@@ -614,7 +629,31 @@ class SupabaseClient:
                 "grade_name": grade["name"] if grade else "N/A",
                 "subject_name": subject["name"] if subject else "N/A",
                 "teacher_name": teacher["name"] if teacher else "N/A",
-                "room_name": room["name"] if room else "N/A"
+                "room_name": room["name"] if room else "N/A",
+                "day_name": get_day_name_indonesian(s.get("day_of_week", ""))
+            })
+        return enriched
+
+    def get_grade_schedules_by_teacher_and_day(self, teacher_id: str, day_name_en: str) -> List[dict]:
+        """Get grade schedules by teacher for specific day with enriched names"""
+        client = self._get_client()
+        day_indonesian = get_day_name_indonesian(day_name_en)
+        result = client.table("grade_schedules").select("*").eq("teacher_id", teacher_id).eq("day_of_week", day_name_en).eq("is_active", True).execute()
+        schedules = result.data or []
+        # Enrich with names
+        enriched = []
+        for s in schedules:
+            grade = self.get_grade(s["grade_id"])
+            subject = self.get_subject(s["subject_id"])
+            teacher = self.get_user(s["teacher_id"])
+            room = self.get_room(s.get("room_id")) if s.get("room_id") else None
+            enriched.append({
+                **s,
+                "grade_name": grade["name"] if grade else "N/A",
+                "subject_name": subject["name"] if subject else "N/A",
+                "teacher_name": teacher["name"] if teacher else "N/A",
+                "room_name": room["name"] if room else "N/A",
+                "day_name": day_indonesian
             })
         return enriched
 
