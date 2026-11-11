@@ -217,20 +217,34 @@ class SupabaseClient:
         return stats
     
     def get_monthly_attendance_stats(self, year: int, month: int) -> dict:
-        """Get attendance statistics for specific month"""
+        """Get attendance statistics for specific month using COUNT query"""
         client = self._get_client()
-        result = client.table("attendance_logs").select("*").gte(
-            "created_at", f"{year}-{month:02d}-01"
-        ).lt("created_at", f"{year}-{month:02d}-32").execute()
         
-        stats = {
-            "total": len(result.data),
-            "on_time": len([x for x in result.data if x["status"] == "on_time"]),
-            "late": len([x for x in result.data if x["status"] == "late"]),
-            "absent": len([x for x in result.data if x["status"] == "absent"]),
-            "deferred": len([x for x in result.data if x["status"] == "deferred"]),
-            "approved": len([x for x in result.data if x["status"] == "approved"])
-        }
+        # Query with COUNT and GROUP BY status
+        result = client.rpc("get_attendance_stats", {
+            "target_month": f"{year}-{month:02d}-01",
+            "target_end": f"{year}-{month:02d}-32"
+        }).execute()
+        
+        if result.data and len(result.data) > 0:
+            stats = result.data[0]
+            return {
+                "total": stats.get("total_count", 0),
+                "on_time": stats.get("on_time_count", 0),
+                "late": stats.get("late_count", 0),
+                "absent": stats.get("absent_count", 0),
+                "deferred": stats.get("deferred_count", 0),
+                "approved": stats.get("approved_count", 0)
+            }
+        
+        # Fallback: manual count if RPC function not available
+        stats = {"total": 0, "on_time": 0, "late": 0, "absent": 0, "deferred": 0, "approved": 0}
+        for status in ["on_time", "late", "absent", "deferred", "approved"]:
+            count_result = client.table("attendance_logs").select("*", count="exact").gte(
+                "created_at", f"{year}-{month:02d}-01"
+            ).lt("created_at", f"{year}-{month:02d}-32").eq("status", status).execute()
+            stats[status] = count_result.count if hasattr(count_result, 'count') else 0
+        stats["total"] = sum(stats.values())
         return stats
     
     # Leave operations
