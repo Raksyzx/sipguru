@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     # Supabase (production only)
     SUPABASE_URL: str = "placeholder"
     SUPABASE_ANON_KEY: str = "placeholder"
-    SUPABASE_SERVICE_KEY: str = "placeholder"
+    SUPABASE_SERVICE_ROLE_KEY: str = "placeholder"
     
     # Resend (production only)
     RESEND_API_KEY: str = "placeholder"

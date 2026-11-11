@@ -7,7 +7,7 @@ import json
 class SupabaseClient:
     def __init__(self):
         self.url = settings.SUPABASE_URL
-        self.key = settings.SUPABASE_SERVICE_KEY
+        self.key = settings.SUPABASE_SERVICE_ROLE_KEY
         self.client = None
     
     def _get_client(self):

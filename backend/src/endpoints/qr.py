@@ -253,9 +253,12 @@ async def get_room_state(room_code: str):
         raise HTTPException(status_code=404, detail="Room not found")
     
     room_id = room["id"]
-    now = datetime.now()
-    current_time = now.strftime("%H:%M")
-    day_of_week = now.strftime("%A").upper()
+    # Convert UTC to WIB (UTC+7) for schedule comparison
+    from datetime import timezone
+    wib_offset = timezone(timedelta(hours=7))
+    now_wib = datetime.now(wib_offset)
+    current_time = now_wib.strftime("%H:%M")
+    day_of_week = now_wib.strftime("%A").upper()
     
     # Get today's schedules for this room
     schedules = db.get_schedules_by_room_and_day(room_id, day_of_week)

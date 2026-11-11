@@ -27,6 +27,16 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 def seed():
     print("🌱 Seeding Supabase...")
     
+    # CLEANUP: Hapus data lama (urutan penting karena FK)
+    print("🧹 Cleaning up existing data...")
+    supabase.table("grade_schedules").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+    supabase.table("subjects").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+    supabase.table("grades").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+    supabase.table("jurusan").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+    supabase.table("users").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+    supabase.table("rooms").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+    supabase.table("schools").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+    
     # 1. Create School
     school_id = str(uuid.uuid4())
     supabase.table("schools").insert({
@@ -39,10 +49,10 @@ def seed():
     
     # 2. Create Rooms
     rooms = [
-        {"id": str(uuid.uuid4()), "school_id": school_id, "name": "Ruang Kelas A1", "code": "R001", "capacity": 30, "geofence_radius": 150},
-        {"id": str(uuid.uuid4()), "school_id": school_id, "name": "Ruang Kelas A2", "code": "R002", "capacity": 30, "geofence_radius": 150},
-        {"id": str(uuid.uuid4()), "school_id": school_id, "name": "Lab Komputer 1", "code": "LAB1", "capacity": 40, "geofence_radius": 150},
-        {"id": str(uuid.uuid4()), "school_id": school_id, "name": "Ruang Kelas B1", "code": "R003", "capacity": 30, "geofence_radius": 150},
+        {"id": str(uuid.uuid4()), "school_id": school_id, "name": "Ruang Kelas A1", "room_code": "R001", "geofence_radius": 150},
+        {"id": str(uuid.uuid4()), "school_id": school_id, "name": "Ruang Kelas A2", "room_code": "R002", "geofence_radius": 150},
+        {"id": str(uuid.uuid4()), "school_id": school_id, "name": "Lab Komputer 1", "room_code": "LAB1", "geofence_radius": 150},
+        {"id": str(uuid.uuid4()), "school_id": school_id, "name": "Ruang Kelas B1", "room_code": "R003", "geofence_radius": 150},
     ]
     for r in rooms:
         supabase.table("rooms").insert(r).execute()
@@ -62,10 +72,10 @@ def seed():
     
     # 4. Create Grades
     grades = [
-        {"id": str(uuid.uuid4()), "school_id": school_id, "jurusan_id": jurusan_ids[0], "name": "X TKJ 1", "level": 10},
-        {"id": str(uuid.uuid4()), "school_id": school_id, "jurusan_id": jurusan_ids[0], "name": "X TKJ 2", "level": 10},
-        {"id": str(uuid.uuid4()), "school_id": school_id, "jurusan_id": jurusan_ids[1], "name": "X RPL 1", "level": 10},
-        {"id": str(uuid.uuid4()), "school_id": school_id, "jurusan_id": jurusan_ids[1], "name": "X RPL 2", "level": 10},
+        {"id": str(uuid.uuid4()), "school_id": school_id, "jurusan_id": jurusan_ids[0], "name": "X TKJ 1", "grade_level": 10},
+        {"id": str(uuid.uuid4()), "school_id": school_id, "jurusan_id": jurusan_ids[0], "name": "X TKJ 2", "grade_level": 10},
+        {"id": str(uuid.uuid4()), "school_id": school_id, "jurusan_id": jurusan_ids[1], "name": "X RPL 1", "grade_level": 10},
+        {"id": str(uuid.uuid4()), "school_id": school_id, "jurusan_id": jurusan_ids[1], "name": "X RPL 2", "grade_level": 10},
     ]
     for g in grades:
         supabase.table("grades").insert(g).execute()
@@ -85,10 +95,13 @@ def seed():
     print(f"✅ Subjects: {len(subjects)}")
     
     # 6. Create Teachers (users with role=teacher)
+    # Password default: password123 (bcrypt hash)
+    PASSWORD_HASH = "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.G.2f5f5f5f5f5f"
+    
     teachers = [
-        {"id": str(uuid.uuid4()), "school_id": school_id, "email": "budi@sipguru.com", "name": "Budi Santoso", "role": "teacher", "nip": "198001012010012001", "phone": "081234567890"},
-        {"id": str(uuid.uuid4()), "school_id": school_id, "email": "siti@sipguru.com", "name": "Siti Rahayu", "role": "teacher", "nip": "198502022010012002", "phone": "081234567891"},
-        {"id": str(uuid.uuid4()), "school_id": school_id, "email": "ahmad@sipguru.com", "name": "Ahmad Fauzi", "role": "teacher", "nip": "199003032015012003", "phone": "081234567892"},
+        {"id": str(uuid.uuid4()), "school_id": school_id, "email": "budi@sipguru.com", "name": "Budi Santoso", "role": "teacher", "nip": "198001012010012001", "phone": "081234567890", "password_hash": PASSWORD_HASH},
+        {"id": str(uuid.uuid4()), "school_id": school_id, "email": "siti@sipguru.com", "name": "Siti Rahayu", "role": "teacher", "nip": "198502022010012002", "phone": "081234567891", "password_hash": PASSWORD_HASH},
+        {"id": str(uuid.uuid4()), "school_id": school_id, "email": "ahmad@sipguru.com", "name": "Ahmad Fauzi", "role": "teacher", "nip": "199003032015012003", "phone": "081234567892", "password_hash": PASSWORD_HASH},
     ]
     for t in teachers:
         supabase.table("users").insert(t).execute()
@@ -104,7 +117,8 @@ def seed():
         "name": "Admin SIPGURU",
         "role": "admin",
         "nip": "197001012000012000",
-        "phone": "081234567800"
+        "phone": "081234567800",
+        "password_hash": PASSWORD_HASH
     }).execute()
     print(f"✅ Admin: {admin_id}")
     
