@@ -28,3 +28,6 @@ requests==2.31.0
 
 # Optional: For local development
 python-dotenv>=1.0.1
+
+# Retry logic
+tenacity>=8.2.0
