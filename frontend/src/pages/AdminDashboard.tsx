@@ -1491,64 +1491,43 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Map Picker Modal */}
-                        {showMapPicker && tempLocation && (
-                          <div
-                            style={{ position: 'fixed', inset: 0, zIndex: 99999 }}
-                            className="flex items-center justify-center bg-black/70 backdrop-blur-sm"
-                            onClick={() => setShowMapPicker(false)}
-                          >
-                    <div
-                      style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
-                      className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-2xl mx-4 animate-in zoom-in-95 duration-200 shadow-2xl z-[100000]"
-                      onClick={(e) => e.stopPropagation()}
+                <Modal
+                  isOpen={showMapPicker && tempLocation !== null}
+                  onClose={() => setShowMapPicker(false)}
+                  title="Pilih Lokasi Geofence"
+                  size="xl"
+                >
+                  <MapPicker
+                    initialLat={tempLocation?.lat ?? -6.2088}
+                    initialLng={tempLocation?.lng ?? 106.8456}
+                    radius={mapMode === 'add' ? addRoomModal.geofence_radius : editRoomModal.geofence_radius}
+                    onLocationSelect={(lat, lng) => {
+                      const locationStr = `${lat}, ${lng}`;
+                      if (mapMode === 'add') {
+                        setAddRoomModal({ ...addRoomModal, geolocation: locationStr });
+                      } else {
+                        setEditRoomModal({ ...editRoomModal, geolocation: locationStr });
+                      }
+                      setTempLocation({ lat, lng });
+                    }}
+                  />
+                  <div className="flex gap-3 mt-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowMapPicker(false)}
+                      className="flex-1 px-4 py-2 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"
                     >
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                          <MapPin className="w-5 h-5 text-emerald-600" />
-                          Pilih Lokasi Geofence
-                        </h3>
-                        <button
-                          onClick={() => setShowMapPicker(false)}
-                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                      
-                      <MapPicker
-                        initialLat={tempLocation.lat}
-                        initialLng={tempLocation.lng}
-                        radius={mapMode === 'add' ? addRoomModal.geofence_radius : editRoomModal.geofence_radius}
-                        onLocationSelect={(lat, lng) => {
-                          const locationStr = `${lat}, ${lng}`;
-                          if (mapMode === 'add') {
-                            setAddRoomModal({ ...addRoomModal, geolocation: locationStr });
-                          } else {
-                            setEditRoomModal({ ...editRoomModal, geolocation: locationStr });
-                          }
-                          setTempLocation({ lat, lng });
-                        }}
-                      />
-                      
-                      <div className="flex gap-3 mt-4">
-                        <button
-                          type="button"
-                          onClick={() => setShowMapPicker(false)}
-                          className="flex-1 px-4 py-2 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"
-                        >
-                          Batal
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowMapPicker(false)}
-                          className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
-                        >
-                          Gunakan Lokasi Ini
-                        </button>
-                      </div>
-                    </div>
+                      Batal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowMapPicker(false)}
+                      className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+                    >
+                      Gunakan Lokasi Ini
+                    </button>
                   </div>
-                )}
+                </Modal>
               </div>
             )}
 
