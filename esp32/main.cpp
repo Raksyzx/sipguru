@@ -15,20 +15,21 @@
 #include <ArduinoJson.h>
 #include <time.h>
 #include <Wire.h>
+#include <RTClib.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
 // ==================== CONFIGURATION ====================
-const char* WIFI_SSID = "your_wifi_ssid";
-const char* WIFI_PASSWORD = "your_wifi_password";
+const char* WIFI_SSID = "YOUR_WIFI_SSID";
+const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 
 // Backend API (Railway Production)
 const char* API_HOST = "sipguru-production.up.railway.app";
-const String ROOM_CODE = "R001";  // Change per device
+const String ROOM_CODE = "R001";  // Change per device: R001, R002, LAB1, R003
 
 // Supabase Realtime (optional - fallback to polling)
-const char* SUPABASE_URL = "https://your-project.supabase.co";
-const char* SUPABASE_ANON_KEY = "your-anon-key";
+const char* SUPABASE_URL = "https://kyhbcguycelqstmoewlm.supabase.co";
+const char* SUPABASE_ANON_KEY = "sb_publishable_5LehF_9tjUv9CbDZqSHp8A_SP3D1GPJ";  // PUBLISHABLE key!
 
 // Timing
 const int POLL_INTERVAL = 60000;        // 60 seconds polling
@@ -40,6 +41,10 @@ const int PRE_CLASS_WINDOW = 15;        // 15 minutes before class
 #define SCREEN_HEIGHT 64
 #define OLED_RESET    -1
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// RTC Module (DS3231)
+RTC_DS3231 rtc;
+bool rtcAvailable = false;
 
 // ==================== STATE MACHINE ====================
 enum RoomState {
@@ -105,8 +110,18 @@ void syncNTP() {
   
   if (now >= 1000000000) {
     Serial.println("NTP Synced!");
+    // Sync RTC from NTP if RTC available
+    if (rtcAvailable) {
+      DateTime ntp = DateTime(now);
+      rtc.adjust(ntp);
+      Serial.println("RTC synced from NTP");
+    }
   } else {
     Serial.println("NTP Failed!");
+    // Fallback to RTC if available
+    if (rtcAvailable && rtc.now().isValid()) {
+      Serial.println("Using RTC time");
+    }
   }
 }
 
@@ -279,15 +294,27 @@ void displayFooter() {
   display.setTextSize(1);
   display.setCursor(4, SCREEN_HEIGHT - 10);
   
-  time_t now = time(nullptr);
+  // Get time from RTC if available, else NTP
   char timeBuf[9];
-  strftime(timeBuf, sizeof(timeBuf), "%H:%M:%S", localtime(&now));
+  if (rtcAvailable) {
+    DateTime now = rtc.now();
+    sprintf(timeBuf, "%02d:%02d:%02d", now.hour(), now.minute(), now.second());
+  } else {
+    time_t now = time(nullptr);
+    strftime(timeBuf, sizeof(timeBuf), "%H:%M:%S", localtime(&now));
+  }
   display.print(timeBuf);
   
-  display.setCursor(SCREEN_WIDTH - 40, SCREEN_HEIGHT - 10);
-  display.print("Next: ");
-  display.print(qrCountdown);
-  display.print("s");
+  // Show RTC indicator
+  if (rtcAvailable) {
+    display.setCursor(SCREEN_WIDTH - 16, SCREEN_HEIGHT - 10);
+    display.print("RTC");
+  } else {
+    display.setCursor(SCREEN_WIDTH - 40, SCREEN_HEIGHT - 10);
+    display.print("Next: ");
+    display.print(qrCountdown);
+    display.print("s");
+  }
 }
 
 void displayIdle() {
@@ -458,6 +485,22 @@ void setup() {
   Serial.begin(115200);
   Serial.println("\n=== SIPGURU ESP32 ===");
   
+  // Wire (I2C) init
+  Wire.begin(21, 22);  // SDA=GPIO21, SCL=GPIO22
+  
+  // RTC init
+  if (rtc.begin()) {
+    rtcAvailable = true;
+    Serial.println("RTC found!");
+    if (!rtc.isrunning()) {
+      Serial.println("RTC not running - starting...");
+      rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    }
+  } else {
+    rtcAvailable = false;
+    Serial.println("RTC not found!");
+  }
+  
   // OLED
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
     Serial.println("OLED failed!");
@@ -474,7 +517,7 @@ void setup() {
   // WiFi
   connectWiFi();
   
-  // NTP
+  // NTP (syncs RTC if available)
   syncNTP();
   
   // Initial state fetch
