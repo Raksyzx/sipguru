@@ -108,6 +108,14 @@ interface ResetPasswordModal {
 
 const AdminDashboard = () => {
   const { user } = useAuth();
+  const [currentTime, setCurrentTime] = useState(new Date());
+  
+  // Realtime clock update
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  
   const [tab, setTab] = useState<Tab>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("sipguru-active-tab");
@@ -267,8 +275,9 @@ const AdminDashboard = () => {
         setGrades(grd.data?.grades || []);
         setGradeSchedules(sched.data?.grade_schedules || []);
         setJurusanList(jur.data?.jurusan || []);
-      } catch {
-        setMsg("Gagal memuat data dashboard");
+      } catch (err: any) {
+        const detail = err?.response?.data?.detail || err?.message || err?.code || "Unknown error";
+        setMsg(`Gagal memuat data dashboard: ${detail}`);
       } finally {
         setLoading(false);
       }
@@ -683,8 +692,11 @@ const AdminDashboard = () => {
               <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
                 {tab === "dashboard" ? "Dashboard" : tab === "guru" ? "Data Guru" : tab === "qr" ? "QR Ruangan" : tab === "izin" ? "Permohonan Izin" : tab === "mapel" ? "Mata Pelajaran" : tab === "kelas" ? "Kelas" : tab === "jurusan" ? "Jurusan" : "Jadwal Kelas"}
               </h2>
-              <div className="text-xs md:text-sm text-gray-600 dark:text-gray-400">
-                {new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+              <div className="text-xs md:text-sm text-gray-600 dark:text-gray-400 flex flex-col items-end gap-1">
+                <div>{currentTime.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</div>
+                <div className="text-xs font-mono text-gray-500 dark:text-gray-500">
+                  {currentTime.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                </div>
               </div>
             </div>
 
