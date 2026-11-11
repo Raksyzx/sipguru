@@ -165,9 +165,6 @@ export function MapPicker({
         countrycodes: "id",
         limit: "8",
         addressdetails: "1",
-        extratags: "1",
-        namedetails: "1",
-        "accept-language": "id,en",
       });
 
       // Add viewbox bias if map bounds available
@@ -177,14 +174,28 @@ export function MapPicker({
         params.append("bounded", "0"); // 0 = prefer but not restrict
       }
 
+      console.log("[MapPicker] Searching:", query, "URL:", `https://nominatim.openstreetmap.org/search?${params.toString()}`);
+      
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?${params.toString()}`,
-        { signal: abortControllerRef.current.signal }
+        { 
+          signal: abortControllerRef.current.signal,
+          headers: {
+            "Accept-Language": "id,en"
+          }
+        }
       );
       
-      if (!response.ok) throw new Error("Search failed");
+      console.log("[MapPicker] Response status:", response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[MapPicker] Search failed:", response.status, errorText);
+        throw new Error(`Search failed: ${response.status}`);
+      }
       
       const data: SearchResult[] = await response.json();
+      console.log("[MapPicker] Results count:", data.length);
       
       // Sort by importance and type priority
       const typePriority: Record<string, number> = {
@@ -200,10 +211,11 @@ export function MapPicker({
       });
       
       setSearchResults(data);
-      setShowResults(data.length > 0);
+      setShowResults(true); // Always show dropdown when we have a query
+      console.log("[MapPicker] State updated - results:", data.length, "showResults:", true);
     } catch (error: any) {
       if (error.name !== "AbortError") {
-        console.error("Search error:", error);
+        console.error("[MapPicker] Search error:", error);
         setSearchResults([]);
         setShowResults(false);
       }
@@ -214,6 +226,7 @@ export function MapPicker({
 
   const handleSearchInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
+    console.log("[MapPicker] Input changed:", value);
     setSearchQuery(value);
     setSelectedIndex(-1);
 
@@ -222,6 +235,7 @@ export function MapPicker({
     }
 
     searchTimeoutRef.current = setTimeout(() => {
+      console.log("[MapPicker] Debounced search:", value);
       searchLocation(value);
     }, 300);
   }, [searchLocation]);
@@ -331,7 +345,10 @@ export function MapPicker({
               value={searchQuery}
               onChange={handleSearchInput}
               onKeyDown={handleKeyDown}
-              onFocus={() => searchQuery.length >= 2 && searchResults.length > 0 && setShowResults(true)}
+              onFocus={() => {
+              console.log("[MapPicker] Focus - query:", searchQuery, "results:", searchResults.length, "showResults:", showResults);
+              searchQuery.length >= 2 && searchResults.length > 0 && setShowResults(true);
+            }}
               placeholder="Cari lokasi, alamat, atau tempat (contoh: SMKN 7 Serang, Monas, Jalan Sudirman)"
               className="flex-1 px-4 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none pr-10"
               autoComplete="off"
@@ -370,43 +387,43 @@ export function MapPicker({
         </div>
 
         {/* Search Results Dropdown */}
-        {showResults && searchResults.length > 0 && (
-          <div className="absolute top-full left-0 right-0 mt-1.5 bg-white dark:bg-stone-900 rounded-lg shadow-xl border border-gray-200 dark:border-stone-700 max-h-80 overflow-y-auto z-50 animate-in slide-in-from-top-2 duration-150">
-            {searchResults.map((result, idx) => (
-              <button
-                key={result.place_id || idx}
-                onClick={() => selectSearchResult(result)}
-                onMouseEnter={() => setSelectedIndex(idx)}
-                className={`w-full px-4 py-3 text-left text-sm transition-colors border-b border-gray-100 dark:border-gray-800 last:border-b-0 flex items-start gap-3 ${
-                  idx === selectedIndex 
-                    ? "bg-emerald-50 dark:bg-emerald-950/30" 
-                    : "hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                }`}
-              >
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-                  <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900 dark:text-white truncate">{result.display_name.split(',')[0]}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{formatAddress(result)}</p>
-                  {result.type && (
-                    <span className="inline-block mt-1 px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-full capitalize">
-                      {result.type.replace(/_/g, " ")}
-                    </span>
-                  )}
-                </div>
-              </button>
-            ))}
-            {searchResults.length === 0 && !isSearching && (
-              <div className="px-4 py-3 text-center text-sm text-gray-500 dark:text-gray-400">
-                Tidak ditemukan hasil untuk "{searchQuery}"
-              </div>
-            )}
-          </div>
-        )}
+                {(showResults || searchResults.length > 0) && (
+                  <div className="absolute top-full left-0 right-0 mt-1.5 bg-white dark:bg-stone-900 rounded-lg shadow-xl border border-gray-200 dark:border-stone-700 max-h-80 overflow-y-auto z-50 animate-in slide-in-from-top-2 duration-150">
+                    {searchResults.map((result, idx) => (
+                      <button
+                        key={result.place_id || idx}
+                        onClick={() => selectSearchResult(result)}
+                        onMouseEnter={() => setSelectedIndex(idx)}
+                        className={`w-full px-4 py-3 text-left text-sm transition-colors border-b border-gray-100 dark:border-gray-800 last:border-b-0 flex items-start gap-3 ${
+                          idx === selectedIndex
+                            ? "bg-emerald-50 dark:bg-emerald-950/30"
+                            : "hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                        }`}
+                      >
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                          <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 dark:text-white truncate">{result.display_name.split(',')[0]}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{formatAddress(result)}</p>
+                          {result.type && (
+                            <span className="inline-block mt-1 px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-full capitalize">
+                              {result.type.replace(/_/g, " ")}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                    {(searchResults.length === 0 && !isSearching && searchQuery.length >= 2) && (
+                      <div className="px-4 py-3 text-center text-sm text-gray-500 dark:text-gray-400">
+                        Tidak ditemukan hasil untuk "{searchQuery}"
+                      </div>
+                    )}
+                  </div>
+                )}
       </div>
 
       {/* Reverse Geocode Address Display */}
