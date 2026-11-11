@@ -965,11 +965,13 @@ const AdminDashboard = () => {
                 {/* Add Room Modal */}
                 {addRoomModal.open && (
                   <div
-                    className="modal-fixed-overlay flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+                    style={{ position: 'fixed', inset: 0, zIndex: 99999 }}
+                    className="flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
                     onClick={() => setAddRoomModal({ open: false, name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
                   >
                     <div
-                      className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200 motion-reduce:animate-none shadow-2xl"
+                      style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
+                      className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200 motion-reduce:animate-none shadow-2xl z-[100000]"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-between mb-4">
@@ -1075,11 +1077,13 @@ const AdminDashboard = () => {
                 {/* Edit Room Modal */}
                 {editRoomModal.open && (
                   <div
-                    className="modal-fixed-overlay flex items-center justify-center bg-black/50 backdrop-blur-sm"
+                    style={{ position: 'fixed', inset: 0, zIndex: 99999 }}
+                    className="flex items-center justify-center bg-black/50 backdrop-blur-sm"
                     onClick={() => setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
                   >
                     <div
-                      className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200 motion-reduce:animate-none shadow-2xl"
+                      style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
+                      className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200 motion-reduce:animate-none shadow-2xl z-[100000]"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-between mb-4">
@@ -1504,11 +1508,13 @@ const AdminDashboard = () => {
                 {/* Map Picker Modal */}
                         {showMapPicker && tempLocation && (
                           <div
-                            className="modal-fixed-overlay flex items-center justify-center bg-black/70 backdrop-blur-sm"
+                            style={{ position: 'fixed', inset: 0, zIndex: 99999 }}
+                            className="flex items-center justify-center bg-black/70 backdrop-blur-sm"
                             onClick={() => setShowMapPicker(false)}
                           >
                     <div
-                      className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-2xl mx-4 animate-in zoom-in-95 duration-200 shadow-2xl"
+                      style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
+                      className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-2xl mx-4 animate-in zoom-in-95 duration-200 shadow-2xl z-[100000]"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-between mb-4">
@@ -1693,11 +1699,13 @@ const AdminDashboard = () => {
               {/* Reset Password Modal */}
               {resetPasswordModal.open && (
                 <div
-                  className="modal-fixed-overlay flex items-center justify-center bg-black/50"
+                  style={{ position: 'fixed', inset: 0, zIndex: 99999 }}
+                  className="flex items-center justify-center bg-black/50"
                   onClick={() => setResetPasswordModal({ open: false, teacherId: "", teacherName: "", teacherEmail: "" })}
                 >
                   <div
-                    className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200 motion-reduce:animate-none"
+                    style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
+                    className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200 motion-reduce:animate-none z-[100000]"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="flex items-center justify-between mb-4">
@@ -1768,11 +1776,13 @@ const AdminDashboard = () => {
               {/* Edit Teacher Modal */}
               {editTeacherModal.open && (
                 <div
-                  className="modal-fixed-overlay flex items-center justify-center bg-black/50"
+                  style={{ position: 'fixed', inset: 0, zIndex: 99999 }}
+                  className="flex items-center justify-center bg-black/50"
                   onClick={() => setEditTeacherModal({ open: false, teacherId: "", teacherName: "", teacherEmail: "", teacherNip: "", newPassword: "", confirmNewPassword: "" })}
                 >
                   <div
-                    className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200 motion-reduce:animate-none"
+                    style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
+                    className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200 motion-reduce:animate-none z-[100000]"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="flex items-center justify-between mb-4">
