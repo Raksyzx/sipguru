@@ -401,7 +401,7 @@ export function MapPicker({
 
         {/* Search Results Dropdown */}
         {showResults && searchResults.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1.5 bg-white dark:bg-stone-900 rounded-lg shadow-xl border border-gray-200 dark:border-stone-700 max-h-80 overflow-y-auto z-50 animate-in slide-in-from-top-2 duration-150">
+                  <div className="absolute top-full left-0 right-0 mt-1.5 bg-white dark:bg-stone-900 rounded-lg shadow-xl border border-gray-200 dark:border-stone-700 max-h-80 overflow-y-auto z-[1000] animate-in slide-in-from-top-2 duration-150">
                     {searchResults.map((result, idx) => (
                       <button
                         key={result.place_id || idx}
@@ -458,7 +458,7 @@ export function MapPicker({
       )}
 
       {/* Map */}
-      <div className="relative w-full h-80 rounded-xl overflow-hidden border-2 border-gray-200 dark:border-stone-700">
+      <div className="relative w-full h-80 rounded-xl overflow-visible border-2 border-gray-200 dark:border-stone-700">
         <MapContainer
           center={position}
           zoom={17}
