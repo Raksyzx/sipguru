@@ -294,8 +294,8 @@ async def get_room_state(room_code: str):
             break
         
         # Check if this is the next class (within 15 minutes)
-        if start_dt > now.replace(second=0, microsecond=0):
-            minutes_until = (start_dt - now).total_seconds() / 60
+        if start_dt > now_wib.replace(second=0, microsecond=0):
+            minutes_until = (start_dt - now_wib).total_seconds() / 60
             if minutes_until <= 15 and next_schedule is None:
                 next_schedule = schedule
                 if minutes_until <= 15:
