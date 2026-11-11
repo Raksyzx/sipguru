@@ -13,21 +13,31 @@ const api = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
-    const { accessToken } = useAuthStore.getState();
+    const state = useAuthStore.getState();
+    const accessToken = state?.accessToken;
+    
+    // Debug logging
+    console.log('[API] Request to:', config.url, '| Token exists:', !!accessToken);
+    
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;
     }
     return config;
   },
   (error) => {
+    console.error('[API] Request error:', error);
     return Promise.reject(error);
   }
 );
 
 // Response interceptor
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log('[API] Response:', response.config.url, response.status);
+    return response;
+  },
   (error) => {
+    console.error('[API] Response error:', error.config?.url, error.code, error.message, error.response?.status, error.response?.data);
     if (error.response?.status === 401) {
       useAuthStore.getState().logout();
       window.location.href = "/login";
