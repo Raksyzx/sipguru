@@ -1060,115 +1060,99 @@ const AdminDashboard = () => {
                 </Modal>
 
                 {/* Edit Room Modal */}
-                {editRoomModal.open && (
-                  <div
-                    style={{ position: 'fixed', inset: 0, zIndex: 99999 }}
-                    className="flex items-center justify-center bg-black/50 backdrop-blur-sm"
-                    onClick={() => setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
-                  >
-                    <div
-                      style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
-                      className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200 motion-reduce:animate-none shadow-2xl z-[100000]"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Edit Ruangan</h3>
+                <Modal
+                  isOpen={editRoomModal.open}
+                  onClose={() => setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
+                  title="Edit Ruangan"
+                  size="md"
+                >
+                  <form onSubmit={updateRoom} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nama Ruangan</label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: Ruang Komputer 1"
+                        value={editRoomModal.name}
+                        onChange={(e) => setEditRoomModal({ ...editRoomModal, name: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kode Ruangan</label>
+                      <input
+                        type="text"
+                        placeholder="Contoh: RK01"
+                        value={editRoomModal.room_code}
+                        onChange={(e) => setEditRoomModal({ ...editRoomModal, room_code: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Radius Geofence (meter)</label>
+                      <input
+                        type="number"
+                        placeholder="150"
+                        value={editRoomModal.geofence_radius}
+                        onChange={(e) => setEditRoomModal({ ...editRoomModal, geofence_radius: parseInt(e.target.value) || 150 })}
+                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                        min="1"
+                        max="1000"
+                      />
+                    </div>
+                    
+                    {/* Geolocation with Map Picker */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-emerald-600" />
+                        Lokasi Geofence
+                      </label>
+                      <div className="flex gap-2 mb-2">
+                        <input
+                          type="text"
+                          placeholder="Lat, Lng (klik peta untuk set)"
+                          value={editRoomModal.geolocation}
+                          onChange={(e) => setEditRoomModal({ ...editRoomModal, geolocation: e.target.value })}
+                          className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                          readOnly
+                        />
                         <button
-                          onClick={() => setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
-                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                          type="button"
+                          onClick={() => {
+                            setMapMode('edit');
+                            const [lat, lng] = editRoomModal.geolocation ? editRoomModal.geolocation.split(',').map(Number) : [-6.2088, 106.8456];
+                            setTempLocation({ lat, lng });
+                            setShowMapPicker(true);
+                          }}
+                          className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
                         >
-                          ✕
+                          Pilih di Peta
                         </button>
                       </div>
-                      <form onSubmit={updateRoom} className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nama Ruangan</label>
-                          <input
-                            type="text"
-                            placeholder="Contoh: Ruang Komputer 1"
-                            value={editRoomModal.name}
-                            onChange={(e) => setEditRoomModal({ ...editRoomModal, name: e.target.value })}
-                            className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kode Ruangan</label>
-                          <input
-                            type="text"
-                            placeholder="Contoh: RK01"
-                            value={editRoomModal.room_code}
-                            onChange={(e) => setEditRoomModal({ ...editRoomModal, room_code: e.target.value })}
-                            className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Radius Geofence (meter)</label>
-                          <input
-                            type="number"
-                            placeholder="150"
-                            value={editRoomModal.geofence_radius}
-                            onChange={(e) => setEditRoomModal({ ...editRoomModal, geofence_radius: parseInt(e.target.value) || 150 })}
-                            className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                            min="1"
-                            max="1000"
-                          />
-                        </div>
-                        
-                        {/* Geolocation with Map Picker */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
-                            <MapPin className="w-4 h-4 text-emerald-600" />
-                            Lokasi Geofence
-                          </label>
-                          <div className="flex gap-2 mb-2">
-                            <input
-                              type="text"
-                              placeholder="Lat, Lng (klik peta untuk set)"
-                              value={editRoomModal.geolocation}
-                              onChange={(e) => setEditRoomModal({ ...editRoomModal, geolocation: e.target.value })}
-                              className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                              readOnly
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setMapMode('edit');
-                                const [lat, lng] = editRoomModal.geolocation ? editRoomModal.geolocation.split(',').map(Number) : [-6.2088, 106.8456];
-                                setTempLocation({ lat, lng });
-                                setShowMapPicker(true);
-                              }}
-                              className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
-                            >
-                              Pilih di Peta
-                            </button>
-                          </div>
-                          {editRoomModal.geolocation && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              Koordinat: {editRoomModal.geolocation}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex gap-3 pt-4">
-                          <button
-                            type="button"
-                            onClick={() => setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
-                            className="flex-1 px-4 py-2 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"
-                          >
-                            Batal
-                          </button>
-                          <button
-                            type="submit"
-                            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                          >
-                            Simpan Perubahan
-                          </button>
-                        </div>
-                      </form>
+                      {editRoomModal.geolocation && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Koordinat: {editRoomModal.geolocation}
+                        </p>
+                      )}
                     </div>
-                  </div>
-                )}
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        type="button"
+                        onClick={() => setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
+                        className="flex-1 px-4 py-2 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="submit"
+                        className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                      >
+                        Simpan Perubahan
+                      </button>
+                    </div>
+                  </form>
+                </Modal>
               </div>
             )}
 
@@ -1738,110 +1722,94 @@ const AdminDashboard = () => {
               )}
 
               {/* Edit Teacher Modal */}
-              {editTeacherModal.open && (
-                <div
-                  style={{ position: 'fixed', inset: 0, zIndex: 99999 }}
-                  className="flex items-center justify-center bg-black/50"
-                  onClick={() => setEditTeacherModal({ open: false, teacherId: "", teacherName: "", teacherEmail: "", teacherNip: "", newPassword: "", confirmNewPassword: "" })}
-                >
-                  <div
-                    style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
-                    className="bg-white dark:bg-stone-900 rounded-2xl p-6 w-full max-w-md mx-4 animate-in zoom-in-95 duration-200 motion-reduce:animate-none z-[100000]"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Edit Data Guru</h3>
-                      <button
-                        onClick={() => setEditTeacherModal({ open: false, teacherId: "", teacherName: "", teacherEmail: "", teacherNip: "", newPassword: "", confirmNewPassword: "" })}
-                        className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                      </button>
-                    </div>
-                    <form onSubmit={handleEditTeacher} className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Nama Lengkap
-                        </label>
-                        <input
-                          type="text"
-                          value={editTeacherModal.teacherName}
-                          onChange={(e) => setEditTeacherModal({ ...editTeacherModal, teacherName: e.target.value })}
-                          className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                          autoFocus
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Email (Username Login)
-                        </label>
-                        <input
-                          type="email"
-                          value={editTeacherModal.teacherEmail}
-                          onChange={(e) => setEditTeacherModal({ ...editTeacherModal, teacherEmail: e.target.value })}
-                          className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          NIP
-                        </label>
-                        <input
-                          type="text"
-                          value={editTeacherModal.teacherNip}
-                          onChange={(e) => setEditTeacherModal({ ...editTeacherModal, teacherNip: e.target.value })}
-                          className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Password Baru (opsional, min. 6 karakter)
-                        </label>
-                        <input
-                          type="password"
-                          value={editTeacherModal.newPassword}
-                          onChange={(e) => setEditTeacherModal({ ...editTeacherModal, newPassword: e.target.value })}
-                          className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Konfirmasi Password Baru
-                        </label>
-                        <input
-                          type="password"
-                          value={editTeacherModal.confirmNewPassword}
-                          onChange={(e) => setEditTeacherModal({ ...editTeacherModal, confirmNewPassword: e.target.value })}
-                          className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                        />
-                      </div>
-                      <div className="flex gap-3 pt-2">
-                        <button
-                          type="button"
-                          onClick={() => setEditTeacherModal({ open: false, teacherId: "", teacherName: "", teacherEmail: "", teacherNip: "", newPassword: "", confirmNewPassword: "" })}
-                          className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                        >
-                          Batal
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={editTeacherLoading}
-                          className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                        >
-                          {editTeacherLoading ? (
-                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                            </svg>
-                          ) : (
-                            "Simpan Perubahan"
-                          )}
-                        </button>
-                      </div>
-                    </form>
+              <Modal
+                isOpen={editTeacherModal.open}
+                onClose={() => setEditTeacherModal({ open: false, teacherId: "", teacherName: "", teacherEmail: "", teacherNip: "", newPassword: "", confirmNewPassword: "" })}
+                title="Edit Data Guru"
+                size="md"
+              >
+                <form onSubmit={handleEditTeacher} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Nama Lengkap
+                    </label>
+                    <input
+                      type="text"
+                      value={editTeacherModal.teacherName}
+                      onChange={(e) => setEditTeacherModal({ ...editTeacherModal, teacherName: e.target.value })}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                      autoFocus
+                    />
                   </div>
-                </div>
-              )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Email (Username Login)
+                    </label>
+                    <input
+                      type="email"
+                      value={editTeacherModal.teacherEmail}
+                      onChange={(e) => setEditTeacherModal({ ...editTeacherModal, teacherEmail: e.target.value })}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      NIP
+                    </label>
+                    <input
+                      type="text"
+                      value={editTeacherModal.teacherNip}
+                      onChange={(e) => setEditTeacherModal({ ...editTeacherModal, teacherNip: e.target.value })}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Password Baru (opsional, min. 6 karakter)
+                    </label>
+                    <input
+                      type="password"
+                      value={editTeacherModal.newPassword}
+                      onChange={(e) => setEditTeacherModal({ ...editTeacherModal, newPassword: e.target.value })}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Konfirmasi Password Baru
+                    </label>
+                    <input
+                      type="password"
+                      value={editTeacherModal.confirmNewPassword}
+                      onChange={(e) => setEditTeacherModal({ ...editTeacherModal, confirmNewPassword: e.target.value })}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditTeacherModal({ open: false, teacherId: "", teacherName: "", teacherEmail: "", teacherNip: "", newPassword: "", confirmNewPassword: "" })}
+                      className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={editTeacherLoading}
+                      className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    >
+                      {editTeacherLoading ? (
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                      ) : (
+                        "Simpan Perubahan"
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </Modal>
 
               {/* Animated Delete Confirmation Modal */}
               {confirmDelete && (
