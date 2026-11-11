@@ -96,18 +96,19 @@ def seed():
     
     # 6. Create Teachers (users with role=teacher)
     # Password default: password123 (bcrypt hash)
-    PASSWORD_HASH = "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.G.2f5f5f5f5f5f"
-    
+    PASSWORD_HASH_TEACHER = "$2b$12$ARyV0sSTAqqjSWWfSZrdmu6xbY4.h8hy9/xkz1Do/sYsIPJcHAiU2"
+    PASSWORD_HASH_ADMIN = "$2b$12$N23bUmMgd8RBPIYCD0WBVeyYeqX7.i86rmH/MCJcVJlr1b.D2iueq"
+
     teachers = [
-        {"id": str(uuid.uuid4()), "school_id": school_id, "email": "budi@sipguru.com", "name": "Budi Santoso", "role": "teacher", "nip": "198001012010012001", "phone": "081234567890", "password_hash": PASSWORD_HASH},
-        {"id": str(uuid.uuid4()), "school_id": school_id, "email": "siti@sipguru.com", "name": "Siti Rahayu", "role": "teacher", "nip": "198502022010012002", "phone": "081234567891", "password_hash": PASSWORD_HASH},
-        {"id": str(uuid.uuid4()), "school_id": school_id, "email": "ahmad@sipguru.com", "name": "Ahmad Fauzi", "role": "teacher", "nip": "199003032015012003", "phone": "081234567892", "password_hash": PASSWORD_HASH},
+        {"id": str(uuid.uuid4()), "school_id": school_id, "email": "budi@sipguru.com", "name": "Budi Santoso", "role": "teacher", "nip": "198001012010012001", "phone": "081234567890", "password_hash": PASSWORD_HASH_TEACHER},
+        {"id": str(uuid.uuid4()), "school_id": school_id, "email": "siti@sipguru.com", "name": "Siti Rahayu", "role": "teacher", "nip": "198502022010012002", "phone": "081234567891", "password_hash": PASSWORD_HASH_TEACHER},
+        {"id": str(uuid.uuid4()), "school_id": school_id, "email": "ahmad@sipguru.com", "name": "Ahmad Fauzi", "role": "teacher", "nip": "199003032015012003", "phone": "081234567892", "password_hash": PASSWORD_HASH_TEACHER},
     ]
     for t in teachers:
         supabase.table("users").insert(t).execute()
     teacher_ids = [t["id"] for t in teachers]
     print(f"✅ Teachers: {len(teachers)}")
-    
+
     # 7. Create Admin user
     admin_id = str(uuid.uuid4())
     supabase.table("users").insert({
@@ -118,7 +119,7 @@ def seed():
         "role": "admin",
         "nip": "197001012000012000",
         "phone": "081234567800",
-        "password_hash": PASSWORD_HASH
+        "password_hash": PASSWORD_HASH_ADMIN
     }).execute()
     print(f"✅ Admin: {admin_id}")
     
