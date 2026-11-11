@@ -272,11 +272,11 @@ async def get_room_state(room_code: str):
         end_time = schedule.get("end_time", "00:00")
         
         # Check if current class is active (within class time + 10 min grace)
-        start_dt = datetime.strptime(start_time, "%H:%M")
-        end_dt = datetime.strptime(end_time, "%H:%M")
+        start_dt = datetime.strptime(start_time, "%H:%M").replace(tzinfo=wib_offset)
+        end_dt = datetime.strptime(end_time, "%H:%M").replace(tzinfo=wib_offset)
         grace_end = end_dt + timedelta(minutes=10)
         
-        if start_dt <= now.replace(second=0, microsecond=0) <= grace_end:
+        if start_dt <= now_wib.replace(second=0, microsecond=0) <= grace_end:
             current_schedule = schedule
             # Check if entry has been scanned
             qr_tokens = db.get_qr_tokens_by_schedule(schedule["id"])
@@ -287,7 +287,7 @@ async def get_room_state(room_code: str):
                 state = "CLASS_ENDED"
             elif entry_scanned:
                 state = "CLASS_ACTIVE"
-            elif now > end_dt + timedelta(minutes=10):
+            elif now_wib > end_dt + timedelta(minutes=10):
                 state = "TEACHER_ABSENT"
             else:
                 state = "CLASS_ACTIVE"
