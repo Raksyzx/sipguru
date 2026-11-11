@@ -96,10 +96,9 @@ class SupabaseClient:
         return self._http_client
     
     def _get_client(self) -> Client:
-        """Get or create Supabase client with custom HTTP client."""
+        """Get or create Supabase client."""
         if self.client is None:
-            http_client = self._get_http_client()
-            self.client = create_client(self.url, self.key, http_client=http_client)
+            self.client = create_client(self.url, self.key)
         return self.client
     
     def close(self):
