@@ -1473,47 +1473,47 @@ const AdminDashboard = () => {
                     ))}
                   </div>
                 </div>
-
-                {/* Map Picker Modal */}
-                <Modal
-                  isOpen={showMapPicker && tempLocation !== null}
-                  onClose={() => setShowMapPicker(false)}
-                  title="Pilih Lokasi Geofence"
-                  size="xl"
-                >
-                  <MapPicker
-                    initialLat={tempLocation?.lat ?? -6.2088}
-                    initialLng={tempLocation?.lng ?? 106.8456}
-                    radius={mapMode === 'add' ? addRoomModal.geofence_radius : editRoomModal.geofence_radius}
-                    onLocationSelect={(lat, lng) => {
-                      const locationStr = `${lat}, ${lng}`;
-                      if (mapMode === 'add') {
-                        setAddRoomModal({ ...addRoomModal, geolocation: locationStr });
-                      } else {
-                        setEditRoomModal({ ...editRoomModal, geolocation: locationStr });
-                      }
-                      setTempLocation({ lat, lng });
-                    }}
-                  />
-                  <div className="flex gap-3 mt-4">
-                    <button
-                      type="button"
-                      onClick={() => setShowMapPicker(false)}
-                      className="flex-1 px-4 py-2 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"
-                    >
-                      Batal
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowMapPicker(false)}
-                      className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
-                    >
-                      Gunakan Lokasi Ini
-                    </button>
-                  </div>
-                </Modal>
               </div>
             )}
+
+            {/* Map Picker Modal - rendered at top level for all tabs */}
+            <Modal
+              isOpen={showMapPicker && tempLocation !== null}
+              onClose={() => setShowMapPicker(false)}
+              title="Pilih Lokasi Geofence"
+              size="xl"
+            >
+              <MapPicker
+                initialLat={tempLocation?.lat ?? -6.2088}
+                initialLng={tempLocation?.lng ?? 106.8456}
+                radius={mapMode === 'add' ? addRoomModal.geofence_radius : editRoomModal.geofence_radius}
+                onLocationSelect={(lat, lng) => {
+                  const locationStr = `${lat}, ${lng}`;
+                  if (mapMode === 'add') {
+                    setAddRoomModal({ ...addRoomModal, geolocation: locationStr });
+                  } else {
+                    setEditRoomModal({ ...editRoomModal, geolocation: locationStr });
+                  }
+                  setTempLocation({ lat, lng });
+                }}
+              />
+              <div className="flex gap-3 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowMapPicker(false)}
+                  className="flex-1 px-4 py-2 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowMapPicker(false)}
+                  className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+                >
+                  Gunakan Lokasi Ini
+                </button>
+              </div>
+            </Modal>
 
             {tab === "jadwal" && (
               <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none">
