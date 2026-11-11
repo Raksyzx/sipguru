@@ -79,10 +79,15 @@ const TeacherDashboard = () => {
   // Logout confirmation state
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  const handleLogout = () => setShowLogoutConfirm(true);
+  const handleLogout = () => {
+    console.log("Logout clicked, showing modal");
+    setShowLogoutConfirm(true);
+  };
   const confirmLogout = () => {
+    console.log("Logout confirmed");
     useAuthStore.getState().logout();
     setShowLogoutConfirm(false);
+    window.location.href = "/login";
   };
 
   // Theme
