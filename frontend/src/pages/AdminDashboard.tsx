@@ -216,7 +216,9 @@ const AdminDashboard = () => {
   const handleDeleteConfirm = async () => {
     if (!confirmDelete) return;
     try {
+      console.log('[DELETE] Attempting to delete:', confirmDelete.type, confirmDelete.id);
       await api.delete(`/admin/${confirmDelete.type}/${confirmDelete.id}`);
+      console.log('[DELETE] Success:', confirmDelete.type, confirmDelete.id);
       // Refresh data
       if (confirmDelete.type === 'jurusan') {
         const res = await api.get("/admin/jurusan");
@@ -241,8 +243,10 @@ const AdminDashboard = () => {
         setLeaves(res.data?.leaves || []);
       }
       showToast(`${confirmDelete.name} berhasil dihapus!`, 'success');
-    } catch {
-      showToast('Gagal menghapus data', 'error');
+    } catch (err: any) {
+      console.error('[DELETE] Error:', err.response?.status, err.response?.data, err.message);
+      const detail = err?.response?.data?.detail || err?.message || 'Gagal menghapus data';
+      showToast(detail, 'error');
     }
     setConfirmDelete(null);
   };
@@ -328,14 +332,16 @@ const AdminDashboard = () => {
     if (!newSubject.name || !newSubject.code) return;
     if (!newSubject.jurusan_id) { setMsg("Pilih jurusan dulu untuk mapel ini"); return; }
     try {
+      console.log('[ADD SUBJECT] Payload:', newSubject);
       await api.post("/admin/subjects", newSubject);
       const res = await api.get("/admin/subjects");
       setSubjects(res.data?.subjects || []);
       setNewSubject({ name: "", code: "", description: "", jurusan_id: "" });
       setMsg("Mata pelajaran berhasil ditambah!");
       setTimeout(() => setMsg(""), 3000);
-    } catch {
-      setMsg("Gagal menambah mata pelajaran");
+    } catch (err: any) {
+      console.error('[ADD SUBJECT] Error:', err.response?.status, err.response?.data);
+      setMsg(err?.response?.data?.detail || "Gagal menambah mata pelajaran");
     }
   };
 
@@ -344,17 +350,19 @@ const AdminDashboard = () => {
     if (!newGrade.name) return;
     if (!newGrade.jurusan_id) { setMsg("Pilih jurusan dulu untuk kelas ini"); return; }
     try {
-      // school_id diambil dari jurusan (jurusan sudah punya school_id)
+      console.log('[ADD GRADE] Payload:', newGrade);
       const jurDetail = await api.get(`/admin/jurusan/${newGrade.jurusan_id}`);
       const school_id = jurDetail.data?.jurusan?.school_id;
+      console.log('[ADD GRADE] school_id:', school_id);
       await api.post("/admin/grades", { ...newGrade, school_id });
       const res = await api.get("/admin/grades");
       setGrades(res.data?.grades || []);
       setNewGrade({ name: "", grade_level: 1, jurusan_id: "" });
       setMsg("Kelas berhasil ditambah!");
       setTimeout(() => setMsg(""), 3000);
-    } catch {
-      setMsg("Gagal menambah kelas");
+    } catch (err: any) {
+      console.error('[ADD GRADE] Error:', err.response?.status, err.response?.data);
+      setMsg(err?.response?.data?.detail || "Gagal menambah kelas");
     }
   };
 
@@ -362,20 +370,25 @@ const AdminDashboard = () => {
     e.preventDefault();
     if (!newJurusan.name || !newJurusan.code) return;
     try {
+      console.log('[ADD JURUSAN] Payload:', newJurusan);
       // school_id default: ambil dari jurusan pertama yang ada
       let school_id: string | undefined = undefined;
       if (jurusanList[0]) {
         const jurDetail = await api.get(`/admin/jurusan/${jurusanList[0].id}`);
         school_id = jurDetail.data?.jurusan?.school_id;
+        console.log('[ADD JURUSAN] school_id from first jurusan:', school_id);
       }
-      await api.post("/admin/jurusan", { ...newJurusan, school_id });
+      const payload = { ...newJurusan, school_id };
+      console.log('[ADD JURUSAN] Final payload:', payload);
+      await api.post("/admin/jurusan", payload);
       const res = await api.get("/admin/jurusan");
       setJurusanList(res.data?.jurusan || []);
       setNewJurusan({ name: "", code: "", description: "" });
       setMsg("Jurusan berhasil ditambah!");
       setTimeout(() => setMsg(""), 3000);
-    } catch {
-      setMsg("Gagal menambah jurusan");
+    } catch (err: any) {
+      console.error('[ADD JURUSAN] Error:', err.response?.status, err.response?.data);
+      setMsg(err?.response?.data?.detail || "Gagal menambah jurusan");
     }
   };
 
@@ -384,19 +397,28 @@ const AdminDashboard = () => {
     if (!addRoomModal.name || !addRoomModal.room_code) return;
     setAddRoomLoading(true);
     try {
+      console.log('[ADD ROOM] Payload:', addRoomModal);
+      // Get valid school_id from first jurusan
+      let school_id = "3e647ebf-beb7-476b-912b-4560e049f7cc"; // default school_id
+      if (jurusanList[0]) {
+        const jurDetail = await api.get(`/admin/jurusan/${jurusanList[0].id}`);
+        school_id = jurDetail.data?.jurusan?.school_id || school_id;
+      }
+      console.log('[ADD ROOM] Using school_id:', school_id);
       await api.post("/admin/rooms", {
         name: addRoomModal.name,
         room_code: addRoomModal.room_code,
         geofence_radius: addRoomModal.geofence_radius,
         geolocation: addRoomModal.geolocation,
-        school_id: "00000000-0000-0000-0000-000000000001",
+        school_id,
       });
       const res = await api.get("/admin/rooms");
       setRooms(res.data?.rooms || []);
       setAddRoomModal({ open: false, name: "", room_code: "", geofence_radius: 150, geolocation: "" });
       showToast("Ruangan berhasil ditambah!", 'success');
-    } catch {
-      showToast("Gagal menambah ruangan", 'error');
+    } catch (err: any) {
+      console.error('[ADD ROOM] Error:', err.response?.status, err.response?.data);
+      showToast(err?.response?.data?.detail || "Gagal menambah ruangan", 'error');
     } finally {
       setAddRoomLoading(false);
     }
@@ -406,6 +428,7 @@ const AdminDashboard = () => {
     e.preventDefault();
     if (!editRoomModal.id) return;
     try {
+      console.log('[UPDATE ROOM] ID:', editRoomModal.id, 'Payload:', editRoomModal);
       await api.put(`/admin/rooms/${editRoomModal.id}`, {
         name: editRoomModal.name,
         room_code: editRoomModal.room_code,
@@ -416,8 +439,9 @@ const AdminDashboard = () => {
       setRooms(res.data?.rooms || []);
       setEditRoomModal({ open: false, id: "", name: "", room_code: "", geofence_radius: 150, geolocation: "" });
       showToast("Ruangan berhasil diupdate!", 'success');
-    } catch {
-      showToast("Gagal mengupdate ruangan", 'error');
+    } catch (err: any) {
+      console.error('[UPDATE ROOM] Error:', err.response?.status, err.response?.data);
+      showToast(err?.response?.data?.detail || "Gagal mengupdate ruangan", 'error');
     }
   };
 
@@ -499,6 +523,7 @@ const AdminDashboard = () => {
     e.preventDefault();
     setEditTeacherLoading(true);
     try {
+      console.log('[EDIT TEACHER] ID:', editTeacherModal.teacherId, 'Payload:', editTeacherModal);
       const updateData: any = {
         name: editTeacherModal.teacherName,
         email: editTeacherModal.teacherEmail,
@@ -522,6 +547,7 @@ const AdminDashboard = () => {
       const res = await api.get("/admin/teachers");
       setTeachers(res.data?.teachers || []);
     } catch (err: any) {
+      console.error('[EDIT TEACHER] Error:', err.response?.status, err.response?.data);
       showToast(err.response?.data?.detail || "Gagal mengupdate data guru", 'error');
     } finally {
       setEditTeacherLoading(false);
