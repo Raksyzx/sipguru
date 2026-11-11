@@ -318,12 +318,14 @@ const AdminDashboard = () => {
 
   const decideLeave = async (id: string, approve: boolean) => {
     try {
+      console.log('[DECIDE LEAVE] ID:', id, 'Approve:', approve);
       await api.post(`/admin/leaves/approve?leave_id=${id}&approve=${approve}`);
       setLeaves((prev) =>
         prev.map((l) => (l.id === id ? { ...l, status: approve ? "approved" : "rejected" } : l))
       );
-    } catch {
-      setMsg("Gagal memproses izin");
+    } catch (err: any) {
+      console.error('[DECIDE LEAVE] Error:', err.response?.status, err.response?.data);
+      setMsg(err?.response?.data?.detail || "Gagal memproses izin");
     }
   };
 
@@ -462,6 +464,7 @@ const AdminDashboard = () => {
   };
 
   const deleteSchedule = async (id: string) => {
+    console.log('[DELETE SCHEDULE] ID:', id);
     showDeleteConfirm(id, 'Jadwal', 'schedule');
   };
 
@@ -478,6 +481,7 @@ const AdminDashboard = () => {
     }
     
     try {
+      console.log('[ADD SCHEDULE] Payload:', newSchedule);
       await api.post("/admin/grade-schedules", newSchedule);
       const res = await api.get("/admin/grade-schedules");
       setGradeSchedules(res.data?.grade_schedules || []);
@@ -491,8 +495,9 @@ const AdminDashboard = () => {
         room_id: "",
       });
       showToast("Jadwal kelas berhasil ditambah!", 'success');
-    } catch {
-      showToast("Gagal menambah jadwal kelas", 'error');
+    } catch (err: any) {
+      console.error('[ADD SCHEDULE] Error:', err.response?.status, err.response?.data);
+      showToast(err?.response?.data?.detail || "Gagal menambah jadwal kelas", 'error');
     }
   };
 
