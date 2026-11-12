@@ -254,7 +254,7 @@ async def get_room_state(room_code: str):
     
     room_id = room["id"]
     # Convert UTC to WIB (UTC+7) for schedule comparison
-    from datetime import timezone
+    from datetime import timezone, timedelta
     wib_offset = timezone(timedelta(hours=7))
     now_wib = datetime.now(wib_offset)
     current_time = now_wib.strftime("%H:%M")
@@ -267,8 +267,9 @@ async def get_room_state(room_code: str):
     }
     day_of_week = day_name_map.get(day_of_week_en, day_of_week_en)
     
-    # Get today's schedules for this room (use English capitalized for DB query)
-    schedules = db.get_schedules_by_room_and_day(room_id, day_of_week_en)
+    # FIX: Get today's grade_schedules for this room (not old schedules table)
+    all_schedules = db.get_all_grade_schedules()
+    schedules = [s for s in all_schedules if s.get("room_id") == room_id and s.get("day_of_week") == day_of_week_en]
     
     current_schedule = None
     next_schedule = None
