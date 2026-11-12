@@ -25,11 +25,11 @@ interface MapPickerProps {
 function MapController({ 
   position, 
   onMapMove,
-  onBoundsChange 
+  onBoundsChange
 }: { 
   position: [number, number]; 
   onMapMove: (lat: number, lng: number) => void;
-  onBoundsChange: (bounds: [[number, number], [number, number]]) => void;
+  onBoundsChange?: (bounds: [[number, number], [number, number]]) => void;
 }) {
   const map = useMap();
   const movedBySearch = useRef(false);
@@ -52,7 +52,7 @@ function MapController({
       }
       // Update bounds for search bias
       const b = mapInstance.getBounds();
-      onBoundsChange([[b.getSouth(), b.getWest()], [b.getNorth(), b.getEast()]]);
+      onBoundsChange?.([[b.getSouth(), b.getWest()], [b.getNorth(), b.getEast()]]);
       movedBySearch.current = false;
     },
   });
@@ -101,7 +101,6 @@ export function MapPicker({
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
-  const [mapBounds, setMapBounds] = useState<[[number, number], [number, number]] | null>(null);
   const [reverseGeocode, setReverseGeocode] = useState<string>("");
   const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
   
@@ -139,7 +138,7 @@ export function MapPicker({
     }
   }, []);
 
-  // Search location using Nominatim with map bounds bias
+  // Search location using Nominatim with Indonesia bias
   const searchLocation = useCallback(async (query: string) => {
     if (query.length < 2) {
       setSearchResults([]);
@@ -158,21 +157,19 @@ export function MapPicker({
     setSelectedIndex(-1);
     
     try {
-      // Build URL with bounds bias for better local results
+      // Indonesia bounding box for better results
+      // West: 95°E, South: -11°S, East: 141°E, North: 6°N
+      const indonesiaViewbox = "95,-11,141,6";
+      
       const params = new URLSearchParams({
         format: "json",
         q: query,
         countrycodes: "id",
-        limit: "8",
+        limit: "10",
         addressdetails: "1",
+        viewbox: indonesiaViewbox,
+        bounded: "0", // Prefer results in viewbox but don't restrict
       });
-
-      // Add viewbox bias if map bounds available
-      if (mapBounds) {
-        const [[south, west], [north, east]] = mapBounds;
-        params.append("viewbox", `${west},${south},${east},${north}`);
-        params.append("bounded", "0"); // 0 = prefer but not restrict
-      }
 
       const url = `https://nominatim.openstreetmap.org/search?${params.toString()}`;
       console.log("[MapPicker] Searching:", query, "URL:", url);
@@ -197,24 +194,42 @@ export function MapPicker({
       }
       
       const data: SearchResult[] = await response.json();
-      console.log("[MapPicker] Results count:", data.length, "Data:", data.slice(0, 3));
+      console.log("[MapPicker] Results count:", data.length, "Data:", data.slice(0, 5));
       
-      // Sort by importance and type priority
+      // Enhanced ranking: prioritize schools, buildings, and places in Indonesia
       const typePriority: Record<string, number> = {
-        building: 1, amenity: 2, shop: 3, office: 4, 
-        tourism: 5, highway: 6, place: 7, natural: 8
+        school: 1, university: 1, college: 1, 
+        building: 2, amenity: 3, office: 4,
+        shop: 5, tourism: 6, highway: 7, 
+        place: 8, residential: 9, natural: 10
       };
       
+      // Boost results with Indonesia-specific keywords in display_name
+      const indoKeywords = ['serang', 'banten', 'jakarta', 'bandung', 'surabaya', 'smk', 'sma', 'sekolah'];
+      
       data.sort((a, b) => {
+        // Type priority
         const aPriority = typePriority[a.type || ""] || 99;
         const bPriority = typePriority[b.type || ""] || 99;
+        
         if (aPriority !== bPriority) return aPriority - bPriority;
-        return (b.importance || 0) - (a.importance || 0);
+        
+        // Boost by importance
+        const aImportance = a.importance || 0;
+        const bImportance = b.importance || 0;
+        
+        // Boost if contains Indonesia keywords
+        const aNameLower = a.display_name.toLowerCase();
+        const bNameLower = b.display_name.toLowerCase();
+        const aKeywordBoost = indoKeywords.some(k => aNameLower.includes(k)) ? 0.1 : 0;
+        const bKeywordBoost = indoKeywords.some(k => bNameLower.includes(k)) ? 0.1 : 0;
+        
+        return (bImportance + bKeywordBoost) - (aImportance + aKeywordBoost);
       });
       
       setSearchResults(data);
       setShowResults(data.length > 0);
-      console.log("[MapPicker] State updated - results:", data.length, "showResults:", data.length > 0);
+      console.log("[MapPicker] Sorted results:", data.slice(0, 3).map(d => ({ name: d.display_name.split(',')[0], type: d.type, importance: d.importance })));
     } catch (error: any) {
       if (error.name !== "AbortError") {
         console.error("[MapPicker] Search error:", error);
@@ -224,7 +239,7 @@ export function MapPicker({
     } finally {
       setIsSearching(false);
     }
-  }, [mapBounds]);
+  }, []);
 
   const handleSearchInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -486,7 +501,6 @@ export function MapPicker({
               setPosition([lat, lng]);
               onLocationSelect(lat, lng);
             }}
-            onBoundsChange={setMapBounds}
           />
           <MapEvents onMapClick={handleMapClick} />
         </MapContainer>
