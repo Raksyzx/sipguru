@@ -86,6 +86,7 @@ def _validate_schedule(teacher_id: str, room_id: str, now: datetime) -> tuple[bo
         "is_late": is_late,
         "lateness_minutes": lateness,
     }
+@router.post("/submit")
 async def submit_attendance(
     data: AttendanceSubmit,
     auth_user: dict = Depends(get_current_user),
