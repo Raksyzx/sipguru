@@ -273,6 +273,11 @@ async def get_room_state(room_code: str):
     try:
         all_schedules = db.get_all_grade_schedules()
         print(f"[QR DEBUG] all_schedules count: {len(all_schedules)}")
+        print(f"[QR DEBUG] searching for room_id={room_id}, day_of_week={day_of_week_en}")
+        if all_schedules:
+            sample = all_schedules[0]
+            print(f"[QR DEBUG] sample schedule keys: {list(sample.keys())}")
+            print(f"[QR DEBUG] sample room_id: {sample.get('room_id')}, day_of_week: {sample.get('day_of_week')}")
         schedules = [s for s in all_schedules if s.get("room_id") == room_id and s.get("day_of_week") == day_of_week_en]
         print(f"[QR DEBUG] filtered schedules for room {room_id} on {day_of_week_en}: {len(schedules)}")
         if schedules:
