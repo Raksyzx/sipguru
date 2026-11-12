@@ -277,6 +277,8 @@ async def get_room_state(room_code: str):
             print(f"[QR DEBUG] schedules: {[(s['start_time'], s['end_time'], s.get('grade_name')) for s in schedules]}")
     except Exception as e:
         print(f"[QR DEBUG] Error getting schedules: {e}")
+        import traceback
+        traceback.print_exc()
         schedules = []
     
     current_schedule = None
