@@ -252,6 +252,15 @@ export function MapPicker({
         type: r.type, 
         city: r.address?.city 
       })));
+      
+      // Auto fly to first result if only one match
+      if (transformed.length === 1) {
+        const first = transformed[0];
+        const newPos: [number, number] = [parseFloat(first.lat), parseFloat(first.lon)];
+        setPosition(newPos);
+        onLocationSelect(newPos[0], newPos[1]);
+        console.log("[MapPicker] Auto-flying to single result:", newPos);
+      }
     } catch (error: any) {
       if (error.name !== "AbortError") {
         console.error("[MapPicker] Search error:", error);
@@ -362,23 +371,6 @@ export function MapPicker({
     );
   }, [onLocationSelect, reverseGeocodeLocation]);
 
-  // Format address for display
-  const formatAddress = (result: SearchResult) => {
-    const parts: string[] = [];
-    if (result.address) {
-      const { road, house_number, neighbourhood, village, suburb, city, county, state, postcode } = result.address;
-      if (road) parts.push(`${road}${house_number ? ` ${house_number}` : ""}`);
-      if (neighbourhood) parts.push(neighbourhood);
-      else if (village) parts.push(village);
-      else if (suburb) parts.push(suburb);
-      if (city) parts.push(city);
-      else if (county) parts.push(county);
-      else if (state) parts.push(state);
-      if (postcode) parts.push(postcode);
-    }
-    return parts.length > 0 ? parts.join(", ") : result.display_name;
-  };
-
   return (
     <div className="space-y-3">
       {/* Search Box */}
@@ -438,7 +430,7 @@ export function MapPicker({
 
         {/* Search Results Dropdown */}
         {showResults && searchResults.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1.5 bg-white dark:bg-stone-900 rounded-lg shadow-xl border border-gray-200 dark:border-stone-700 max-h-80 overflow-y-auto z-[1000] animate-in slide-in-from-top-2 duration-150">
+                  <div className="absolute top-full left-0 right-0 mt-1.5 bg-white dark:bg-stone-900 rounded-lg shadow-xl border border-gray-200 dark:border-stone-700 max-h-80 overflow-y-auto z-[1000] animate-in slide-in-from-top-2 duration-150" ref={resultsRef}>
                     {searchResults.map((result, idx) => (
                       <button
                         key={result.place_id || idx}
@@ -458,7 +450,10 @@ export function MapPicker({
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-gray-900 dark:text-white truncate">{result.display_name.split(',')[0]}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{formatAddress(result)}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                            {result.address?.city && `${result.address.city}, `}
+                            {result.address?.state || 'Indonesia'}
+                          </p>
                           {result.type && (
                             <span className="inline-block mt-1 px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-full capitalize">
                               {result.type.replace(/_/g, " ")}
@@ -467,11 +462,19 @@ export function MapPicker({
                         </div>
                       </button>
                     ))}
-                    {(searchResults.length === 0 && !isSearching && searchQuery.length >= 2) && (
-                      <div className="px-4 py-3 text-center text-sm text-gray-500 dark:text-gray-400">
-                        Tidak ditemukan hasil untuk "{searchQuery}"
-                      </div>
-                    )}
+                  </div>
+                )}
+                
+                {/* Loading indicator */}
+                {isSearching && (
+                  <div className="absolute top-full left-0 right-0 mt-1.5 bg-white dark:bg-stone-900 rounded-lg shadow-xl border border-gray-200 dark:border-stone-700 p-4 z-[1000]">
+                    <div className="flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Mencari lokasi...
+                    </div>
                   </div>
                 )}
       </div>
