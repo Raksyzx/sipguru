@@ -258,7 +258,9 @@ async def get_room_state(room_code: str):
     # Convert UTC to WIB (UTC+7) for schedule comparison
     from datetime import timezone, timedelta
     wib_offset = timezone(timedelta(hours=7))
-    now_wib = datetime.now(wib_offset)
+    # FIX: Get current time in UTC, then convert to WIB
+    utc_now = datetime.now(timezone.utc)
+    now_wib = utc_now.astimezone(wib_offset)
     current_time = now_wib.strftime("%H:%M")
     # FIX: Use capitalized day name for DB query (e.g., "Thursday")
     day_of_week_en = now_wib.strftime("%A").capitalize()

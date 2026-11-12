@@ -44,7 +44,9 @@ def _validate_schedule(teacher_id: str, room_id: str, now: datetime) -> tuple[bo
     # FIX: Convert UTC to WIB (UTC+7) for schedule comparison
     from datetime import timezone, timedelta
     wib_offset = timezone(timedelta(hours=7))
-    now_wib = now.astimezone(wib_offset) if now.tzinfo else now.replace(tzinfo=wib_offset)
+    # FIX: Get current time in UTC, then convert to WIB
+    utc_now = datetime.now(timezone.utc)
+    now_wib = utc_now.astimezone(wib_offset)
     
     day_name_en = now_wib.strftime("%A").capitalize()  # FIX: Capitalize to match DB (e.g., "Thursday")
     
