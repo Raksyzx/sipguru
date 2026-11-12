@@ -7,8 +7,6 @@ import {
   CheckCircle,
   QrCode,
   LogOut,
-  Copy,
-  Check,
   BookOpen,
   GraduationCap,
   CalendarDays,
@@ -136,6 +134,7 @@ const AdminDashboard = () => {
   const [qrToken, setQrToken] = useState("");
   const [qrRoom, setQrRoom] = useState("");
   const [copied, setCopied] = useState(false);
+  const [generatingId, setGeneratingId] = useState<string | null>(null); // Track which schedule is generating
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
 
@@ -301,6 +300,7 @@ const AdminDashboard = () => {
   }, []);
 
   const generateQR = async (scheduleId: string) => {
+    setGeneratingId(scheduleId); // Show loading for this specific schedule
     try {
       const res = await api.post("/qr/generate", { schedule_id: scheduleId });
       setQrToken(res.data.token);
@@ -315,6 +315,8 @@ const AdminDashboard = () => {
     } catch (err: any) {
       const errorMsg = err?.response?.data?.detail || "Gagal generate QR token";
       setMsg(errorMsg);
+    } finally {
+      setGeneratingId(null); // Reset loading
     }
   };
 
@@ -949,29 +951,48 @@ const AdminDashboard = () => {
                         </div>
                         <button
                           onClick={() => generateQR(s.id)}
-                          className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors shadow-emerald-glow"
+                          disabled={generatingId === s.id}
+                          className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors shadow-emerald-glow disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          Generate
+                          {generatingId === s.id ? (
+                            <span className="flex items-center gap-2">
+                              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                              Loading...
+                            </span>
+                          ) : (
+                            'Generate'
+                          )}
                         </button>
                       </div>
                     ))}
+
+                    {/* QR Token Display - Inline under the generated schedule */}
+                    {qrToken && qrRoom && (
+                      <div className="glass-card-light p-4 border-emerald-200/50 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/20 animate-in slide-in-from-top-2 duration-300">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-emerald-800 dark:text-emerald-300 truncate">{qrRoom}</p>
+                            <p className="text-xs font-mono break-all bg-gray-100 dark:bg-white/10 p-2 rounded-lg mt-1 text-gray-700 dark:text-gray-300">{qrToken}</p>
+                          </div>
+                          <div className="flex flex-col gap-2 shrink-0">
+                            <button
+                              onClick={copyToken}
+                              className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors whitespace-nowrap"
+                            >
+                              {copied ? '✓ Tersalin!' : 'Salin Token'}
+                            </button>
+                            <button
+                              onClick={() => { setQrToken(""); setQrRoom(""); }}
+                              className="px-3 py-1.5 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-200 dark:hover:bg-white/20 transition-colors whitespace-nowrap"
+                            >
+                              Tutup
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-                {qrToken && (
-                  <div className="glass-card-light p-6 border-emerald-200/50 dark:border-emerald-900/50">
-                    <p className="font-medium text-emerald-800 dark:text-emerald-300">{qrRoom}</p>
-                    <p className="text-xs font-mono break-all bg-gray-50 dark:bg-white/10 p-3 rounded-lg mt-2 text-gray-700 dark:text-gray-300">
-                      {qrToken}
-                    </p>
-                    <button
-                      onClick={copyToken}
-                      className="mt-3 flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-white/10 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"
-                    >
-                      {copied ? <Check className="w-4 h-4 text-green-600 dark:text-green-400" /> : <Copy className="w-4 h-4" />}
-                      {copied ? "Tersalin!" : "Salin token"}
-                    </button>
-                  </div>
-                )}
                 
                 {/* Room List with Geofence Customization */}
                 <div className="glass-card-light overflow-hidden mt-6">
