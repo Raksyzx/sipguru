@@ -41,7 +41,12 @@ def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 def _validate_schedule(teacher_id: str, room_id: str, now: datetime) -> tuple[bool, dict]:
-    day_name_en = now.strftime("%A").capitalize()  # FIX: Capitalize to match DB (e.g., "Thursday")
+    # FIX: Convert UTC to WIB (UTC+7) for schedule comparison
+    from datetime import timezone, timedelta
+    wib_offset = timezone(timedelta(hours=7))
+    now_wib = now.astimezone(wib_offset) if now.tzinfo else now.replace(tzinfo=wib_offset)
+    
+    day_name_en = now_wib.strftime("%A").capitalize()  # FIX: Capitalize to match DB (e.g., "Thursday")
     
     # FIX: Use grade_schedules table (not old schedules table)
     schedules = db.get_grade_schedules_by_teacher_and_day(teacher_id, day_name_en)
@@ -60,7 +65,7 @@ def _validate_schedule(teacher_id: str, room_id: str, now: datetime) -> tuple[bo
     except (ValueError, KeyError):
         return False, {"reason": "Format jadwal tidak valid"}
     
-    now_t = now.time()
+    now_t = now_wib.time()  # Use WIB time for comparison
     tol_min = settings.LATE_TOLERANCE_MINUTES
 
     def to_min(t):
