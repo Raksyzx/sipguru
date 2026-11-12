@@ -889,8 +889,11 @@ class SupabaseClient:
     
     @log_query_time
     def delete_grade_schedule(self, schedule_id: str) -> bool:
-        """Delete grade schedule"""
+        """Delete grade schedule (with cascade to qr_tokens)"""
         client = self._get_client()
+        # First delete associated QR tokens to avoid foreign key violation
+        client.table("qr_tokens").delete().eq("schedule_id", schedule_id).execute()
+        # Then delete the schedule
         result = client.table("grade_schedules").delete().eq("id", schedule_id).execute()
         return bool(result.data)
     
