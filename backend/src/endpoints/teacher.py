@@ -58,13 +58,25 @@ async def get_todays_schedule(
     auth_user: dict = Depends(verify_jwt)
 ):
     """Get teacher's schedule for today with enriched data - optimized with caching"""
-    day_name_en = datetime.datetime.now().strftime("%A")
-    day_name = get_day_name_indonesian(day_name_en)
+    # FIX: Convert UTC to WIB and use Indonesian day name
+    from datetime import timezone, timedelta
+    wib_offset = timezone(timedelta(hours=7))
+    utc_now = datetime.datetime.now(timezone.utc)
+    now_wib = utc_now.astimezone(wib_offset)
     
-    # Use cached fetch
-    schedules = await _get_cached_teacher_schedules_by_day(auth_user["user_id"], day_name_en)
+    day_name_en = now_wib.strftime("%A")  # e.g., "Thursday"
+    day_name_map = {
+        "Monday": "Senin", "Tuesday": "Selasa", "Wednesday": "Rabu",
+        "Thursday": "Kamis", "Friday": "Jumat", "Saturday": "Sabtu", "Sunday": "Minggu"
+    }
+    day_name_id = day_name_map.get(day_name_en, day_name_en)  # "Kamis"
     
-    return {"schedules": schedules, "day": day_name}
+    print(f"[TEACHER DEBUG] now_wib={now_wib}, day_name_en={day_name_en}, day_name_id={day_name_id}")
+    
+    # FIX: Use Indonesian day name for DB query (DB stores "Kamis", not "Thursday")
+    schedules = await _get_cached_teacher_schedules_by_day(auth_user["user_id"], day_name_id)
+    
+    return {"schedules": schedules, "day": day_name_id}
 
 @router.get("/history")
 async def get_attendance_history(
