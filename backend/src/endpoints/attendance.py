@@ -202,7 +202,6 @@ async def submit_attendance(
         geolocation=json.dumps(data.geolocation.model_dump()),
         qr_token=data.qr_token,
         device_fingerprint=data.device_fingerprint,
-        lateness_minutes=lateness,
     )
 
     # Update QR token state to scanned

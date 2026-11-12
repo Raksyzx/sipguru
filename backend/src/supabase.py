@@ -330,7 +330,6 @@ class SupabaseClient:
     def create_attendance_log(self, teacher_id: str, room_id: str,
                              status: str, geolocation: str = None,
                              qr_token: str = None, device_fingerprint: str = None,
-                             lateness_minutes: int = None,
                              admin_remarks: str = None) -> str:
         """Create new attendance log entry"""
         client = self._get_client()
@@ -341,7 +340,6 @@ class SupabaseClient:
             "geolocation": geolocation,
             "qr_token": qr_token,
             "device_fingerprint": device_fingerprint,
-            "lateness_minutes": lateness_minutes,
             "admin_remarks": admin_remarks
         }).execute()
         return result.data[0]["id"]
@@ -363,7 +361,7 @@ class SupabaseClient:
         end_date = f"{end_year}-{end_month:02d}-01T00:00:00"
         
         result = client.table("attendance_logs").select(
-            "id,teacher_id,room_id,status,geolocation,created_at,lateness_minutes"
+            "id,teacher_id,room_id,status,geolocation,created_at"
         ).eq("teacher_id", teacher_id).gte("created_at", start_date).lt("created_at", end_date).execute()
         return result.data
     
