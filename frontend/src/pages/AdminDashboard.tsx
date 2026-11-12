@@ -1069,11 +1069,10 @@ const AdminDashboard = () => {
                       <div className="flex gap-2 mb-2">
                         <input
                           type="text"
-                          placeholder="Lat, Lng (klik peta untuk set)"
+                          placeholder="Lat, Lng (klik peta atau ketik manual)"
                           value={addRoomModal.geolocation}
                           onChange={(e) => setAddRoomModal({ ...addRoomModal, geolocation: e.target.value })}
                           className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                          readOnly
                         />
                         <button
                           type="button"
@@ -1083,7 +1082,7 @@ const AdminDashboard = () => {
                             setTempLocation({ lat, lng });
                             setShowMapPicker(true);
                           }}
-                          className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
+                          className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors whitespace-nowrap"
                         >
                           Pilih di Peta
                         </button>
@@ -1165,11 +1164,10 @@ const AdminDashboard = () => {
                       <div className="flex gap-2 mb-2">
                         <input
                           type="text"
-                          placeholder="Lat, Lng (klik peta untuk set)"
+                          placeholder="Lat, Lng (klik peta atau ketik manual)"
                           value={editRoomModal.geolocation}
                           onChange={(e) => setEditRoomModal({ ...editRoomModal, geolocation: e.target.value })}
                           className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                          readOnly
                         />
                         <button
                           type="button"
@@ -1179,7 +1177,7 @@ const AdminDashboard = () => {
                             setTempLocation({ lat, lng });
                             setShowMapPicker(true);
                           }}
-                          className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
+                          className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors whitespace-nowrap"
                         >
                           Pilih di Peta
                         </button>
