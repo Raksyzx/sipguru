@@ -12,6 +12,7 @@ db = get_db()
 
 class GenerateQRRequest(BaseModel):
     schedule_id: str  # Required: schedule already contains room_id, grade_id, subject_id, teacher_id
+    expires_in: int = 300  # Optional: expiry in seconds (default 300 = 5 minutes)
 
 
 class GenerateBoundQRRequest(BaseModel):
@@ -51,19 +52,20 @@ async def generate_qr_token(
         jurusan_name = jurusan.get("name") if jurusan else None
     
     # Generate token with schedule data embedded
+    expiry = data.expires_in if hasattr(data, 'expires_in') and data.expires_in else settings.QR_EXPIRY_SECONDS
     token = generate_hmac_token(
         room_id=room_id,
         schedule_id=data.schedule_id,
         subject_id=schedule.get("subject_id"),
         teacher_id=schedule.get("teacher_id"),
         grade_id=schedule.get("grade_id"),
-        expiry_seconds=settings.QR_EXPIRY_SECONDS,
+        expiry_seconds=expiry,
         secret=settings.JWT_SECRET
     )
     
     # Store in qr_tokens table for strict validation
     from datetime import datetime, timedelta
-    expires_at = (datetime.now() + timedelta(seconds=settings.QR_EXPIRY_SECONDS)).isoformat()
+    expires_at = (datetime.now() + timedelta(seconds=expiry)).isoformat()
     qr_id = db.create_qr_token(
         schedule_id=data.schedule_id,
         room_id=room_id,
@@ -89,7 +91,7 @@ async def generate_qr_token(
         "teacher_name": db.get_user(schedule["teacher_id"]).get("name") if db.get_user(schedule["teacher_id"]) else None,
         "room_name": room.get("name"),
         "expires_at": expires_at,
-        "expires_in": settings.QR_EXPIRY_SECONDS
+        "expires_in": expiry
     }
 
 
