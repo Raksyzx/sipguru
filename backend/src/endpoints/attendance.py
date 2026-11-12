@@ -41,10 +41,10 @@ def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 def _validate_schedule(teacher_id: str, room_id: str, now: datetime) -> tuple[bool, dict]:
-    day_name = now.strftime("%A")
+    day_name_en = now.strftime("%A").capitalize()  # FIX: Capitalize to match DB (e.g., "Thursday")
     
     # FIX: Use grade_schedules table (not old schedules table)
-    schedules = db.get_grade_schedules_by_teacher_and_day(teacher_id, day_name)
+    schedules = db.get_grade_schedules_by_teacher_and_day(teacher_id, day_name_en)
     
     # Filter by room_id if provided
     schedule = None
@@ -52,7 +52,7 @@ def _validate_schedule(teacher_id: str, room_id: str, now: datetime) -> tuple[bo
         schedule = next((s for s in schedules if s.get("room_id") == room_id), None)
     
     if not schedule:
-        return False, {"reason": f"Tidak ada jadwal hari {day_name} di ruangan ini"}
+        return False, {"reason": f"Tidak ada jadwal hari {day_name_en} di ruangan ini"}
     
     try:
         start = datetime.strptime(schedule["start_time"], "%H:%M").time()

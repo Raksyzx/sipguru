@@ -258,10 +258,17 @@ async def get_room_state(room_code: str):
     wib_offset = timezone(timedelta(hours=7))
     now_wib = datetime.now(wib_offset)
     current_time = now_wib.strftime("%H:%M")
-    day_of_week = now_wib.strftime("%A").upper()
+    # FIX: Use capitalized day name for DB query (e.g., "Thursday")
+    day_of_week_en = now_wib.strftime("%A").capitalize()
+    # Return Indonesian day name for display
+    day_name_map = {
+        "Monday": "Senin", "Tuesday": "Selasa", "Wednesday": "Rabu",
+        "Thursday": "Kamis", "Friday": "Jumat", "Saturday": "Sabtu", "Sunday": "Minggu"
+    }
+    day_of_week = day_name_map.get(day_of_week_en, day_of_week_en)
     
-    # Get today's schedules for this room
-    schedules = db.get_schedules_by_room_and_day(room_id, day_of_week)
+    # Get today's schedules for this room (use English capitalized for DB query)
+    schedules = db.get_schedules_by_room_and_day(room_id, day_of_week_en)
     
     current_schedule = None
     next_schedule = None
