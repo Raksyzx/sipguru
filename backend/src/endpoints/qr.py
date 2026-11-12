@@ -288,6 +288,14 @@ async def get_room_state(room_code: str):
         traceback.print_exc()
         schedules = []
     
+    # DEBUG: Always return debug info in response
+    debug_info = {
+        "all_schedules_count": len(all_schedules) if 'all_schedules' in locals() else 0,
+        "filtered_count": len(schedules),
+        "search_room_id": room_id,
+        "search_day": day_of_week_en,
+    }
+    
     current_schedule = None
     next_schedule = None
     state = "IDLE"
@@ -334,7 +342,8 @@ async def get_room_state(room_code: str):
         "day_of_week": day_of_week,
         "state": state,
         "current_schedule": current_schedule,
-        "next_schedule": next_schedule
+        "next_schedule": next_schedule,
+        "_debug": debug_info
     }
 
 
