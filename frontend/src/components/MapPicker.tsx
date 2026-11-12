@@ -142,7 +142,7 @@ export function MapPicker({
     }
   }, []);
 
-  // Search location using Photon API (better for Indonesia and POI search)
+  // Search location using Mapbox Geocoding API (accurate for Indonesia)
   const searchLocation = useCallback(async (query: string) => {
     if (query.length < 2) {
       setSearchResults([]);
@@ -161,17 +161,16 @@ export function MapPicker({
     setSelectedIndex(-1);
     
     try {
-      // Use Nominatim API - better coverage for Indonesia
-      const params = new URLSearchParams({
-        format: "json",
-        q: query,
-        countrycodes: "id",
-        limit: "10",
-        addressdetails: "1",
-      });
-
-      const url = `https://nominatim.openstreetmap.org/search?${params.toString()}`;
-      console.log("[MapPicker] Nominatim Search:", query, "URL:", url);
+      // Mapbox Geocoding API - token from env var
+      const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
+      if (!MAPBOX_TOKEN) {
+        throw new Error("VITE_MAPBOX_TOKEN not configured");
+      }
+      
+      const encodedQuery = encodeURIComponent(query);
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedQuery}.json?access_token=${MAPBOX_TOKEN}&country=ID&limit=10&language=id`;
+      
+      console.log("[MapPicker] Mapbox Search:", query);
       
       const response = await fetch(
         url,
@@ -183,29 +182,48 @@ export function MapPicker({
         }
       );
       
-      console.log("[MapPicker] Nominatim Response status:", response.status);
+      console.log("[MapPicker] Mapbox Response status:", response.status);
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("[MapPicker] Nominatim search failed:", response.status, errorText);
+        console.error("[MapPicker] Mapbox search failed:", response.status, errorText);
         throw new Error(`Search failed: ${response.status}`);
       }
       
-      const data: SearchResult[] = await response.json();
-      console.log("[MapPicker] Nominatim Results count:", data.length, "Data:", data.slice(0, 5));
+      const data = await response.json();
+      console.log("[MapPicker] Mapbox raw results:", data.features?.length || 0);
       
-      // Transform Nominatim results to our format
-      const transformed: SearchResult[] = data.map((r: any) => ({
-        place_id: r.place_id || Math.random().toString(36).substr(2, 9),
-        display_name: r.display_name || "Unknown Location",
-        lat: r.lat,
-        lon: r.lon,
-        type: r.type || "place",
-        importance: r.importance || 0.5,
-        address: r.address || {},
-      }));
+      // Transform Mapbox results to our format
+      const transformed: SearchResult[] = (data.features || []).map((feature: any) => {
+        const coords = feature.geometry?.coordinates || [0, 0];
+        const placeName = feature.place_name || feature.text || "Unknown Location";
+        const context = feature.context || [];
+        
+        // Extract address components from context
+        let city = "", state = "", country = "Indonesia";
+        context.forEach((ctx: any) => {
+          if (ctx.id.startsWith("place.")) city = ctx.text;
+          else if (ctx.id.startsWith("region.")) state = ctx.text;
+          else if (ctx.id.startsWith("country.")) country = ctx.text;
+        });
+        
+        return {
+          place_id: feature.id || Math.random().toString(36).substr(2, 9),
+          display_name: placeName,
+          lat: coords[1].toString(),
+          lon: coords[0].toString(),
+          type: feature.place_type?.[0] || "place",
+          importance: feature.relevance || 0.5,
+          address: {
+            city,
+            state,
+            country,
+            name: feature.text,
+          }
+        };
+      });
       
-      // Sort by importance (higher is better)
+      // Sort by relevance (higher is better)
       transformed.sort((a, b) => (b.importance || 0) - (a.importance || 0));
       
       setSearchResults(transformed);
