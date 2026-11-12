@@ -110,13 +110,33 @@ const AttendancePage = () => {
       setQrToken("");
       setRoomInfo(null);
     } catch (err: unknown) {
+      console.error("[Attendance] Submit error:", err);
+      
+      // Extract detailed error message
+      let errorMsg = "Presensi gagal. Periksa koneksi";
+      
+      const axiosErr = err as { response?: { status: number; data?: { detail?: { reasons?: string[] } | string } }; code?: string };
+      
+      if (axiosErr.response?.status === 401) {
+        errorMsg = "Sesi login expired. Silakan login ulang.";
+        // Auto logout dan redirect
+        useAuthStore.getState().logout();
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 2000);
+      } else if (axiosErr.response?.status === 400) {
+        const reasons = axiosErr.response?.data?.detail;
+        if (typeof reasons === "string") {
+          errorMsg = reasons;
+        } else if (reasons?.reasons && Array.isArray(reasons.reasons)) {
+          errorMsg = reasons.reasons.join(". ");
+        }
+      } else if (axiosErr.code === "ERR_NETWORK") {
+        errorMsg = "Gagal koneksi ke server. Pastikan internet stabil.";
+      }
+      
       setStatus("error");
-      const reasons =
-        (err as { response?: { data?: { detail?: { reasons?: string[] } | string } } })
-          .response?.data?.detail;
-      if (typeof reasons === "string") setMessage(reasons);
-      else if (reasons?.reasons) setMessage(reasons.reasons.join(", "));
-      else setMessage("Presensi gagal. Periksa koneksi.");
+      setMessage(errorMsg);
     } finally {
       setSubmitting(false);
     }
