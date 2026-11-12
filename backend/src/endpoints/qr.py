@@ -298,9 +298,10 @@ async def get_room_state(room_code: str):
         start_time = schedule.get("start_time", "00:00")
         end_time = schedule.get("end_time", "00:00")
         
-        # Check if current class is active (within class time + 10 min grace)
-        start_dt = datetime.strptime(start_time, "%H:%M").replace(tzinfo=wib_offset)
-        end_dt = datetime.strptime(end_time, "%H:%M").replace(tzinfo=wib_offset)
+        # FIX: Use today's date to avoid year 1900 comparison bug
+        today = now_wib.date()
+        start_dt = datetime.combine(today, datetime.strptime(start_time, "%H:%M").time()).replace(tzinfo=wib_offset)
+        end_dt = datetime.combine(today, datetime.strptime(end_time, "%H:%M").time()).replace(tzinfo=wib_offset)
         grace_end = end_dt + timedelta(minutes=10)
         
         now_floor = now_wib.replace(second=0, microsecond=0)
@@ -342,7 +343,9 @@ async def get_room_state(room_code: str):
     if not current_schedule:
         for schedule in schedules:
             start_time = schedule.get("start_time", "00:00")
-            start_dt = datetime.strptime(start_time, "%H:%M").replace(tzinfo=wib_offset)
+            # FIX: Use today's date
+            today = now_wib.date()
+            start_dt = datetime.combine(today, datetime.strptime(start_time, "%H:%M").time()).replace(tzinfo=wib_offset)
             if start_dt > now_wib.replace(second=0, microsecond=0):
                 minutes_until = (start_dt - now_wib).total_seconds() / 60
                 if minutes_until <= 15 and next_schedule is None:
