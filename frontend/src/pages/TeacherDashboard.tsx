@@ -93,7 +93,7 @@ const TeacherDashboard = () => {
   // Theme
   const { theme, toggleTheme } = useTheme();
 
-  // Load data dengan parallel fetching + caching
+  // Load data dengan parallel fetching + caching + error handling
   const loadData = useCallback(async (forceRefresh = false) => {
     // Coba load dari cache dulu (kecuali force refresh)
     if (!forceRefresh) {
@@ -117,21 +117,46 @@ const TeacherDashboard = () => {
     }
 
     try {
-      // Parallel API calls
-      const [sched, hist, rm, leavesRes, mySched] = await Promise.all([
-        api.get("/teacher/todays-schedule"),
-        api.get("/teacher/history"),
-        api.get("/teacher/rooms").catch(() => ({ data: { rooms: [] } })),
-        api.get("/teacher/leave").catch(() => ({ data: { leaves: [] } })),
-        api.get("/teacher/my-schedules").catch(() => ({ data: { schedules: [] } })),
+      console.log("[TeacherDashboard] Loading data for user:", user?.id, user?.email);
+      
+      // Parallel API calls with error logging
+      const [schedRes, histRes, rmRes, leavesRes, mySchedRes] = await Promise.all([
+        api.get("/teacher/todays-schedule").catch(err => {
+          console.error("[TeacherDashboard] Failed to load todays-schedule:", err.response?.status, err.response?.data);
+          return { data: { schedules: [], day: "" } };
+        }),
+        api.get("/teacher/history").catch(err => {
+          console.error("[TeacherDashboard] Failed to load history:", err.response?.status, err.response?.data);
+          return { data: { history: [] } };
+        }),
+        api.get("/teacher/rooms").catch(err => {
+          console.error("[TeacherDashboard] Failed to load rooms:", err.response?.status, err.response?.data);
+          return { data: { rooms: [] } };
+        }),
+        api.get("/teacher/leave").catch(err => {
+          console.error("[TeacherDashboard] Failed to load leaves:", err.response?.status, err.response?.data);
+          return { data: { leaves: [] } };
+        }),
+        api.get("/teacher/my-schedules").catch(err => {
+          console.error("[TeacherDashboard] Failed to load my-schedules:", err.response?.status, err.response?.data);
+          return { data: { schedules: [] } };
+        }),
       ]);
 
-      const schedulesData = sched.data?.schedules || [];
-      const dayData = sched.data?.day || "";
-      const historyData = hist.data?.history || [];
-      const roomsData = rm.data?.rooms || [];
+      console.log("[TeacherDashboard] API Responses:", {
+        schedules: schedRes.data?.schedules?.length || 0,
+        history: histRes.data?.history?.length || 0,
+        rooms: rmRes.data?.rooms?.length || 0,
+        leaves: leavesRes.data?.leaves?.length || 0,
+        mySchedules: mySchedRes.data?.schedules?.length || 0,
+      });
+
+      const schedulesData = schedRes.data?.schedules || [];
+      const dayData = schedRes.data?.day || "";
+      const historyData = histRes.data?.history || [];
+      const roomsData = rmRes.data?.rooms || [];
       const leavesData = leavesRes.data?.leaves || [];
-      const schedulesListData = mySched.data?.schedules || [];
+      const schedulesListData = mySchedRes.data?.schedules || [];
 
       // Update state
       setSchedules(schedulesData);
@@ -148,12 +173,13 @@ const TeacherDashboard = () => {
       setInCache("teacher_rooms", roomsData, CACHE_TTL);
       setInCache("teacher_leaves", leavesData, CACHE_TTL);
       setInCache("my_schedules", schedulesListData, CACHE_TTL);
-    } catch {
+    } catch (err: any) {
+      console.error("[TeacherDashboard] Critical error:", err);
       // Tampilkan kosong, user tetap bisa presensi
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     loadData();
