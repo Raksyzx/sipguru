@@ -293,7 +293,6 @@ async def get_room_state(room_code: str):
     state = "IDLE"
     
     debug_comparisons = []
-    print(f"[QR DEBUG] now_wib={now_wib}, now_wib.replace={now_wib.replace(second=0, microsecond=0)}")
     for schedule in schedules:
         start_time = schedule.get("start_time", "00:00")
         end_time = schedule.get("end_time", "00:00")
@@ -307,22 +306,7 @@ async def get_room_state(room_code: str):
         now_floor = now_wib.replace(second=0, microsecond=0)
         match = start_dt <= now_floor <= grace_end
         
-        print(f"[QR DEBUG] schedule {schedule.get('grade_name')}: {start_time}-{end_time}, start_dt={start_dt}, end_dt={end_dt}, grace_end={grace_end}")
-        print(f"[QR DEBUG] comparison: {start_dt} <= {now_floor} <= {grace_end} = {match}")
-        
-        debug_comparisons.append({
-            "grade_name": schedule.get('grade_name'),
-            "start_time": start_time,
-            "end_time": end_time,
-            "start_dt": str(start_dt),
-            "end_dt": str(end_dt),
-            "grace_end": str(grace_end),
-            "now_floor": str(now_floor),
-            "match": match
-        })
-        
         if match:
-            print(f"[QR DEBUG] MATCH! Setting current_schedule")
             current_schedule = schedule
             # Check if entry has been scanned
             qr_tokens = db.get_qr_tokens_by_schedule(schedule["id"])
@@ -353,13 +337,12 @@ async def get_room_state(room_code: str):
                     if minutes_until <= 15:
                         state = "PRE_CLASS" if state == "IDLE" else state
     
-    # DEBUG: Always return debug info in response
+    # DEBUG: Always return debug info in response (remove in production)
     debug_info = {
         "all_schedules_count": len(all_schedules) if 'all_schedules' in locals() else 0,
         "filtered_count": len(schedules),
         "search_room_id": room_id,
         "search_day": day_of_week_en,
-        "comparisons": debug_comparisons
     }
     
     return {
@@ -370,8 +353,7 @@ async def get_room_state(room_code: str):
         "day_of_week": day_of_week,
         "state": state,
         "current_schedule": current_schedule,
-        "next_schedule": next_schedule,
-        "_debug": debug_info
+        "next_schedule": next_schedule
     }
 
 
