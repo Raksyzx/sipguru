@@ -108,6 +108,10 @@ async def submit_attendance(
     token_type = "entry"  # Default to entry
 
     # Layer 1: QR token
+    # DEBUG: Show secret being used (first 8 chars)
+    secret_used = settings.JWT_SECRET[:8] + "..." if settings.JWT_SECRET else "NONE"
+    print(f"[ATTENDANCE DEBUG] JWT_SECRET used: {secret_used}")
+    print(f"[ATTENDANCE DEBUG] qr_token: {data.qr_token}")
     token_data = verify_hmac_token(data.qr_token, settings.JWT_SECRET)
     print(f"[ATTENDANCE DEBUG] token_data={token_data}")
     if not token_data:
