@@ -42,16 +42,24 @@ def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 def _validate_schedule(teacher_id: str, room_id: str, now: datetime) -> tuple[bool, dict]:
     day_name = now.strftime("%A")
-    schedule = db.get_schedule_by_teacher_and_day(teacher_id, day_name, room_id)
+    
+    # FIX: Use grade_schedules table (not old schedules table)
+    schedules = db.get_grade_schedules_by_teacher_and_day(teacher_id, day_name)
+    
+    # Filter by room_id if provided
+    schedule = None
+    if room_id and schedules:
+        schedule = next((s for s in schedules if s.get("room_id") == room_id), None)
+    
     if not schedule:
         return False, {"reason": f"Tidak ada jadwal hari {day_name} di ruangan ini"}
-
+    
     try:
         start = datetime.strptime(schedule["start_time"], "%H:%M").time()
         end = datetime.strptime(schedule["end_time"], "%H:%M").time()
     except (ValueError, KeyError):
         return False, {"reason": "Format jadwal tidak valid"}
-
+    
     now_t = now.time()
     tol_min = settings.LATE_TOLERANCE_MINUTES
 
@@ -78,9 +86,6 @@ def _validate_schedule(teacher_id: str, room_id: str, now: datetime) -> tuple[bo
         "is_late": is_late,
         "lateness_minutes": lateness,
     }
-
-
-@router.post("/submit")
 async def submit_attendance(
     data: AttendanceSubmit,
     auth_user: dict = Depends(get_current_user),
@@ -131,7 +136,9 @@ async def submit_attendance(
     distance_m: Optional[float] = None
     if geo:
         try:
-            parts = str(geo).replace(",", " ").split()
+            # FIX: Handle multiple formats: "(-6.12,106.84)" or "-6.12,106.84" or "-6.12 106.84"
+            geo_str = str(geo).replace("(", "").replace(")", "").strip()
+            parts = geo_str.replace(",", " ").split()
             room_lat, room_lon = float(parts[0]), float(parts[1])
             distance_m = _haversine_m(
                 room_lat, room_lon,
@@ -139,7 +146,8 @@ async def submit_attendance(
             )
             if distance_m > radius:
                 reasons.append(f"GPS di luar radius ({distance_m:.0f}m > {radius}m)")
-        except (ValueError, IndexError):
+        except (ValueError, IndexError) as e:
+            print(f"Geofence validation error: {e}, geolocation: {geo}")
             reasons.append("Koordinat ruangan tidak valid")
 
     if reasons:
