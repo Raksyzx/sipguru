@@ -489,19 +489,19 @@ export function MapPicker({
           />
           <MapEvents onMapClick={handleMapClick} />
         </MapContainer>
-        
-        {/* Info overlay */}
-        <div className="absolute bottom-4 left-4 right-4 bg-white/95 dark:bg-stone-900/95 backdrop-blur-sm px-4 py-2 rounded-lg shadow-lg border border-gray-200 dark:border-stone-700">
-          <p className="text-xs text-gray-600 dark:text-gray-400">
-            <span className="font-semibold text-emerald-600 dark:text-emerald-400">Klik peta</span> untuk set lokasi, atau gunakan pencarian di atas
-          </p>
-          <p className="text-xs text-gray-500 dark:text-gray-500 mt-1 flex flex-wrap gap-4">
-            <span>Lat: {position[0].toFixed(6)}</span>
-            <span>Lng: {position[1].toFixed(6)}</span>
-            <span>Zoom: 17</span>
-            <span>Radius: {radius}m</span>
-          </p>
-        </div>
+      </div>
+      
+      {/* Info overlay - outside map container to avoid being covered */}
+      <div className="px-4 py-3 bg-white dark:bg-stone-900 rounded-lg shadow-lg border border-gray-200 dark:border-stone-700">
+        <p className="text-xs text-gray-600 dark:text-gray-400">
+          <span className="font-semibold text-emerald-600 dark:text-emerald-400">Klik peta</span> untuk set lokasi, atau gunakan pencarian di atas
+        </p>
+        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1 flex flex-wrap gap-4">
+          <span>Lat: {position[0].toFixed(6)}</span>
+          <span>Lng: {position[1].toFixed(6)}</span>
+          <span>Zoom: 17</span>
+          <span>Radius: {radius}m</span>
+        </p>
       </div>
     </div>
   );
