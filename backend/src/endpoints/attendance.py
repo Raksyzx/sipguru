@@ -31,6 +31,13 @@ class AttendanceSubmit(BaseModel):
     qr_token: str
 
 
+class AttendanceSubmitNoAuth(BaseModel):
+    """Attendance submit without auth header - QR token contains teacher_id"""
+    geolocation: Geolocation
+    device_fingerprint: str
+    qr_token: str
+
+
 def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     R = 6371000
     p1, p2 = radians(lat1), radians(lat2)
@@ -82,22 +89,22 @@ def _validate_schedule(teacher_id: str, room_id: str, now: datetime) -> tuple[bo
         return False, {"reason": "Format jadwal tidak valid"}
     
     now_t = now_wib.time()  # Use WIB time for comparison
-    tol_min = settings.LATE_TOLERANCE_MINUTES
-
+    
     def to_min(t):
         return t.hour * 60 + t.minute
-
-    start_min = to_min(start) - tol_min
-    end_min = to_min(end) + tol_min
+    
+    start_min = to_min(start)
+    end_min = to_min(end) - 10  # 10 menit sebelum mapel selesai (untuk testing)
     now_min = to_min(now_t)
-
+    
+    # Toleransi telat 15 menit dari start time
     is_valid = start_min <= now_min <= end_min
     if not is_valid:
         return False, {
             "reason": f"Di luar jam jadwal ({schedule['start_time']}-{schedule['end_time']})",
             "schedule_id": schedule["id"],
         }
-
+    
     is_late = now_min > to_min(start)
     lateness = (now_min - to_min(start)) if is_late else 0
     return True, {
@@ -118,18 +125,8 @@ async def submit_attendance(
     against the teacher's identity and the schedule.
     Updates QR token state to 'entry_scanned' or 'exit_scanned' based on token_type.
     """
-    # Extract teacher_id from auth or fallback to QR token
-    if auth_user:
-        teacher_id = auth_user["user_id"]
-    else:
-        # Fallback: get teacher_id from QR token (for mobile apps that don't send auth header)
-        token_data = verify_hmac_token(data.qr_token, settings.JWT_SECRET)
-        if not token_data:
-            raise HTTPException(status_code=400, detail="QR token tidak valid atau kedaluwarsa")
-        teacher_id = token_data.get("teacher_id")
-        if not teacher_id:
-            raise HTTPException(status_code=400, detail="QR token tidak mengandung teacher_id")
-        print(f"[ATTENDANCE FALLBACK] Using teacher_id from QR token: {teacher_id}")
+    # Extract teacher_id from auth JWT (mobile app MUST send Authorization header)
+    teacher_id = auth_user["user_id"]
     
     now = datetime.now()
     reasons: list[str] = []
