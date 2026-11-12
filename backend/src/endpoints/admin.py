@@ -540,10 +540,16 @@ async def delete_grade_schedule(
     auth_user: dict = Depends(require_admin)
 ):
     """Delete grade schedule"""
-    success = db.delete_grade_schedule(schedule_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Grade schedule not found")
-    return {"message": "Grade schedule deleted"}
+    print(f"[DELETE GRADE SCHEDULE] Attempting to delete: {schedule_id}")
+    try:
+        success = db.delete_grade_schedule(schedule_id)
+        print(f"[DELETE GRADE SCHEDULE] Result: {success}")
+        if not success:
+            raise HTTPException(status_code=404, detail="Grade schedule not found")
+        return {"message": "Grade schedule deleted"}
+    except Exception as e:
+        print(f"[DELETE GRADE SCHEDULE] Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
 
 # ============ QR Token Management (bound to schedule) ============
 @router.get("/qr-tokens")
