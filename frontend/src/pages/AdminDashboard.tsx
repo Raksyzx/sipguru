@@ -19,6 +19,27 @@ import {
   MapPin,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+
+// Helper: translate day name to Indonesian
+const toIndonesianDay = (day: string): string => {
+  const map: Record<string, string> = {
+    "Monday": "Senin",
+    "Tuesday": "Selasa", 
+    "Wednesday": "Rabu",
+    "Thursday": "Kamis",
+    "Friday": "Jumat",
+    "Saturday": "Sabtu",
+    "Sunday": "Minggu",
+    "Senin": "Senin",
+    "Selasa": "Selasa",
+    "Rabu": "Rabu",
+    "Kamis": "Kamis",
+    "Jumat": "Jumat",
+    "Sabtu": "Sabtu",
+    "Minggu": "Minggu",
+  };
+  return map[day] || day;
+};
 import { useAuth } from "../hooks/useAuth";
 import { useAuthStore } from "../stores";
 import { useTheme } from "../contexts/ThemeContext";
@@ -150,7 +171,7 @@ const AdminDashboard = () => {
     grade_id: "",
     subject_id: "",
     teacher_id: "",
-    day_of_week: "Monday",
+    day_of_week: "Senin",
     start_time: "07:00",
     end_time: "12:00",
     room_id: "",
@@ -483,7 +504,11 @@ const AdminDashboard = () => {
 
   const deleteSchedule = async (id: string) => {
     console.log('[DELETE SCHEDULE] ID:', id);
-    showDeleteConfirm(id, 'Jadwal', 'schedule');
+    const schedule = gradeSchedules.find(s => s.id === id);
+    const name = schedule 
+      ? `${schedule.grade_name || 'Kelas'} - ${schedule.subject_name || 'Mapel'} (${schedule.day_of_week} ${schedule.start_time}-${schedule.end_time})`
+      : 'Jadwal';
+    showDeleteConfirm(id, name, 'schedule');
   };
 
   const addSchedule = async (e: React.FormEvent) => {
@@ -507,7 +532,7 @@ const AdminDashboard = () => {
         grade_id: "",
         subject_id: "",
         teacher_id: "",
-        day_of_week: "Monday",
+        day_of_week: "Senin",
         start_time: "07:00",
         end_time: "12:00",
         room_id: "",
@@ -1636,11 +1661,11 @@ const AdminDashboard = () => {
                         onChange={(e) => setNewSchedule({ ...newSchedule, day_of_week: e.target.value })}
                         className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
                       >
-                        <option value="Monday">Senin</option>
-                        <option value="Tuesday">Selasa</option>
-                        <option value="Wednesday">Rabu</option>
-                        <option value="Thursday">Kamis</option>
-                        <option value="Friday">Jumat</option>
+                        <option value="Senin">Senin</option>
+                        <option value="Selasa">Selasa</option>
+                        <option value="Rabu">Rabu</option>
+                        <option value="Kamis">Kamis</option>
+                        <option value="Jumat">Jumat</option>
                       </select>
                       <input
                         type="time"
@@ -1692,7 +1717,7 @@ const AdminDashboard = () => {
                           </button>
                         </div>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {s.day_of_week === "Monday" ? "Senin" : s.day_of_week === "Tuesday" ? "Selasa" : s.day_of_week === "Wednesday" ? "Rabu" : s.day_of_week === "Thursday" ? "Kamis" : "Jumat"} • {s.start_time} sampai {s.end_time}
+                          {s.day_of_week} • {s.start_time} sampai {s.end_time}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">Guru: {s.teacher_name || "N/A"}</p>
                       </div>
