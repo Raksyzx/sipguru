@@ -109,6 +109,7 @@ async def submit_attendance(
 
     # Layer 1: QR token
     token_data = verify_hmac_token(data.qr_token, settings.JWT_SECRET)
+    print(f"[ATTENDANCE DEBUG] token_data={token_data}")
     if not token_data:
         reasons.append("QR token tidak valid atau kedaluwarsa")
     elif token_data.get("room_id") != data.room_id:
