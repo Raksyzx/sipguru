@@ -300,6 +300,7 @@ async def get_room_state(room_code: str):
     next_schedule = None
     state = "IDLE"
     
+    print(f"[QR DEBUG] now_wib={now_wib}, now_wib.replace={now_wib.replace(second=0, microsecond=0)}")
     for schedule in schedules:
         start_time = schedule.get("start_time", "00:00")
         end_time = schedule.get("end_time", "00:00")
@@ -309,7 +310,11 @@ async def get_room_state(room_code: str):
         end_dt = datetime.strptime(end_time, "%H:%M").replace(tzinfo=wib_offset)
         grace_end = end_dt + timedelta(minutes=10)
         
+        print(f"[QR DEBUG] schedule {schedule.get('grade_name')}: {start_time}-{end_time}, start_dt={start_dt}, end_dt={end_dt}, grace_end={grace_end}")
+        print(f"[QR DEBUG] comparison: {start_dt} <= {now_wib.replace(second=0, microsecond=0)} <= {grace_end}")
+        
         if start_dt <= now_wib.replace(second=0, microsecond=0) <= grace_end:
+            print(f"[QR DEBUG] MATCH! Setting current_schedule")
             current_schedule = schedule
             # Check if entry has been scanned
             qr_tokens = db.get_qr_tokens_by_schedule(schedule["id"])
