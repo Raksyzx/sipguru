@@ -25,22 +25,25 @@ interface MapPickerProps {
 function MapController({ 
   position, 
   onMapMove,
-  onBoundsChange
+  onBoundsChange,
+  positionFromSearch
 }: { 
   position: [number, number]; 
   onMapMove: (lat: number, lng: number) => void;
   onBoundsChange?: (bounds: [[number, number], [number, number]]) => void;
+  positionFromSearch: React.MutableRefObject<boolean>;
 }) {
   const map = useMap();
   const movedBySearch = useRef(false);
 
   // Update map center when position changes from search
   useEffect(() => {
-    if (movedBySearch.current) {
+    if (movedBySearch.current || positionFromSearch.current) {
       map.flyTo(position as LatLngExpression, 17, { duration: 1.5 });
       movedBySearch.current = false;
+      positionFromSearch.current = false;
     }
-  }, [position, map]);
+  }, [position, map, positionFromSearch]);
 
   // Update bounds on moveend
   useMapEvents({
@@ -108,6 +111,7 @@ export function MapPicker({
   const abortControllerRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
+  const positionFromSearch = useRef(false); // Track if position changed from search
 
   const handleMapClick = useCallback((lat: number, lng: number) => {
     setPosition([lat, lng]);
@@ -296,6 +300,8 @@ export function MapPicker({
 
   const selectSearchResult = useCallback((result: SearchResult) => {
     const newPos: [number, number] = [parseFloat(result.lat), parseFloat(result.lon)];
+    console.log("[MapPicker] Selecting result:", newPos);
+    positionFromSearch.current = true; // Mark that this position change is from search
     setPosition(newPos);
     onLocationSelect(newPos[0], newPos[1]);
     setSearchQuery(result.display_name.split(',')[0]);
@@ -486,6 +492,7 @@ export function MapPicker({
               setPosition([lat, lng]);
               onLocationSelect(lat, lng);
             }}
+            positionFromSearch={positionFromSearch}
           />
           <MapEvents onMapClick={handleMapClick} />
         </MapContainer>
