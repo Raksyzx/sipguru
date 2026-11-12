@@ -78,6 +78,7 @@ def verify_hmac_token(token: str, secret: str = None) -> Optional[dict]:
     try:
         parts = token.split(':')
         if len(parts) < 5:
+            print(f"[TOKEN DEBUG] Invalid parts count: {len(parts)}")
             return None
         
         # Legacy format: room_id:timestamp:expiry:nonce:signature
@@ -108,12 +109,20 @@ def verify_hmac_token(token: str, secret: str = None) -> Optional[dict]:
             hashlib.sha256
         ).hexdigest()
         
+        print(f"[TOKEN DEBUG] room_id={room_id}, timestamp={timestamp}, expiry={expiry}")
+        print(f"[TOKEN DEBUG] signature={signature}")
+        print(f"[TOKEN DEBUG] expected_sig={expected_sig}")
+        print(f"[TOKEN DEBUG] match={hmac.compare_digest(signature, expected_sig)}")
+        
         if not hmac.compare_digest(signature, expected_sig):
             return None
         
         # Check expiry
         current_time = int(datetime.utcnow().timestamp())
-        if current_time - timestamp > expiry:
+        age = current_time - timestamp
+        print(f"[TOKEN DEBUG] current_time={current_time}, age={age}s, expiry={expiry}s")
+        if age > expiry:
+            print(f"[TOKEN DEBUG] Token expired!")
             return None
         
         return {
@@ -126,7 +135,8 @@ def verify_hmac_token(token: str, secret: str = None) -> Optional[dict]:
             "grade_id": grade_id,
             "valid": True
         }
-    except Exception:
+    except Exception as e:
+        print(f"[TOKEN DEBUG] Exception: {e}")
         return None
 
 def generate_device_fingerprint(user_agent: str, ip_address: str) -> str:
