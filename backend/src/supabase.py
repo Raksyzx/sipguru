@@ -977,3 +977,57 @@ class SupabaseClient:
         client = self._get_client()
         result = client.table("qr_tokens").update({"is_active": False}).eq("id", token_id).execute()
         return bool(result.data)
+    
+    @log_query_time
+    def create_device(self, device_id: str, room_id: str, device_name: str, status: str = "active") -> str:
+        """Register new ESP32 device"""
+        client = self._get_client()
+        result = client.table("devices").insert({
+            "device_id": device_id,
+            "room_id": room_id,
+            "device_name": device_name,
+            "status": status
+        }).execute()
+        return result.data[0]["id"]
+    
+    @log_query_time
+    def get_device(self, device_id: str) -> Optional[dict]:
+        """Get device by device_id"""
+        client = self._get_client()
+        result = client.table("devices").select("*").eq("device_id", device_id).execute()
+        return result.data[0] if result.data else None
+    
+    @log_query_time
+    def get_device_by_room(self, room_id: str) -> Optional[dict]:
+        """Get device by room_id"""
+        client = self._get_client()
+        result = client.table("devices").select("*").eq("room_id", room_id).eq("status", "active").execute()
+        return result.data[0] if result.data else None
+    
+    @log_query_time
+    def update_device(self, device_id: str, room_id: str = None, device_name: str = None, status: str = None) -> bool:
+        """Update device info"""
+        client = self._get_client()
+        update_data = {}
+        if room_id:
+            update_data["room_id"] = room_id
+        if device_name:
+            update_data["device_name"] = device_name
+        if status:
+            update_data["status"] = status
+        result = client.table("devices").update(update_data).eq("device_id", device_id).execute()
+        return bool(result.data)
+    
+    @log_query_time
+    def get_all_devices(self) -> List[dict]:
+        """Get all registered devices"""
+        client = self._get_client()
+        result = client.table("devices").select("*").execute()
+        return result.data
+    
+    @log_query_time
+    def delete_device(self, device_id: str) -> bool:
+        """Delete device registration"""
+        client = self._get_client()
+        result = client.table("devices").delete().eq("device_id", device_id).execute()
+        return bool(result.data)

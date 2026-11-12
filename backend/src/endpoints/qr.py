@@ -344,6 +344,54 @@ async def generate_auto_qr_token(
         secret=settings.JWT_SECRET
     )
     
+    # Store in qr_tokens table
+    from datetime import datetime, timedelta
+    expires_at = (datetime.now() + timedelta(seconds=settings.QR_EXPIRY_SECONDS)).isoformat()
+    qr_id = db.create_qr_token(
+        schedule_id=schedule_id,
+        room_id=room_id,
+        grade_id=schedule["grade_id"],
+        subject_id=schedule["subject_id"],
+        teacher_id=schedule["teacher_id"],
+        token=token,
+        expires_at=expires_at,
+        token_type=token_type  # "entry" or "exit"
+    )
+    
+    # Push to ESP32 via HTTP callback (if device is registered)
+    device = db.get_device_by_room(room_id)
+    if device and device.get("callback_url"):
+        try:
+            import requests
+            requests.post(
+                device["callback_url"],
+                json={
+                    "event": "qr_generated",
+                    "room_id": room_id,
+                    "room_code": room["room_code"],
+                    "schedule_id": schedule_id,
+                    "token": token,
+                    "token_type": token_type,
+                    "expires_at": expires_at,
+                    "grade_name": schedule.get("grade_name"),
+                    "subject_name": schedule.get("subject_name")
+                },
+                timeout=5
+            )
+        except Exception as e:
+            print(f"Failed to push QR to ESP32: {e}")
+    
+    return {
+        "message": f"QR token generated for {token_type}",
+        "qr_id": qr_id,
+        "token": token,
+        "schedule_id": schedule_id,
+        "room_id": room_id,
+        "token_type": token_type,
+        "expires_at": expires_at,
+        "expires_in": settings.QR_EXPIRY_SECONDS
+    }
+    
     expires_at = (datetime.now() + timedelta(seconds=settings.QR_EXPIRY_SECONDS)).isoformat()
     qr_id = db.create_qr_token(
         schedule_id=schedule_id,

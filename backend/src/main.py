@@ -11,7 +11,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import settings
-from src.endpoints import auth, teacher, admin, qr, attendance, reports, telegram
+from src.endpoints import auth, teacher, admin, qr, attendance, reports, telegram, devices
 
 app = FastAPI(
     title="SIPGURU API",
@@ -46,4 +46,5 @@ app.include_router(qr.router, prefix="/api/qr", tags=["QR Token"])
 app.include_router(attendance.router, prefix="/api/attendance", tags=["Attendance"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(telegram.router, prefix="/api/telegram", tags=["Telegram Notifications"])
+app.include_router(devices.router, prefix="/api/devices", tags=["ESP32 Devices"])
 
