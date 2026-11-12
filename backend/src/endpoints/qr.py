@@ -268,12 +268,16 @@ async def get_room_state(room_code: str):
     day_of_week = day_name_map.get(day_of_week_en, day_of_week_en)
     
     # FIX: Get today's grade_schedules for this room (not old schedules table)
-    all_schedules = db.get_all_grade_schedules()
-    print(f"[QR DEBUG] all_schedules count: {len(all_schedules)}")
-    schedules = [s for s in all_schedules if s.get("room_id") == room_id and s.get("day_of_week") == day_of_week_en]
-    print(f"[QR DEBUG] filtered schedules for room {room_id} on {day_of_week_en}: {len(schedules)}")
-    if schedules:
-        print(f"[QR DEBUG] schedules: {[(s['start_time'], s['end_time'], s.get('grade_name')) for s in schedules]}")
+    try:
+        all_schedules = db.get_all_grade_schedules()
+        print(f"[QR DEBUG] all_schedules count: {len(all_schedules)}")
+        schedules = [s for s in all_schedules if s.get("room_id") == room_id and s.get("day_of_week") == day_of_week_en]
+        print(f"[QR DEBUG] filtered schedules for room {room_id} on {day_of_week_en}: {len(schedules)}")
+        if schedules:
+            print(f"[QR DEBUG] schedules: {[(s['start_time'], s['end_time'], s.get('grade_name')) for s in schedules]}")
+    except Exception as e:
+        print(f"[QR DEBUG] Error getting schedules: {e}")
+        schedules = []
     
     current_schedule = None
     next_schedule = None
