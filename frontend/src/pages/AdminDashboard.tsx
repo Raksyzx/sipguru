@@ -7,6 +7,8 @@ import {
   CheckCircle,
   QrCode,
   LogOut,
+  Copy,
+  Check,
   BookOpen,
   GraduationCap,
   CalendarDays,
@@ -134,7 +136,8 @@ const AdminDashboard = () => {
   const [qrToken, setQrToken] = useState("");
   const [qrRoom, setQrRoom] = useState("");
   const [copied, setCopied] = useState(false);
-  const [generatingId, setGeneratingId] = useState<string | null>(null); // Track which schedule is generating
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
 
@@ -300,7 +303,7 @@ const AdminDashboard = () => {
   }, []);
 
   const generateQR = async (scheduleId: string) => {
-    setGeneratingId(scheduleId); // Show loading for this specific schedule
+    setGeneratingId(scheduleId);
     try {
       const res = await api.post("/qr/generate", { schedule_id: scheduleId });
       setQrToken(res.data.token);
@@ -311,12 +314,13 @@ const AdminDashboard = () => {
         setQrRoom("QR Token");
       }
       setCopied(false);
-      setMsg(""); // Clear success
+      setQrModalOpen(true); // Open modal
+      setMsg("");
     } catch (err: any) {
       const errorMsg = err?.response?.data?.detail || "Gagal generate QR token";
       setMsg(errorMsg);
     } finally {
-      setGeneratingId(null); // Reset loading
+      setGeneratingId(null);
     }
   };
 
@@ -993,6 +997,50 @@ const AdminDashboard = () => {
                     )}
                   </div>
                 </div>
+
+                {/* QR Token Modal - Centered Popup */}
+                {qrModalOpen && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="glass-card-light p-6 max-w-md w-full border-emerald-200/50 dark:border-emerald-900/50 bg-white/95 dark:bg-stone-900/95 animate-in zoom-in-95 duration-200 shadow-2xl">
+                      <div className="text-center mb-4">
+                        <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-950/30 rounded-full flex items-center justify-center mx-auto mb-3">
+                          <QrCode className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">QR Token Generated</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{qrRoom}</p>
+                      </div>
+                      
+                      <div className="bg-gray-50 dark:bg-white/10 rounded-xl p-4 mb-4">
+                        <p className="text-xs font-mono break-all text-gray-700 dark:text-gray-300 text-center">{qrToken}</p>
+                      </div>
+                      
+                      <div className="flex gap-3">
+                        <button
+                          onClick={copyToken}
+                          className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+                        >
+                          {copied ? (
+                            <>
+                              <Check className="w-4 h-4" />
+                              Tersalin!
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-4 h-4" />
+                              Salin Token
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => { setQrToken(""); setQrRoom(""); setQrModalOpen(false); }}
+                          className="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"
+                        >
+                          Tutup
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 {/* Room List with Geofence Customization */}
                 <div className="glass-card-light overflow-hidden mt-6">
