@@ -118,11 +118,23 @@ async def submit_attendance(
     against the teacher's identity and the schedule.
     Updates QR token state to 'entry_scanned' or 'exit_scanned' based on token_type.
     """
-    teacher_id = auth_user["user_id"]
+    # Extract teacher_id from auth or fallback to QR token
+    if auth_user:
+        teacher_id = auth_user["user_id"]
+    else:
+        # Fallback: get teacher_id from QR token (for mobile apps that don't send auth header)
+        token_data = verify_hmac_token(data.qr_token, settings.JWT_SECRET)
+        if not token_data:
+            raise HTTPException(status_code=400, detail="QR token tidak valid atau kedaluwarsa")
+        teacher_id = token_data.get("teacher_id")
+        if not teacher_id:
+            raise HTTPException(status_code=400, detail="QR token tidak mengandung teacher_id")
+        print(f"[ATTENDANCE FALLBACK] Using teacher_id from QR token: {teacher_id}")
+    
     now = datetime.now()
     reasons: list[str] = []
     token_type = "entry"  # Default to entry
-
+    
     # Layer 1: QR token
     # DEBUG: Show secret being used (first 8 chars)
     secret_used = settings.JWT_SECRET[:8] + "..." if settings.JWT_SECRET else "NONE"
