@@ -157,100 +157,60 @@ export function MapPicker({
     setSelectedIndex(-1);
     
     try {
-      // Photon API with Indonesia bias and POI support
-      // Supports: school, mosque, house, building, amenity, etc.
+      // Use Nominatim API - better coverage for Indonesia
       const params = new URLSearchParams({
+        format: "json",
         q: query,
+        countrycodes: "id",
         limit: "10",
-        lang: "id", // Indonesian language results
+        addressdetails: "1",
       });
 
-      // Add location bias for Indonesia (bbox: minLon,minLat,maxLon,maxLat)
-      params.append("bbox", "95,-11,141,6");
-      
-      const url = `https://photon.komoot.io/api/?${params.toString()}`;
-      console.log("[MapPicker] Photon Search:", query, "URL:", url);
+      const url = `https://nominatim.openstreetmap.org/search?${params.toString()}`;
+      console.log("[MapPicker] Nominatim Search:", query, "URL:", url);
       
       const response = await fetch(
         url,
         { 
           signal: abortControllerRef.current.signal,
           headers: {
-            "Accept-Language": "id,en",
             "User-Agent": "SIPGURU-App/1.0 (https://sipguru.vercel.app)"
           }
         }
       );
       
-      console.log("[MapPicker] Photon Response status:", response.status);
+      console.log("[MapPicker] Nominatim Response status:", response.status);
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("[MapPicker] Photon search failed:", response.status, errorText);
+        console.error("[MapPicker] Nominatim search failed:", response.status, errorText);
         throw new Error(`Search failed: ${response.status}`);
       }
       
-      const data = await response.json();
-      console.log("[MapPicker] Photon raw results:", data.features?.length || 0);
+      const data: SearchResult[] = await response.json();
+      console.log("[MapPicker] Nominatim Results count:", data.length, "Data:", data.slice(0, 5));
       
-      // Transform Photon results to our format
-      const transformed: SearchResult[] = (data.features || []).map((feature: any) => {
-        const props = feature.properties || {};
-        const name = props.name || props.street || props.district || props.city || "Unknown Location";
-        const type = props.osm_value || props.osm_key || "place";
-        
-        return {
-          place_id: props.osm_id || Math.random().toString(36).substr(2, 9),
-          display_name: name,
-          lat: feature.geometry.coordinates[1],
-          lon: feature.geometry.coordinates[0],
-          type: type,
-          importance: props.importance || 0.5,
-          address: {
-            name: props.name,
-            street: props.street,
-            district: props.district,
-            city: props.city,
-            state: props.state,
-            country: props.country,
-          }
-        };
-      });
+      // Transform Nominatim results to our format
+      const transformed: SearchResult[] = data.map((r: any) => ({
+        place_id: r.place_id || Math.random().toString(36).substr(2, 9),
+        display_name: r.display_name || "Unknown Location",
+        lat: r.lat,
+        lon: r.lon,
+        type: r.type || "place",
+        importance: r.importance || 0.5,
+        address: r.address || {},
+      }));
       
-      console.log("[MapPicker] Transformed results:", transformed.length, transformed.slice(0, 5));
-      
-      // Enhanced ranking for Indonesian context
-      const typePriority: Record<string, number> = {
-        school: 1, university: 1, college: 1, kindergarten: 1,
-        place_of_worship: 1, mosque: 1, church: 1, temple: 1,
-        house: 2, residential: 2, building: 2,
-        amenity: 3, office: 4, shop: 5, 
-        tourism: 6, highway: 7, place: 8, natural: 9
-      };
-      
-      // Indonesia keywords boost
-      const indoKeywords = ['serang', 'banten', 'jakarta', 'bandung', 'surabaya', 'smk', 'sma', 'sekolah', 'masjid', 'mosque', 'rumah'];
-      
-      transformed.sort((a, b) => {
-        const aPriority = typePriority[a.type || ""] || 99;
-        const bPriority = typePriority[b.type || ""] || 99;
-        
-        if (aPriority !== bPriority) return aPriority - bPriority;
-        
-        const aNameLower = a.display_name.toLowerCase();
-        const bNameLower = b.display_name.toLowerCase();
-        const aKeywordBoost = indoKeywords.some(k => aNameLower.includes(k)) ? 0.15 : 0;
-        const bKeywordBoost = indoKeywords.some(k => bNameLower.includes(k)) ? 0.15 : 0;
-        
-        return ((b.importance || 0) + bKeywordBoost) - ((a.importance || 0) + aKeywordBoost);
-      });
+      // Sort by importance (higher is better)
+      transformed.sort((a, b) => (b.importance || 0) - (a.importance || 0));
       
       setSearchResults(transformed);
       setShowResults(transformed.length > 0);
-      console.log("[MapPicker] Final sorted results:", transformed.slice(0, 3).map(r => ({ 
+      console.log("[MapPicker] Sorted results:", transformed.slice(0, 3).map(r => ({ 
         name: r.display_name.split(',')[0], 
-        type: r.type, 
-        city: r.address?.city 
+        type: r.type,
+        lat: r.lat,
+        lon: r.lon
       })));
       
       // Auto fly to first result if only one match
