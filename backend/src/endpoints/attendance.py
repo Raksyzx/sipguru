@@ -48,13 +48,21 @@ def _validate_schedule(teacher_id: str, room_id: str, now: datetime) -> tuple[bo
     
     day_name_en = now_wib.strftime("%A").capitalize()  # FIX: Capitalize to match DB (e.g., "Thursday")
     
+    print(f"[SCHEDULE DEBUG] teacher_id={teacher_id}, room_id={room_id}")
+    print(f"[SCHEDULE DEBUG] now_wib={now_wib}, day_name_en={day_name_en}")
+    
     # FIX: Use grade_schedules table (not old schedules table)
     schedules = db.get_grade_schedules_by_teacher_and_day(teacher_id, day_name_en)
+    
+    print(f"[SCHEDULE DEBUG] schedules count={len(schedules)}")
+    if schedules:
+        print(f"[SCHEDULE DEBUG] schedules={[(s['start_time'], s['end_time'], s.get('room_id')) for s in schedules]}")
     
     # Filter by room_id if provided
     schedule = None
     if room_id and schedules:
         schedule = next((s for s in schedules if s.get("room_id") == room_id), None)
+        print(f"[SCHEDULE DEBUG] filtered schedule for room {room_id}: {schedule}")
     
     if not schedule:
         return False, {"reason": f"Tidak ada jadwal hari {day_name_en} di ruangan ini"}
