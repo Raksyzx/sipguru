@@ -18,6 +18,7 @@ import {
   Moon,
   MapPin,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { useAuth } from "../hooks/useAuth";
 import { useAuthStore } from "../stores";
 import { useTheme } from "../contexts/ThemeContext";
@@ -1010,8 +1011,12 @@ const AdminDashboard = () => {
                         <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{qrRoom}</p>
                       </div>
                       
-                      <div className="bg-gray-50 dark:bg-white/10 rounded-xl p-4 mb-4">
-                        <p className="text-xs font-mono break-all text-gray-700 dark:text-gray-300 text-center">{qrToken}</p>
+                      <div className="bg-white dark:bg-stone-800 rounded-xl p-6 mb-4 flex items-center justify-center min-h-[200px]">
+                        <QRCodeSVG value={qrToken} size={180} level="M" includeMargin={true} />
+                      </div>
+                      
+                      <div className="bg-gray-50 dark:bg-white/10 rounded-xl p-3 mb-4 text-center">
+                        <p className="text-xs font-mono break-all text-gray-700 dark:text-gray-300">{qrToken}</p>
                       </div>
                       
                       <div className="flex gap-3">
