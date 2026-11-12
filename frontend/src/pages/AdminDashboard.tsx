@@ -19,27 +19,6 @@ import {
   MapPin,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-
-// Helper: translate day name to Indonesian
-const toIndonesianDay = (day: string): string => {
-  const map: Record<string, string> = {
-    "Monday": "Senin",
-    "Tuesday": "Selasa", 
-    "Wednesday": "Rabu",
-    "Thursday": "Kamis",
-    "Friday": "Jumat",
-    "Saturday": "Sabtu",
-    "Sunday": "Minggu",
-    "Senin": "Senin",
-    "Selasa": "Selasa",
-    "Rabu": "Rabu",
-    "Kamis": "Kamis",
-    "Jumat": "Jumat",
-    "Sabtu": "Sabtu",
-    "Minggu": "Minggu",
-  };
-  return map[day] || day;
-};
 import { useAuth } from "../hooks/useAuth";
 import { useAuthStore } from "../stores";
 import { useTheme } from "../contexts/ThemeContext";
