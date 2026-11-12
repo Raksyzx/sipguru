@@ -262,26 +262,28 @@ async def get_room_state(room_code: str):
     utc_now = datetime.now(timezone.utc)
     now_wib = utc_now.astimezone(wib_offset)
     current_time = now_wib.strftime("%H:%M")
-    # FIX: Use capitalized day name for DB query (e.g., "Thursday")
-    day_of_week_en = now_wib.strftime("%A").capitalize()
-    # Return Indonesian day name for display
+    # FIX: Use Indonesian day name for DB query (DB stores "Kamis", not "Thursday")
+    day_of_week_en = now_wib.strftime("%A")  # e.g., "Thursday"
     day_name_map = {
         "Monday": "Senin", "Tuesday": "Selasa", "Wednesday": "Rabu",
         "Thursday": "Kamis", "Friday": "Jumat", "Saturday": "Sabtu", "Sunday": "Minggu"
     }
-    day_of_week = day_name_map.get(day_of_week_en, day_of_week_en)
+    day_of_week_id = day_name_map.get(day_of_week_en, day_of_week_en)  # "Kamis"
+    
+    # FIX: Query DB with Indonesian day name (DB stores "Kamis", not "Thursday")
+    day_for_query = day_of_week_id
     
     # FIX: Get today's grade_schedules for this room (not old schedules table)
     try:
         all_schedules = db.get_all_grade_schedules()
         print(f"[QR DEBUG] all_schedules count: {len(all_schedules)}")
-        print(f"[QR DEBUG] searching for room_id={room_id}, day_of_week={day_of_week_en}")
+        print(f"[QR DEBUG] searching for room_id={room_id}, day_of_week={day_for_query}")
         if all_schedules:
             sample = all_schedules[0]
             print(f"[QR DEBUG] sample schedule keys: {list(sample.keys())}")
             print(f"[QR DEBUG] sample room_id: {sample.get('room_id')}, day_of_week: {sample.get('day_of_week')}")
-        schedules = [s for s in all_schedules if s.get("room_id") == room_id and s.get("day_of_week") == day_of_week_en]
-        print(f"[QR DEBUG] filtered schedules for room {room_id} on {day_of_week_en}: {len(schedules)}")
+        schedules = [s for s in all_schedules if s.get("room_id") == room_id and s.get("day_of_week") == day_for_query]
+        print(f"[QR DEBUG] filtered schedules for room {room_id} on {day_for_query}: {len(schedules)}")
         if schedules:
             print(f"[QR DEBUG] schedules: {[(s['start_time'], s['end_time'], s.get('grade_name')) for s in schedules]}")
     except Exception as e:
@@ -352,7 +354,7 @@ async def get_room_state(room_code: str):
         "room_code": room_code,
         "room_name": room.get("name"),
         "current_time": current_time,
-        "day_of_week": day_of_week,
+        "day_of_week": day_of_week_id,
         "state": state,
         "current_schedule": current_schedule,
         "next_schedule": next_schedule

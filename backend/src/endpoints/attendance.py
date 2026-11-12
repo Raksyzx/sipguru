@@ -48,13 +48,19 @@ def _validate_schedule(teacher_id: str, room_id: str, now: datetime) -> tuple[bo
     utc_now = datetime.now(timezone.utc)
     now_wib = utc_now.astimezone(wib_offset)
     
-    day_name_en = now_wib.strftime("%A").capitalize()  # FIX: Capitalize to match DB (e.g., "Thursday")
+    # FIX: DB stores Indonesian day names (e.g., "Kamis"), not English
+    day_name_en = now_wib.strftime("%A")  # e.g., "Thursday"
+    day_name_map = {
+        "Monday": "Senin", "Tuesday": "Selasa", "Wednesday": "Rabu",
+        "Thursday": "Kamis", "Friday": "Jumat", "Saturday": "Sabtu", "Sunday": "Minggu"
+    }
+    day_name_id = day_name_map.get(day_name_en, day_name_en)  # "Kamis"
     
     print(f"[SCHEDULE DEBUG] teacher_id={teacher_id}, room_id={room_id}")
-    print(f"[SCHEDULE DEBUG] now_wib={now_wib}, day_name_en={day_name_en}")
+    print(f"[SCHEDULE DEBUG] now_wib={now_wib}, day_name_id={day_name_id}")
     
-    # FIX: Use grade_schedules table (not old schedules table)
-    schedules = db.get_grade_schedules_by_teacher_and_day(teacher_id, day_name_en)
+    # FIX: Use Indonesian day name for DB query
+    schedules = db.get_grade_schedules_by_teacher_and_day(teacher_id, day_name_id)
     
     print(f"[SCHEDULE DEBUG] schedules count={len(schedules)}")
     if schedules:
