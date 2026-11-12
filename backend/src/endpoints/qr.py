@@ -294,12 +294,14 @@ async def get_room_state(room_code: str):
         "filtered_count": len(schedules),
         "search_room_id": room_id,
         "search_day": day_of_week_en,
+        "comparisons": debug_comparisons
     }
     
     current_schedule = None
     next_schedule = None
     state = "IDLE"
     
+    debug_comparisons = []
     print(f"[QR DEBUG] now_wib={now_wib}, now_wib.replace={now_wib.replace(second=0, microsecond=0)}")
     for schedule in schedules:
         start_time = schedule.get("start_time", "00:00")
@@ -310,10 +312,24 @@ async def get_room_state(room_code: str):
         end_dt = datetime.strptime(end_time, "%H:%M").replace(tzinfo=wib_offset)
         grace_end = end_dt + timedelta(minutes=10)
         
-        print(f"[QR DEBUG] schedule {schedule.get('grade_name')}: {start_time}-{end_time}, start_dt={start_dt}, end_dt={end_dt}, grace_end={grace_end}")
-        print(f"[QR DEBUG] comparison: {start_dt} <= {now_wib.replace(second=0, microsecond=0)} <= {grace_end}")
+        now_floor = now_wib.replace(second=0, microsecond=0)
+        match = start_dt <= now_floor <= grace_end
         
-        if start_dt <= now_wib.replace(second=0, microsecond=0) <= grace_end:
+        print(f"[QR DEBUG] schedule {schedule.get('grade_name')}: {start_time}-{end_time}, start_dt={start_dt}, end_dt={end_dt}, grace_end={grace_end}")
+        print(f"[QR DEBUG] comparison: {start_dt} <= {now_floor} <= {grace_end} = {match}")
+        
+        debug_comparisons.append({
+            "grade_name": schedule.get('grade_name'),
+            "start_time": start_time,
+            "end_time": end_time,
+            "start_dt": str(start_dt),
+            "end_dt": str(end_dt),
+            "grace_end": str(grace_end),
+            "now_floor": str(now_floor),
+            "match": match
+        })
+        
+        if match:
             print(f"[QR DEBUG] MATCH! Setting current_schedule")
             current_schedule = schedule
             # Check if entry has been scanned
