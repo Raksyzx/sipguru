@@ -138,7 +138,7 @@ export function MapPicker({
     }
   }, []);
 
-  // Search location using Nominatim with Indonesia bias
+  // Search location using Photon API (better for Indonesia and POI search)
   const searchLocation = useCallback(async (query: string) => {
     if (query.length < 2) {
       setSearchResults([]);
@@ -157,22 +157,19 @@ export function MapPicker({
     setSelectedIndex(-1);
     
     try {
-      // Indonesia bounding box for better results
-      // West: 95°E, South: -11°S, East: 141°E, North: 6°N
-      const indonesiaViewbox = "95,-11,141,6";
-      
+      // Photon API with Indonesia bias and POI support
+      // Supports: school, mosque, house, building, amenity, etc.
       const params = new URLSearchParams({
-        format: "json",
         q: query,
-        countrycodes: "id",
         limit: "10",
-        addressdetails: "1",
-        viewbox: indonesiaViewbox,
-        bounded: "0", // Prefer results in viewbox but don't restrict
+        lang: "id", // Indonesian language results
       });
 
-      const url = `https://nominatim.openstreetmap.org/search?${params.toString()}`;
-      console.log("[MapPicker] Searching:", query, "URL:", url);
+      // Add location bias for Indonesia (bbox: minLon,minLat,maxLon,maxLat)
+      params.append("bbox", "95,-11,141,6");
+      
+      const url = `https://photon.komoot.io/api/?${params.toString()}`;
+      console.log("[MapPicker] Photon Search:", query, "URL:", url);
       
       const response = await fetch(
         url,
@@ -185,51 +182,76 @@ export function MapPicker({
         }
       );
       
-      console.log("[MapPicker] Response status:", response.status);
+      console.log("[MapPicker] Photon Response status:", response.status);
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("[MapPicker] Search failed:", response.status, errorText);
+        console.error("[MapPicker] Photon search failed:", response.status, errorText);
         throw new Error(`Search failed: ${response.status}`);
       }
       
-      const data: SearchResult[] = await response.json();
-      console.log("[MapPicker] Results count:", data.length, "Data:", data.slice(0, 5));
+      const data = await response.json();
+      console.log("[MapPicker] Photon raw results:", data.features?.length || 0);
       
-      // Enhanced ranking: prioritize schools, buildings, and places in Indonesia
+      // Transform Photon results to our format
+      const transformed: SearchResult[] = (data.features || []).map((feature: any) => {
+        const props = feature.properties || {};
+        const name = props.name || props.street || props.district || props.city || "Unknown Location";
+        const type = props.osm_value || props.osm_key || "place";
+        
+        return {
+          place_id: props.osm_id || Math.random().toString(36).substr(2, 9),
+          display_name: name,
+          lat: feature.geometry.coordinates[1],
+          lon: feature.geometry.coordinates[0],
+          type: type,
+          importance: props.importance || 0.5,
+          address: {
+            name: props.name,
+            street: props.street,
+            district: props.district,
+            city: props.city,
+            state: props.state,
+            country: props.country,
+          }
+        };
+      });
+      
+      console.log("[MapPicker] Transformed results:", transformed.length, transformed.slice(0, 5));
+      
+      // Enhanced ranking for Indonesian context
       const typePriority: Record<string, number> = {
-        school: 1, university: 1, college: 1, 
-        building: 2, amenity: 3, office: 4,
-        shop: 5, tourism: 6, highway: 7, 
-        place: 8, residential: 9, natural: 10
+        school: 1, university: 1, college: 1, kindergarten: 1,
+        place_of_worship: 1, mosque: 1, church: 1, temple: 1,
+        house: 2, residential: 2, building: 2,
+        amenity: 3, office: 4, shop: 5, 
+        tourism: 6, highway: 7, place: 8, natural: 9
       };
       
-      // Boost results with Indonesia-specific keywords in display_name
-      const indoKeywords = ['serang', 'banten', 'jakarta', 'bandung', 'surabaya', 'smk', 'sma', 'sekolah'];
+      // Indonesia keywords boost
+      const indoKeywords = ['serang', 'banten', 'jakarta', 'bandung', 'surabaya', 'smk', 'sma', 'sekolah', 'masjid', 'mosque', 'rumah'];
       
-      data.sort((a, b) => {
-        // Type priority
+      transformed.sort((a, b) => {
         const aPriority = typePriority[a.type || ""] || 99;
         const bPriority = typePriority[b.type || ""] || 99;
         
         if (aPriority !== bPriority) return aPriority - bPriority;
         
-        // Boost by importance
-        const aImportance = a.importance || 0;
-        const bImportance = b.importance || 0;
-        
-        // Boost if contains Indonesia keywords
         const aNameLower = a.display_name.toLowerCase();
         const bNameLower = b.display_name.toLowerCase();
-        const aKeywordBoost = indoKeywords.some(k => aNameLower.includes(k)) ? 0.1 : 0;
-        const bKeywordBoost = indoKeywords.some(k => bNameLower.includes(k)) ? 0.1 : 0;
+        const aKeywordBoost = indoKeywords.some(k => aNameLower.includes(k)) ? 0.15 : 0;
+        const bKeywordBoost = indoKeywords.some(k => bNameLower.includes(k)) ? 0.15 : 0;
         
-        return (bImportance + bKeywordBoost) - (aImportance + aKeywordBoost);
+        return ((b.importance || 0) + bKeywordBoost) - ((a.importance || 0) + aKeywordBoost);
       });
       
-      setSearchResults(data);
-      setShowResults(data.length > 0);
-      console.log("[MapPicker] Sorted results:", data.slice(0, 3).map(d => ({ name: d.display_name.split(',')[0], type: d.type, importance: d.importance })));
+      setSearchResults(transformed);
+      setShowResults(transformed.length > 0);
+      console.log("[MapPicker] Final sorted results:", transformed.slice(0, 3).map(r => ({ 
+        name: r.display_name.split(',')[0], 
+        type: r.type, 
+        city: r.address?.city 
+      })));
     } catch (error: any) {
       if (error.name !== "AbortError") {
         console.error("[MapPicker] Search error:", error);
