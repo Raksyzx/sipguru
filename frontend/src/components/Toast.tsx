@@ -39,16 +39,16 @@ export function ToastContainer({ toasts, remove, position = "top-right" }: { toa
   if (toasts.length === 0) return null;
 
   const positionClasses = position === "top-center"
-    ? "fixed top-4 left-1/2 -translate-x-1/2 z-50"
+    ? "fixed top-0 left-0 right-0 z-50 flex justify-center pointer-events-none"
     : "fixed top-4 right-4 z-50";
 
   return (
     <div className={positionClasses}>
-      <div className="space-y-2">
+      <div className={`space-y-2 max-w-sm ${position === "top-center" ? "pointer-events-auto" : ""}`}>
         {toasts.map(toast => (
           <div
             key={toast.id}
-            className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg backdrop-blur-sm max-w-sm ${
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg backdrop-blur-sm ${
               position === "top-center" 
                 ? "animate-slide-in-top" 
                 : "animate-slide-in-right"
