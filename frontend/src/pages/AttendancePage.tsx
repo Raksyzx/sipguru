@@ -201,8 +201,19 @@ const AttendancePage = () => {
         {/* User Profile Card - compact */}
         <div className="glass-card-light p-4 sm:p-5">
           <div className="flex items-center gap-3 sm:gap-4">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-tr from-emerald-600 to-emerald-500 rounded-full flex items-center justify-center text-white shadow-[0_6px_20px_rgba(16,185,129,0.25)] flex-shrink-0">
-              <span className="text-xl sm:text-2xl font-bold">{user?.name?.charAt(0) || "G"}</span>
+            {/* Avatar with photo support */}
+            <div className="w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0">
+              {user?.avatar_url ? (
+                <img
+                  src={user.avatar_url}
+                  alt={user?.name || "User"}
+                  className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover shadow-[0_6px_20px_rgba(16,185,129,0.25)]"
+                />
+              ) : (
+                <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-tr from-emerald-600 to-emerald-500 rounded-full flex items-center justify-center text-white shadow-[0_6px_20px_rgba(16,185,129,0.25)]">
+                  <span className="text-xl sm:text-2xl font-bold">{user?.name?.charAt(0) || "G"}</span>
+                </div>
+              )}
             </div>
             <div className="min-w-0">
               <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white truncate">{user?.name || "Guru"}</h2>
