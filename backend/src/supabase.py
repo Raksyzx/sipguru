@@ -156,7 +156,7 @@ class SupabaseClient:
     def get_user(self, user_id: str) -> Optional[dict]:
         """Get user by ID"""
         client = self._get_client()
-        result = client.table("users").select("id,email,name,role,nip,phone,school_id").eq("id", user_id).execute()
+        result = client.table("users").select("id,email,name,role,nip,phone,avatar_url,school_id").eq("id", user_id).execute()
         return result.data[0] if result.data else None
     
     @log_query_time
