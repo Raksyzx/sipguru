@@ -289,79 +289,75 @@ const TeacherDashboard = () => {
                 </h2>
                 <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">{user?.email}</p>
               </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
+              <div className="flex items-center gap-1 flex-shrink-0 relative">
                 {/* Refresh button - separate */}
                 <button
                   onClick={handleRefresh}
                   disabled={refreshing}
-                  className={`p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-lg transition-colors ${
-                    refreshing ? "animate-spin" : ""
-                  }`}
+                  className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-lg transition-colors"
                   title="Refresh jadwal"
                 >
-                  <RotateCw className="w-5 h-5" />
+                  <RotateCw className={`w-5 h-5 ${refreshing ? "animate-spin" : ""}`} />
                 </button>
 
                 {/* Burger menu - logout, theme, profile */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowMenu(!showMenu)}
-                    className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-lg transition-colors"
-                    title="Menu"
-                  >
-                    <Menu className="w-5 h-5" />
-                  </button>
-
-                  {showMenu && (
-                    <>
-                      {/* Dropdown menu - fixed position to avoid stacking issues */}
-                      <div 
-                        className="fixed right-4 top-16 w-40 bg-white dark:bg-stone-800 rounded-xl shadow-2xl border-2 border-gray-200 dark:border-stone-700 py-1" 
-                        style={{ zIndex: 99999 }}
-                      >
-                        <button
-                          onClick={() => {
-                            setShowMenu(false);
-                            navigate("/teacher/profile");
-                          }}
-                          className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-stone-700 flex items-center gap-2"
-                        >
-                          <User className="w-4 h-4" />
-                          Profil
-                        </button>
-                        <button
-                          onClick={() => {
-                            setShowMenu(false);
-                            toggleTheme();
-                          }}
-                          className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-stone-700 flex items-center gap-2"
-                        >
-                          {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                          {theme === "dark" ? "Mode Terang" : "Mode Gelap"}
-                        </button>
-                        <hr className="my-1 border-gray-200 dark:border-stone-700" />
-                        <button
-                          onClick={handleLogout}
-                          className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2"
-                        >
-                          <LogOut className="w-4 h-4" />
-                          Keluar
-                        </button>
-                      </div>
-
-                      {/* Backdrop overlay - only visible when menu open */}
-                      <div
-                        className="fixed inset-0"
-                        style={{ zIndex: 99998 }}
-                        onClick={() => setShowMenu(false)}
-                        aria-hidden="true"
-                      />
-                    </>
-                  )}
-                </div>
+                <button
+                  onClick={() => setShowMenu(!showMenu)}
+                  className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-lg transition-colors"
+                  title="Menu"
+                >
+                  <Menu className="w-5 h-5" />
+                </button>
               </div>
             </div>
           </div>
+        )}
+
+        {/* Burger Dropdown Menu - rendered at root level to avoid stacking context issues */}
+        {showMenu && (
+          <>
+            <div 
+              className="fixed right-4 top-16 w-40 bg-white dark:bg-stone-800 rounded-xl shadow-2xl border-2 border-gray-200 dark:border-stone-700 py-1" 
+              style={{ zIndex: 99999 }}
+            >
+              <button
+                onClick={() => {
+                  setShowMenu(false);
+                  navigate("/teacher/profile");
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-stone-700 flex items-center gap-2"
+              >
+                <User className="w-4 h-4" />
+                Profil
+              </button>
+              <button
+                onClick={() => {
+                  setShowMenu(false);
+                  toggleTheme();
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-stone-700 flex items-center gap-2"
+              >
+                {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                {theme === "dark" ? "Mode Terang" : "Mode Gelap"}
+              </button>
+              <hr className="my-1 border-gray-200 dark:border-stone-700" />
+              <button
+                onClick={handleLogout}
+                className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2"
+              >
+                <LogOut className="w-4 h-4" />
+                Keluar
+              </button>
+            </div>
+
+            {/* Backdrop overlay - only visible when menu open */}
+            <div
+              className="fixed inset-0"
+              style={{ zIndex: 99998 }}
+              onClick={() => setShowMenu(false)}
+              aria-hidden="true"
+            />
+          </>
         )}
 
         {/* CTA Presensi - full width prominent */}
