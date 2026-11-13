@@ -21,6 +21,8 @@ interface LCDDisplay {
   timestamp: string;
   status_text: string;
   status_color: string;
+  date?: string;
+  distance_m?: number | null;
 }
 
 const AttendancePage = () => {
@@ -104,7 +106,11 @@ const AttendancePage = () => {
 
       // Set LCD display data
       if (res.data.display) {
-        setLcdDisplay(res.data.display);
+        setLcdDisplay({
+          ...res.data.display,
+          date: new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" }),
+          distance_m: res.data.distance_m,
+        });
       }
 
       // Send Telegram notification (optional)
@@ -324,50 +330,62 @@ const AttendancePage = () => {
           </div>
         )}
 
-        {/* LCD Display Notification */}
-        {lcdDisplay && (
-          <div className="glass-card p-5 border-2 border-emerald-500/50 dark:border-emerald-400/50 animate-in zoom-in duration-300">
-            <div className="flex items-center gap-3 mb-4">
-              <Monitor className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">Notifikasi LCD</h3>
-            </div>
-            <div className={`rounded-xl p-5 ${
-              lcdDisplay.status_color === "green" 
-                ? "bg-gradient-to-br from-emerald-500 to-emerald-600" 
-                : "bg-gradient-to-br from-amber-500 to-amber-600"
-            } text-white shadow-2xl`}>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-white/20 rounded-full">
-                    <CheckCircle className="w-6 h-6" />
+        {/* LCD Display Notification - improved, proportional */}
+                {lcdDisplay && (
+                  <div className="glass-card p-4 border border-emerald-200 dark:border-emerald-800 animate-in slide-in-from-bottom duration-300">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Monitor className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                        <h3 className="text-base font-semibold text-gray-900 dark:text-white">Notifikasi LCD</h3>
+                      </div>
+                      <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">LIVE</span>
+                    </div>
+                    <div className={`rounded-xl p-4 ${
+                      lcdDisplay.status_color === "green"
+                        ? "bg-gradient-to-br from-emerald-500 via-emerald-600 to-emerald-700"
+                        : "bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700"
+                    } text-white shadow-lg`}>
+                      <div className="flex items-start justify-between gap-3 mb-4">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="p-2 bg-white/20 rounded-xl flex-shrink-0">
+                            <CheckCircle className="w-6 h-6" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs opacity-90">Presensi Berhasil</p>
+                            <p className="text-lg sm:text-xl font-bold truncate">{lcdDisplay.status_text}</p>
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-xl sm:text-2xl font-mono font-bold">{lcdDisplay.timestamp}</p>
+                          <p className="text-xs opacity-75">{lcdDisplay.date || new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })}</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/20">
+                        <div>
+                          <p className="text-xs opacity-75">Nama Guru</p>
+                          <p className="font-semibold text-sm sm:text-base truncate">{lcdDisplay.teacher_name}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs opacity-75">NIP</p>
+                          <p className="font-semibold text-sm sm:text-base truncate">{lcdDisplay.teacher_nip}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-xs opacity-75">Ruangan</p>
+                          <p className="font-semibold text-sm sm:text-base truncate">{lcdDisplay.room_name}</p>
+                        </div>
+                        {lcdDisplay.distance_m !== undefined && lcdDisplay.distance_m !== null && (
+                          <div className="col-span-2">
+                            <p className="text-xs opacity-75">Jarak GPS</p>
+                            <p className="font-semibold text-sm sm:text-base">{Math.round(lcdDisplay.distance_m)} m</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-center text-gray-500 dark:text-gray-400 mt-2">
+                      Data tersinkron dengan server • Tampilan ini untuk monitoring LCD
+                    </p>
                   </div>
-                  <div>
-                    <p className="text-sm opacity-90">Presensi Berhasil</p>
-                    <p className="text-xl sm:text-2xl font-bold">{lcdDisplay.status_text}</p>
-                  </div>
-                </div>
-                <p className="text-2xl sm:text-3xl font-mono font-bold">{lcdDisplay.timestamp}</p>
-              </div>
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/20">
-                <div>
-                  <p className="text-xs opacity-75">Nama Guru</p>
-                  <p className="font-semibold text-base sm:text-lg">{lcdDisplay.teacher_name}</p>
-                </div>
-                <div>
-                  <p className="text-xs opacity-75">NIP</p>
-                  <p className="font-semibold text-base sm:text-lg">{lcdDisplay.teacher_nip}</p>
-                </div>
-                <div className="col-span-2">
-                  <p className="text-xs opacity-75">Ruangan</p>
-                  <p className="font-semibold text-base sm:text-lg">{lcdDisplay.room_name}</p>
-                </div>
-              </div>
-            </div>
-            <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-3">
-              Tampilan ini dapat ditampilkan di layar LCD untuk monitoring real-time
-            </p>
-          </div>
-        )}
+                )}
 
         {/* Logout */}
         <div className="text-center pt-2">
