@@ -825,10 +825,10 @@ const AdminDashboard = () => {
               >
                 <Menu className="w-6 h-6" />
               </button>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
+              <h1 className="flex-1 text-center text-xl font-bold bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
                 SIPGURU
               </h1>
-              <div className="text-right hidden sm:block">
+              <div className="w-10 sm:block text-right hidden">
                 <div className="text-xs text-gray-600 dark:text-gray-400">
                   {currentTime.toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
                 </div>
