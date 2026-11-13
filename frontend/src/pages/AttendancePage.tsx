@@ -1,8 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { Loader2, MapPin, Camera, RotateCw, LayoutDashboard, CheckCircle, Monitor } from "lucide-react";
+import { Loader2, MapPin, Camera, RotateCw, LayoutDashboard, CheckCircle, Monitor, X } from "lucide-react";
 import { useAuthStore } from "../stores";
-
 import { useAuth } from "../hooks/useAuth";
 import { useGeolocation } from "../hooks/useGeolocation";
 import { QRScanner } from "../components/QRScanner";
@@ -35,8 +34,26 @@ const AttendancePage = () => {
   const [message, setMessage] = useState("");
   const [lcdDisplay, setLcdDisplay] = useState<LCDDisplay | null>(null);
   const [, setRoomInfo] = useState<{ room_code: string; name: string } | null>(null);
+  const [todayStats, setTodayStats] = useState<{ submitted: boolean; count: number } | null>(null);
 
   const roomId = qrToken ? parseRoomId(qrToken) : null;
+
+  // Fetch today's attendance status
+  const fetchTodayStats = useCallback(async () => {
+    try {
+      const res = await api.get("/attendance/today");
+      setTodayStats({
+        submitted: res.data.submitted,
+        count: res.data.logs?.length || 0,
+      });
+    } catch (err) {
+      console.error("Failed to fetch today's stats:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTodayStats();
+  }, [fetchTodayStats]);
 
   const handleScan = async (token: string) => {
     setQrToken(token);
@@ -84,12 +101,12 @@ const AttendancePage = () => {
 
       setStatus("success");
       setMessage(res.data.message || "Presensi berhasil!");
-      
+
       // Set LCD display data
       if (res.data.display) {
         setLcdDisplay(res.data.display);
       }
-      
+
       // Send Telegram notification (optional)
       if (res.data.display) {
         try {
@@ -106,17 +123,20 @@ const AttendancePage = () => {
           console.warn("Telegram notification failed:", err);
         }
       }
-      
+
       setQrToken("");
       setRoomInfo(null);
+
+      // Refresh today's stats after successful submission
+      await fetchTodayStats();
     } catch (err: unknown) {
       console.error("[Attendance] Submit error:", err);
-      
+
       // Extract detailed error message
       let errorMsg = "Presensi gagal. Periksa koneksi";
-      
+
       const axiosErr = err as { response?: { status: number; data?: { detail?: { reasons?: string[] } | string } }; code?: string };
-      
+
       if (axiosErr.response?.status === 401) {
         errorMsg = "Sesi login expired. Silakan login ulang.";
         // Auto logout dan redirect
@@ -134,7 +154,7 @@ const AttendancePage = () => {
       } else if (axiosErr.code === "ERR_NETWORK") {
         errorMsg = "Gagal koneksi ke server. Pastikan internet stabil.";
       }
-      
+
       setStatus("error");
       setMessage(errorMsg);
     } finally {
@@ -148,40 +168,81 @@ const AttendancePage = () => {
     return btoa(data).substring(0, 32);
   }, []);
 
+  const openScannerModal = () => setScanning(true);
+  const closeScannerModal = () => {
+    setScanning(false);
+    setMessage("");
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-stone-50 dark:from-stone-950 dark:to-emerald-950/20 py-8 px-4">
-      <div className="max-w-md mx-auto space-y-6 animate-in fade-in duration-500">
-        {/* Header */}
-        <div className="text-center space-y-2 animate-stagger-1">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-stone-50 dark:from-stone-950 dark:to-emerald-950/20 py-6 px-3 sm:py-8 sm:px-4">
+      <div className="max-w-sm sm:max-w-md mx-auto space-y-4 sm:space-y-5 animate-in fade-in duration-400">
+        {/* Header - compact */}
+        <div className="text-center space-y-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
             SIPGURU
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">Sistem Presensi Guru</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Sistem Presensi Guru</p>
         </div>
 
-        {/* User Profile Card */}
-        <div className="glass-card-light p-6 animate-stagger-2">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-gradient-to-tr from-emerald-600 to-emerald-500 rounded-full flex items-center justify-center text-white shadow-[0_8px_25px_rgba(16,185,129,0.25)]">
-              <span className="text-2xl font-bold">{user?.name?.charAt(0) || "G"}</span>
+        {/* User Profile Card - compact */}
+        <div className="glass-card-light p-4 sm:p-5">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-tr from-emerald-600 to-emerald-500 rounded-full flex items-center justify-center text-white shadow-[0_6px_20px_rgba(16,185,129,0.25)] flex-shrink-0">
+              <span className="text-xl sm:text-2xl font-bold">{user?.name?.charAt(0) || "G"}</span>
             </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{user?.name || "Guru"}</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{user?.email || "Not logged in"}</p>
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white truncate">{user?.name || "Guru"}</h2>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">{user?.email || "Not logged in"}</p>
             </div>
           </div>
         </div>
 
-        {/* Location Status */}
-        <div className="glass-card-light p-6 animate-stagger-3">
+        {/* Today's Attendance Status - NEW */}
+        {todayStats && (
+          <div className={`glass-card-light p-4 sm:p-5 border-l-4 ${
+            todayStats.submitted ? "border-emerald-500" : "border-amber-500"
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-xl ${
+                todayStats.submitted 
+                  ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400" 
+                  : "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400"
+              }`}>
+                {todayStats.submitted ? (
+                  <CheckCircle className="w-5 h-5" />
+                ) : (
+                  <Camera className="w-5 h-5" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                  {todayStats.submitted ? "Sudah Absen Hari Ini" : "Belum Absen Hari Ini"}
+                </p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  {todayStats.count} kali presensi hari ini
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Location Status - compact */}
+        <div className="glass-card-light p-4 sm:p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className={`p-3 rounded-xl ${location ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400" : "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400"}`}>
-                <MapPin className="w-6 h-6" />
+              <div className={`p-2.5 rounded-xl ${
+                location 
+                  ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400" 
+                  : "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400"
+              }`}>
+                <MapPin className="w-5 h-5" />
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-900 dark:text-white">Status Lokasi</p>
-                <p className="text-xs text-gray-600 dark:text-gray-400">{location ? "Lokasi aktif" : "Memuat lokasi..."}</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  {location ? "Lokasi aktif" : "Memuat lokasi..."}
+                </p>
               </div>
             </div>
             <button
@@ -189,13 +250,13 @@ const AttendancePage = () => {
               disabled={locationLoading}
               className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors dark:text-emerald-400 dark:hover:bg-emerald-950/30"
             >
-            <RotateCw className="w-5 h-5" />
+              <RotateCw className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Nav to Dashboard */}
-        <Link to="/teacher/dashboard" className="animate-stagger-3">
+        {/* Nav to Dashboard - compact */}
+        <Link to="/teacher/dashboard" className="block animate-stagger-2">
           <button className="btn-secondary w-full py-3 flex items-center justify-center gap-2">
             <LayoutDashboard className="w-5 h-5" />
             Lihat Dashboard & Izin
@@ -203,38 +264,26 @@ const AttendancePage = () => {
         </Link>
 
         {/* QR Scanner Section */}
-        <div className="glass-card-light p-6 animate-stagger-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+        <div className="glass-card-light p-4 sm:p-5">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <Camera className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
             Scan QR Code
           </h3>
 
           {!scanning && !qrToken && (
             <button
-              onClick={() => setScanning(true)}
-              className="btn-primary w-full py-4"
+              onClick={openScannerModal}
+              className="btn-primary w-full py-4 sm:py-4.5"
             >
               Mulai Scan QR Code
             </button>
-          )}
-
-          {scanning && (
-            <div className="space-y-4">
-              <QRScanner onScan={handleScan} onError={(e) => setMessage(e)} />
-              <button
-                onClick={() => setScanning(false)}
-                className="btn-ghost w-full py-3"
-              >
-                Batal
-              </button>
-            </div>
           )}
 
           {qrToken && (
             <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-200/50 dark:bg-emerald-950/20 dark:border-emerald-800/50">
               <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">QR Code Ditemukan!</p>
               <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-mono break-all">
-                {qrToken.substring(0, 50)}...
+                {qrToken.substring(0, 60)}...
               </p>
               <button
                 onClick={() => setQrToken("")}
@@ -244,75 +293,76 @@ const AttendancePage = () => {
               </button>
             </div>
           )}
-        </div>
 
-        {/* Submit Button */}
-        {qrToken && (
-          <button
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="btn-primary w-full py-4 text-lg tracking-wide animate-stagger-5"
-          >
-            {submitting ? (
-              <span className="flex items-center justify-center gap-2">
-                <Loader2 className="w-6 h-6 animate-spin" />
-                Mengirim...
-              </span>
-            ) : (
-              "Kirim Presensi"
-            )}
-          </button>
-        )}
+          {/* Submit Button */}
+          {qrToken && (
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="btn-primary w-full py-4 sm:py-4.5 text-base sm:text-lg tracking-wide mt-4"
+            >
+              {submitting ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Mengirim...
+                </span>
+              ) : (
+                "Kirim Presensi"
+              )}
+            </button>
+          )}
+        </div>
 
         {/* Message */}
         {message && (
-          <div className={`p-4 rounded-xl border ${status === "error" ? "bg-red-50/50 border-red-200/50 text-red-700 dark:bg-red-950/20 dark:border-red-800/50 dark:text-red-300" : "bg-emerald-50/50 border-emerald-200/50 text-emerald-700 dark:bg-emerald-950/20 dark:border-emerald-800/50 dark:text-emerald-300"}`}>
-            <p className="font-medium">{message}</p>
+          <div className={`p-4 rounded-xl border ${
+            status === "error" 
+              ? "bg-red-50/50 border-red-200/50 text-red-700 dark:bg-red-950/20 dark:border-red-800/50 dark:text-red-300" 
+              : "bg-emerald-50/50 border-emerald-200/50 text-emerald-700 dark:bg-emerald-950/20 dark:border-emerald-800/50 dark:text-emerald-300"
+          }`}>
+            <p className="font-medium text-sm">{message}</p>
           </div>
         )}
 
         {/* LCD Display Notification */}
         {lcdDisplay && (
-          <div className="glass-card p-6 border-2 border-emerald-500/50 dark:border-emerald-400/50 animate-in zoom-in duration-300">
+          <div className="glass-card p-5 border-2 border-emerald-500/50 dark:border-emerald-400/50 animate-in zoom-in duration-300">
             <div className="flex items-center gap-3 mb-4">
-              <Monitor className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+              <Monitor className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               <h3 className="text-lg font-bold text-gray-900 dark:text-white">Notifikasi LCD</h3>
             </div>
-            
-            <div className={`rounded-xl p-6 ${
+            <div className={`rounded-xl p-5 ${
               lcdDisplay.status_color === "green" 
                 ? "bg-gradient-to-br from-emerald-500 to-emerald-600" 
                 : "bg-gradient-to-br from-amber-500 to-amber-600"
             } text-white shadow-2xl`}>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 bg-white/20 rounded-full">
-                    <CheckCircle className="w-8 h-8" />
+                  <div className="p-2 bg-white/20 rounded-full">
+                    <CheckCircle className="w-6 h-6" />
                   </div>
                   <div>
                     <p className="text-sm opacity-90">Presensi Berhasil</p>
-                    <p className="text-2xl font-bold">{lcdDisplay.status_text}</p>
+                    <p className="text-xl sm:text-2xl font-bold">{lcdDisplay.status_text}</p>
                   </div>
                 </div>
-                <p className="text-3xl font-mono font-bold">{lcdDisplay.timestamp}</p>
+                <p className="text-2xl sm:text-3xl font-mono font-bold">{lcdDisplay.timestamp}</p>
               </div>
-              
               <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/20">
                 <div>
                   <p className="text-xs opacity-75">Nama Guru</p>
-                  <p className="font-semibold text-lg">{lcdDisplay.teacher_name}</p>
+                  <p className="font-semibold text-base sm:text-lg">{lcdDisplay.teacher_name}</p>
                 </div>
                 <div>
                   <p className="text-xs opacity-75">NIP</p>
-                  <p className="font-semibold text-lg">{lcdDisplay.teacher_nip}</p>
+                  <p className="font-semibold text-base sm:text-lg">{lcdDisplay.teacher_nip}</p>
                 </div>
                 <div className="col-span-2">
                   <p className="text-xs opacity-75">Ruangan</p>
-                  <p className="font-semibold text-lg">{lcdDisplay.room_name}</p>
+                  <p className="font-semibold text-base sm:text-lg">{lcdDisplay.room_name}</p>
                 </div>
               </div>
             </div>
-            
             <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-3">
               Tampilan ini dapat ditampilkan di layar LCD untuk monitoring real-time
             </p>
@@ -320,7 +370,7 @@ const AttendancePage = () => {
         )}
 
         {/* Logout */}
-        <div className="text-center">
+        <div className="text-center pt-2">
           <button
             onClick={() => useAuthStore.getState().logout()}
             className="btn-ghost text-sm"
@@ -329,6 +379,52 @@ const AttendancePage = () => {
           </button>
         </div>
       </div>
+
+      {/* Scanner Modal - centered on mobile */}
+      {scanning && (
+        <div 
+          className="modal-fixed-overlay flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-sm"
+          onClick={closeScannerModal}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="scanner-title"
+        >
+          <div 
+            className="w-full max-w-md bg-white dark:bg-stone-900 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-stone-700">
+              <h2 id="scanner-title" className="text-lg font-semibold text-gray-900 dark:text-white">Scan QR Code</h2>
+              <button
+                onClick={closeScannerModal}
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-stone-800 rounded-xl transition-colors"
+                aria-label="Tutup scanner"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Scanner Content */}
+            <div className="p-4">
+              <QRScanner 
+                onScan={handleScan} 
+                onError={(e) => setMessage(e)} 
+              />
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-gray-200 dark:border-stone-700">
+              <button
+                onClick={closeScannerModal}
+                className="btn-ghost w-full py-3"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
