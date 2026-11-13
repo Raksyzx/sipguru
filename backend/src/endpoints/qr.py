@@ -3,7 +3,7 @@ from src.database import get_db
 from src.auth import generate_hmac_token
 from src.deps import get_current_user, require_admin
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request, Header
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -473,33 +473,236 @@ async def generate_auto_qr_token(
     }
 
 
-@router.post("/early-request")
-async def request_early_class(
-    schedule_id: str,
-    requested_start: str,  # ISO format datetime
-    auth_user: dict = Depends(get_current_user)
+@router.post("/auto-generate-all")
+async def auto_generate_all_qr_tokens(
+    request: Request,
+    x_cron_secret: str = Header(None, alias="X-Cron-Secret")
 ):
-    """Teacher requests to start class early (if previous slot is empty)"""
-    from datetime import datetime
+    """Auto-generate QR tokens for all upcoming schedules (called by cron/GitHub Actions)"""
+    # Validate cron secret (if set in environment)
+    if settings.CRON_SECRET and x_cron_secret != settings.CRON_SECRET:
+        raise HTTPException(status_code=401, detail="Invalid cron secret")
     
-    schedule = db.get_grade_schedule(schedule_id)
-    if not schedule:
-        raise HTTPException(status_code=404, detail="Schedule not found")
+    from datetime import datetime, timedelta, timezone
     
-    if schedule.get("teacher_id") != auth_user.get("user_id"):
-        raise HTTPException(status_code=403, detail="Not authorized for this schedule")
+    wib_offset = timezone(timedelta(hours=7))
+    utc_now = datetime.now(timezone.utc)
+    now_wib = utc_now.astimezone(wib_offset)
+    current_time = now_wib.strftime("%H:%M")
     
-    # Check if previous time slot is empty (simplified: just check if room is free)
-    room_id = schedule.get("room_id")
-    requested_dt = datetime.fromisoformat(requested_start)
+    # Convert day to Indonesian
+    day_of_week_en = now_wib.strftime("%A")
+    day_name_map = {
+        "Monday": "Senin", "Tuesday": "Selasa", "Wednesday": "Rabu",
+        "Thursday": "Kamis", "Friday": "Jumat", "Saturday": "Sabtu", "Sunday": "Minggu"
+    }
+    day_of_week_id = day_name_map.get(day_of_week_en, day_of_week_en)
     
-    # TODO: Check if room is free at requested time
-    # For now, just mark the schedule as early_approved
-    db.update_schedule_state(schedule_id, "early_approved", requested_start)
+    # Get all rooms with registered ESP32 devices
+    rooms = db.get_all_rooms()
+    devices = db.get_all_devices()
+    device_by_room = {d["room_id"]: d for d in devices}
+    
+    results = {
+        "generated": [],
+        "skipped": [],
+        "errors": []
+    }
+    
+    for room in rooms:
+        room_id = room["id"]
+        
+        # Get schedules for this room today
+        all_schedules = db.get_all_grade_schedules()
+        schedules = [s for s in all_schedules 
+                    if s.get("room_id") == room_id 
+                    and s.get("day_of_week") == day_of_week_id
+                    and s.get("is_active", True)]
+        
+        if not schedules:
+            continue
+            
+        for schedule in schedules:
+            start_time = schedule.get("start_time", "00:00")
+            end_time = schedule.get("end_time", "00:00")
+            
+            today = now_wib.date()
+            start_dt = datetime.combine(today, datetime.strptime(start_time, "%H:%M").time()).replace(tzinfo=wib_offset)
+            end_dt = datetime.combine(today, datetime.strptime(end_time, "%H:%M").time()).replace(tzinfo=wib_offset)
+            
+            # Generate entry token: 15 minutes before start until 10 minutes before end
+            entry_window_start = start_dt - timedelta(minutes=15)
+            entry_window_end = end_dt - timedelta(minutes=10)
+            
+            # Check if we're in the entry window
+            if entry_window_start <= now_wib <= entry_window_end:
+                # Check if entry token already exists and is valid
+                existing_tokens = db.get_qr_tokens_by_schedule(schedule["id"])
+                has_valid_entry = any(
+                    t.get("token_type") == "entry" 
+                    and t.get("is_active") 
+                    and datetime.fromisoformat(t["expires_at"].replace("Z", "+00:00")) > now_wib
+                    for t in existing_tokens
+                )
+                
+                if not has_valid_entry:
+                    try:
+                        # Generate entry token (expires at end of class + 10 min buffer)
+                        entry_expiry = int((entry_window_end - now_wib).total_seconds()) + 600  # 10 min buffer
+                        if entry_expiry < 300:  # Minimum 5 minutes
+                            entry_expiry = 300
+                        
+                        token = generate_hmac_token(
+                            room_id=room_id,
+                            schedule_id=schedule["id"],
+                            subject_id=schedule.get("subject_id"),
+                            teacher_id=schedule.get("teacher_id"),
+                            grade_id=schedule.get("grade_id"),
+                            expiry_seconds=entry_expiry,
+                            secret=settings.JWT_SECRET
+                        )
+                        
+                        expires_at = (now_wib + timedelta(seconds=entry_expiry)).isoformat()
+                        qr_id = db.create_qr_token(
+                            schedule_id=schedule["id"],
+                            room_id=room_id,
+                            grade_id=schedule["grade_id"],
+                            subject_id=schedule["subject_id"],
+                            teacher_id=schedule["teacher_id"],
+                            token=token,
+                            expires_at=expires_at,
+                            token_type="entry"
+                        )
+                        
+                        # Push to ESP32 if device registered
+                        device = device_by_room.get(room_id)
+                        if device and device.get("callback_url"):
+                            try:
+                                import requests
+                                requests.post(
+                                    device["callback_url"],
+                                    json={
+                                        "event": "qr_generated",
+                                        "room_id": room_id,
+                                        "room_code": room["room_code"],
+                                        "schedule_id": schedule["id"],
+                                        "token": token,
+                                        "token_type": "entry",
+                                        "expires_at": expires_at,
+                                        "grade_name": schedule.get("grade_name"),
+                                        "subject_name": schedule.get("subject_name")
+                                    },
+                                    timeout=5
+                                )
+                            except Exception as e:
+                                print(f"Failed to push QR to ESP32: {e}")
+                        
+                        results["generated"].append({
+                            "schedule_id": schedule["id"],
+                            "room_id": room_id,
+                            "room_code": room["room_code"],
+                            "token_type": "entry",
+                            "qr_id": qr_id,
+                            "expires_at": expires_at
+                        })
+                    except Exception as e:
+                        results["errors"].append({
+                            "schedule_id": schedule["id"],
+                            "room_id": room_id,
+                            "error": str(e)
+                        })
+                else:
+                    results["skipped"].append({
+                        "schedule_id": schedule["id"],
+                        "reason": "valid_entry_exists"
+                    })
+            
+            # Generate exit token: 10 minutes before end until 30 minutes after end
+            exit_window_start = end_dt - timedelta(minutes=10)
+            exit_window_end = end_dt + timedelta(minutes=30)
+            
+            if exit_window_start <= now_wib <= exit_window_end:
+                existing_tokens = db.get_qr_tokens_by_schedule(schedule["id"])
+                has_valid_exit = any(
+                    t.get("token_type") == "exit" 
+                    and t.get("is_active") 
+                    and datetime.fromisoformat(t["expires_at"].replace("Z", "+00:00")) > now_wib
+                    for t in existing_tokens
+                )
+                
+                if not has_valid_exit:
+                    try:
+                        exit_expiry = int((exit_window_end - now_wib).total_seconds()) + 60
+                        if exit_expiry < 300:
+                            exit_expiry = 300
+                        
+                        token = generate_hmac_token(
+                            room_id=room_id,
+                            schedule_id=schedule["id"],
+                            subject_id=schedule.get("subject_id"),
+                            teacher_id=schedule.get("teacher_id"),
+                            grade_id=schedule.get("grade_id"),
+                            expiry_seconds=exit_expiry,
+                            secret=settings.JWT_SECRET
+                        )
+                        
+                        expires_at = (now_wib + timedelta(seconds=exit_expiry)).isoformat()
+                        qr_id = db.create_qr_token(
+                            schedule_id=schedule["id"],
+                            room_id=room_id,
+                            grade_id=schedule["grade_id"],
+                            subject_id=schedule["subject_id"],
+                            teacher_id=schedule["teacher_id"],
+                            token=token,
+                            expires_at=expires_at,
+                            token_type="exit"
+                        )
+                        
+                        device = device_by_room.get(room_id)
+                        if device and device.get("callback_url"):
+                            try:
+                                import requests
+                                requests.post(
+                                    device["callback_url"],
+                                    json={
+                                        "event": "qr_generated",
+                                        "room_id": room_id,
+                                        "room_code": room["room_code"],
+                                        "schedule_id": schedule["id"],
+                                        "token": token,
+                                        "token_type": "exit",
+                                        "expires_at": expires_at,
+                                        "grade_name": schedule.get("grade_name"),
+                                        "subject_name": schedule.get("subject_name")
+                                    },
+                                    timeout=5
+                                )
+                            except Exception as e:
+                                print(f"Failed to push exit QR to ESP32: {e}")
+                        
+                        results["generated"].append({
+                            "schedule_id": schedule["id"],
+                            "room_id": room_id,
+                            "room_code": room["room_code"],
+                            "token_type": "exit",
+                            "qr_id": qr_id,
+                            "expires_at": expires_at
+                        })
+                    except Exception as e:
+                        results["errors"].append({
+                            "schedule_id": schedule["id"],
+                            "room_id": room_id,
+                            "error": str(e)
+                })
+                else:
+                    results["skipped"].append({
+                        "schedule_id": schedule["id"],
+                        "reason": "valid_exit_exists"
+                    })
     
     return {
-        "message": "Early class request submitted",
-        "schedule_id": schedule_id,
-        "requested_start": requested_start,
-        "status": "pending_approval"  # Admin can approve via admin endpoint
+        "timestamp": now_wib.isoformat(),
+        "day": day_of_week_id,
+        "current_time": current_time,
+        "results": results
     }

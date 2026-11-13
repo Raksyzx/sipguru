@@ -22,7 +22,10 @@ class Settings(BaseSettings):
     # Validation
     GEOFENCE_RADIUS_M: int = 150
     LATE_TOLERANCE_MINUTES: int = 15
-    QR_EXPIRY_SECONDS: int = 30
+    QR_EXPIRY_SECONDS: int = 300
+    
+    # Cron
+    CRON_SECRET: str = ""
     
     # CORS
     ALLOWED_ORIGINS: list = [

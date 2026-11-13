@@ -1,0 +1,23 @@
+name: Auto Generate QR Tokens
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # Every 5 minutes
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  generate-qr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call Auto Generate QR Endpoint
+        run: |
+          curl -X POST "${{ secrets.API_URL }}/api/qr/auto-generate-all" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            --max-time 30 \
+            --fail \
+            -w "\nHTTP Code: %{http_code}\n"
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
