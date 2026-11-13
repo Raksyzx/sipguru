@@ -45,12 +45,14 @@ const TeacherProfile = () => {
   const loadProfile = async () => {
     try {
       const res = await api.get("/teacher/profile");
+      // Backend returns {user: {...}}, so access res.data.user
+      const userData = res.data.user || res.data;
       setProfile({
-        name: res.data.name || "",
-        email: res.data.email || "",
-        nip: res.data.nip || "",
-        phone: res.data.phone || "",
-        avatar_url: res.data.avatar_url || "",
+        name: userData.name || "",
+        email: userData.email || "",
+        nip: userData.nip || "",
+        phone: userData.phone || "",
+        avatar_url: userData.avatar_url || "",
       });
     } catch (err) {
       console.error("Failed to load profile:", err);
