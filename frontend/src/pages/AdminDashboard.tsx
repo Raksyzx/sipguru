@@ -753,18 +753,18 @@ const AdminDashboard = () => {
             <div className="flex items-center gap-2 pt-2 border-t border-gray-100 dark:border-stone-800">
               <button
                 onClick={toggleTheme}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-stone-800 rounded-lg hover:bg-gray-200 dark:hover:bg-stone-700 transition-colors"
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-stone-800 rounded-lg hover:bg-gray-200 dark:hover:bg-stone-700 transition-colors"
                 title={theme === "dark" ? "Mode Terang" : "Mode Gelap"}
               >
-                {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                <span>{theme === "dark" ? "Mode Terang" : "Mode Gelap"}</span>
+                {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+                <span>{theme === "dark" ? "Terang" : "Gelap"}</span>
               </button>
               <button
                 onClick={() => { setShowLogoutConfirm(true); setMobileSidebarOpen(false); }}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors"
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors"
                 title="Keluar"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-3.5 h-3.5" />
                 <span>Keluar</span>
               </button>
             </div>
