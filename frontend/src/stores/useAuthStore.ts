@@ -7,6 +7,7 @@ interface User {
   name: string;
   role: "teacher" | "admin";
   phone?: string;
+  avatar_url?: string;
 }
 
 interface AuthState {
