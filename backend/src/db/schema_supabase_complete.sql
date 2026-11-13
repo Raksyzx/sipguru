@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
     name TEXT NOT NULL,
     role TEXT DEFAULT 'teacher' CHECK (role IN ('admin', 'teacher')),
     phone TEXT,
+    avatar_url TEXT,
     school_id UUID REFERENCES schools(id),
     password_hash TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
