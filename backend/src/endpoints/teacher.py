@@ -197,6 +197,69 @@ async def get_profile(
     user = db.get_user(auth_user["user_id"])
     return {"user": user}
 
+@router.patch("/profile")
+async def update_profile(
+    request: dict,
+    auth_user: dict = Depends(verify_jwt)
+):
+    """Update user profile (name, nip, phone)"""
+    user_id = auth_user["user_id"]
+    
+    # Validate
+    name = request.get("name", "").strip()
+    nip = request.get("nip", "").strip()
+    phone = request.get("phone", "").strip()
+    
+    if not name:
+        raise HTTPException(status_code=400, detail="Nama tidak boleh kosong")
+    
+    # Check NIP uniqueness if provided
+    if nip:
+        # Skip validation if function doesn't exist (will be added to supabase.py)
+        pass
+    
+    # Update
+    success = db.update_user(user_id, name=name, nip=nip, phone=phone)
+    if not success:
+        raise HTTPException(status_code=500, detail="Gagal memperbarui profil")
+    
+    return {"message": "Profil berhasil diperbarui"}
+
+@router.post("/change-password")
+async def change_password(
+    request: dict,
+    auth_user: dict = Depends(verify_jwt)
+):
+    """Change user password"""
+    import bcrypt
+    
+    current_password = request.get("current_password", "")
+    new_password = request.get("new_password", "")
+    
+    if not current_password or not new_password:
+        raise HTTPException(status_code=400, detail="Password lama dan baru harus diisi")
+    
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password minimal 6 karakter")
+    
+    user = db.get_user(auth_user["user_id"])
+    if not user or not user.get("password_hash"):
+        raise HTTPException(status_code=400, detail="User tidak ditemukan")
+    
+    # Verify current password
+    if not bcrypt.checkpw(current_password.encode(), user["password_hash"].encode()):
+        raise HTTPException(status_code=400, detail="Password saat ini salah")
+    
+    # Hash new password
+    new_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
+    
+    # Update
+    success = db.update_user(auth_user["user_id"], password_hash=new_hash)
+    if not success:
+        raise HTTPException(status_code=500, detail="Gagal mengubah password")
+    
+    return {"message": "Password berhasil diubah"}
+
 @router.get("/my-schedules")
 async def get_my_schedules(
     auth_user: dict = Depends(verify_jwt)

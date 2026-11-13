@@ -4,6 +4,7 @@ import LoginPage from "./pages/LoginPage";
 import AttendancePage from "./pages/AttendancePage";
 import AdminDashboard from "./pages/AdminDashboard";
 import TeacherDashboard from "./pages/TeacherDashboard";
+import TeacherProfile from "./pages/TeacherProfile";
 import ReportsPage from "./pages/ReportsPage";
 
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) => {
@@ -38,6 +39,14 @@ function App() {
         element={
           <ProtectedRoute allowedRoles={["teacher"]}>
             <TeacherDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/teacher/profile"
+        element={
+          <ProtectedRoute allowedRoles={["teacher"]}>
+            <TeacherProfile />
           </ProtectedRoute>
         }
       />

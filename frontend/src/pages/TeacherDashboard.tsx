@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { Link } from "react-router-dom";
-import { CalendarCheck, CalendarDays, Clock, FileText, LogOut, QrCode, User, CalendarX, Sun, Moon, Search, X, ChevronDown, ChevronUp, RotateCw } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { CalendarCheck, CalendarDays, Clock, FileText, LogOut, QrCode, User, CalendarX, Sun, Moon, Search, X, ChevronDown, ChevronUp, RotateCw, Menu } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useAuthStore } from "../stores";
 import { useTheme } from "../contexts/ThemeContext";
@@ -67,6 +67,7 @@ const CACHE_TTL_SCHEDULE = 30 * 1000; // 30 detik untuk schedule (sering berubah
 
 const TeacherDashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [schedulesList, setSchedulesList] = useState<GradeSchedule[]>([]);
   const [day, setDay] = useState("");
@@ -90,6 +91,7 @@ const TeacherDashboard = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
 
   const handleLogout = () => {
     setShowLogoutConfirm(true);
@@ -267,9 +269,9 @@ const TeacherDashboard = () => {
                 <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">{user?.email}</p>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
+                {/* Refresh button - separate */}
                 <button
                   onClick={() => {
-                    // Clear schedule cache & reload
                     localStorage.removeItem("sipguru_cache_todays_schedule");
                     localStorage.removeItem("sipguru_cache_schedule_day");
                     localStorage.removeItem("sipguru_cache_my_schedules");
@@ -280,20 +282,56 @@ const TeacherDashboard = () => {
                 >
                   <RotateCw className="w-5 h-5" />
                 </button>
-                <button
-                  onClick={handleLogout}
-                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors"
-                  title="Keluar"
-                >
-                  <LogOut className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={toggleTheme}
-                  className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-lg transition-colors"
-                  title={theme === "dark" ? "Mode Terang" : "Mode Gelap"}
-                >
-                  {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                </button>
+
+                {/* Burger menu - logout, theme, profile */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowMenu(!showMenu)}
+                    className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-lg transition-colors"
+                    title="Menu"
+                  >
+                    <Menu className="w-5 h-5" />
+                  </button>
+
+                  {showMenu && (
+                    <div className="absolute right-0 top-full mt-2 w-40 bg-white dark:bg-stone-800 rounded-xl shadow-lg border border-gray-200 dark:border-stone-700 py-1 z-50 animate-in zoom-in-95 duration-150">
+                      <button
+                        onClick={() => {
+                          setShowMenu(false);
+                          navigate("/teacher/profile");
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-stone-700 flex items-center gap-2"
+                      >
+                        <User className="w-4 h-4" />
+                        Profil
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowMenu(false);
+                          toggleTheme();
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-stone-700 flex items-center gap-2"
+                      >
+                        {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                        {theme === "dark" ? "Mode Terang" : "Mode Gelap"}
+                      </button>
+                      <hr className="my-1 border-gray-200 dark:border-stone-700" />
+                      <button
+                        onClick={handleLogout}
+                        className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Keluar
+                      </button>
+                    </div>
+                  )}
+
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowMenu(false)}
+                    aria-hidden="true"
+                  />
+                </div>
               </div>
             </div>
           </div>

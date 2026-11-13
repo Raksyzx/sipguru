@@ -17,6 +17,7 @@ interface AuthState {
   login: (user: User, accessToken: string, refreshToken: string) => void;
   logout: () => void;
   updateAccessToken: (token: string) => void;
+  refreshUser: (user: User) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -45,6 +46,11 @@ export const useAuthStore = create<AuthState>()(
       updateAccessToken: (token) =>
         set({
           accessToken: token,
+        }),
+      
+      refreshUser: (user) =>
+        set({
+          user,
         }),
     }),
     { name: "sipguru-auth" }
