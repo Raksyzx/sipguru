@@ -24,6 +24,7 @@ import { useAuthStore } from "../stores";
 import { useTheme } from "../contexts/ThemeContext";
 import { MapPicker } from "../components/MapPicker";
 import { LogoutConfirmModal } from "../components/LogoutConfirmModal";
+import { ToastContainer, useToast } from "../components/Toast";
 import { Modal } from "../components/Modal";
 import api from "../lib/api";
 
@@ -205,15 +206,15 @@ const AdminDashboard = () => {
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; type: 'jurusan' | 'subject' | 'grade' | 'teacher' | 'room' | 'schedule' | 'leave' } | null>(null);
   const [confirmEdit, setConfirmEdit] = useState<{ id: string; name: string; type: string; onConfirm: () => void } | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const { toasts, success, error } = useToast();
 
   const showDeleteConfirm = (id: string, name: string, type: 'jurusan' | 'subject' | 'grade' | 'teacher' | 'room' | 'schedule' | 'leave') => {
     setConfirmDelete({ id, name, type });
   };
 
   const showToast = (message: string, type: 'success' | 'error') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
+    if (type === 'success') success(message);
+    else error(message);
   };
 
   const handleDeleteConfirm = async () => {
@@ -1960,30 +1961,8 @@ const AdminDashboard = () => {
                 </div>
               )}
 
-              {/* Success/Error Toast Notification */}
-              {toast && (
-                <div
-                  style={{ position: 'fixed', top: '1.5rem', right: '1.5rem', zIndex: 10001 }}
-                  className="animate-in slide-in-from-top-4 slide-in-from-right-4 fade-in duration-300"
-                >
-                  <div className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-card ${
-                    toast.type === 'success' 
-                      ? 'bg-emerald-600 text-white' 
-                      : 'bg-red-600 text-white'
-                  }`}>
-                    {toast.type === 'success' ? (
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    ) : (
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    )}
-                    <span className="text-sm font-medium">{toast.message}</span>
-                  </div>
-                </div>
-              )}
+              {/* Toast Container */}
+              <ToastContainer toasts={toasts} remove={error} />
 
               {/* Logout Confirmation Modal */}
               <LogoutConfirmModal
