@@ -294,43 +294,46 @@ const TeacherDashboard = () => {
                   </button>
 
                   {showMenu && (
-                    <div className="absolute right-0 top-full mt-2 w-40 bg-white dark:bg-stone-800 rounded-xl shadow-lg border border-gray-200 dark:border-stone-700 py-1 z-50 animate-in zoom-in-95 duration-150">
-                      <button
-                        onClick={() => {
-                          setShowMenu(false);
-                          navigate("/teacher/profile");
-                        }}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-stone-700 flex items-center gap-2"
-                      >
-                        <User className="w-4 h-4" />
-                        Profil
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowMenu(false);
-                          toggleTheme();
-                        }}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-stone-700 flex items-center gap-2"
-                      >
-                        {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                        {theme === "dark" ? "Mode Terang" : "Mode Gelap"}
-                      </button>
-                      <hr className="my-1 border-gray-200 dark:border-stone-700" />
-                      <button
-                        onClick={handleLogout}
-                        className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2"
-                      >
-                        <LogOut className="w-4 h-4" />
-                        Keluar
-                      </button>
-                    </div>
-                  )}
+                    <>
+                      <div className="absolute right-0 top-full mt-2 w-40 bg-white dark:bg-stone-800 rounded-xl shadow-lg border border-gray-200 dark:border-stone-700 py-1 z-50 animate-in zoom-in-95 duration-150">
+                        <button
+                          onClick={() => {
+                            setShowMenu(false);
+                            navigate("/teacher/profile");
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-stone-700 flex items-center gap-2"
+                        >
+                          <User className="w-4 h-4" />
+                          Profil
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowMenu(false);
+                            toggleTheme();
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-stone-700 flex items-center gap-2"
+                        >
+                          {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                          {theme === "dark" ? "Mode Terang" : "Mode Gelap"}
+                        </button>
+                        <hr className="my-1 border-gray-200 dark:border-stone-700" />
+                        <button
+                          onClick={handleLogout}
+                          className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          Keluar
+                        </button>
+                      </div>
 
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setShowMenu(false)}
-                    aria-hidden="true"
-                  />
+                      {/* Backdrop overlay - only visible when menu open */}
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setShowMenu(false)}
+                        aria-hidden="true"
+                      />
+                    </>
+                  )}
                 </div>
               </div>
             </div>
