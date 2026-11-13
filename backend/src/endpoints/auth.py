@@ -29,6 +29,9 @@ class VerifyDeviceRequest(BaseModel):
     device_fingerprint: str
     otp: str
 
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
 @router.post("/login", response_model=LoginResponse)
 async def login(request: Request, data: LoginRequest):
     """Optimized JWT login - parallel device binding check + JWT creation"""
@@ -100,3 +103,25 @@ async def request_unbind(request: Request, data: VerifyDeviceRequest):
     db.update_unbind_request(binding["id"], otp_hash)
     
     return {"message": "OTP sent to email"}
+
+@router.post("/forgot-password")
+async def forgot_password(data: ForgotPasswordRequest):
+    """Send forgot password request to admin via email"""
+    user = db.get_user_by_email(data.email)
+    if not user:
+        # Don't reveal if email exists - always return success for security
+        return {"message": "Jika email terdaftar, admin akan menerima notifikasi"}
+    
+    # Send email to admin
+    try:
+        from src.resend import send_forgot_password_email
+        
+        admin_email = "admin@sipguru.com"  # Hardcoded admin email
+        
+        await send_forgot_password_email(admin_email, user)
+    except Exception as e:
+        # Log error but don't fail the request
+        import logging
+        logging.error(f"Failed to send forgot password email: {e}")
+    
+    return {"message": "Jika email terdaftar, admin akan menerima notifikasi"}

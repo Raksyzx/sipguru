@@ -1,8 +1,143 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Mail, Shield, Eye, EyeOff, Lock } from "lucide-react";
+import { Loader2, Mail, Shield, Eye, EyeOff, Lock, AlertCircle, CheckCircle, X } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import api from "../lib/api";
+
+interface ForgotPasswordModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ isOpen, onClose }) => {
+  const [email, setEmail] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
+
+    try {
+      await api.post("/auth/forgot-password", { email });
+      setIsSuccess(true);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Gagal mengirim permintaan reset password");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleClose = () => {
+    setEmail("");
+    setError("");
+    setIsSuccess(false);
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Lupa Password
+          </h2>
+          <button
+            onClick={handleClose}
+            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {isSuccess ? (
+          <div className="text-center py-8">
+            <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              Permintaan Terkirim!
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">
+              Admin akan menerima notifikasi email dan akan menghubungi Anda untuk reset password.
+            </p>
+            <button
+              onClick={handleClose}
+              className="btn-primary w-full py-2.5"
+            >
+              Tutup
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50 rounded-xl">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-amber-700 dark:text-amber-300">
+                  <strong>Catatan:</strong> Reset password harus melalui admin. 
+                  Admin akan menghubungi Anda melalui email setelah permintaan ini dikirim.
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Email Anda
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-11 pr-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                  placeholder="guru@example.com"
+                  required
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
+
+            {error && (
+              <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/50">
+                <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleClose}
+                disabled={isLoading}
+                className="flex-1 py-2.5 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-stone-800 transition-colors disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Mengirim...
+                  </>
+                ) : (
+                  "Kirim Permintaan"
+                )}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const LoginPage = () => {
   const { login } = useAuth();
@@ -12,6 +147,7 @@ const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,6 +256,15 @@ const LoginPage = () => {
                 )}
               </button>
             </div>
+            <div className="text-right">
+              <button
+                type="button"
+                onClick={() => setShowForgotPassword(true)}
+                className="text-sm text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 font-medium transition-colors"
+              >
+                Lupa Password?
+              </button>
+            </div>
           </div>
 
           {error && (
@@ -160,6 +305,12 @@ const LoginPage = () => {
           Aman dan Terenkripsi
         </p>
       </div>
+
+      {/* Forgot Password Modal */}
+      <ForgotPasswordModal
+        isOpen={showForgotPassword}
+        onClose={() => setShowForgotPassword(false)}
+      />
     </div>
   );
 };
