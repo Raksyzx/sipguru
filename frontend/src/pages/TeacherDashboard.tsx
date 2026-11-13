@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { CalendarCheck, CalendarDays, Clock, FileText, LogOut, QrCode, User, CalendarX, Sun, Moon, Search, X, ChevronDown, ChevronUp } from "lucide-react";
+import { CalendarCheck, CalendarDays, Clock, FileText, LogOut, QrCode, User, CalendarX, Sun, Moon, Search, X, ChevronDown, ChevronUp, RotateCw } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useAuthStore } from "../stores";
 import { useTheme } from "../contexts/ThemeContext";
@@ -62,7 +62,8 @@ interface GradeSchedule {
   room_name?: string;
 }
 
-const CACHE_TTL = 10 * 60 * 1000;
+const CACHE_TTL = 2 * 60 * 1000; // 2 menit - balance antara performa & data freshness
+const CACHE_TTL_SCHEDULE = 30 * 1000; // 30 detik untuk schedule (sering berubah)
 
 const TeacherDashboard = () => {
   const { user } = useAuth();
@@ -162,11 +163,11 @@ const TeacherDashboard = () => {
       setLeaves(leavesData);
       setSchedulesList(schedulesListData);
 
-      setInCache("todays_schedule", schedulesData, CACHE_TTL);
-      setInCache("schedule_day", dayData, CACHE_TTL);
+      setInCache("todays_schedule", schedulesData, CACHE_TTL_SCHEDULE);
+      setInCache("schedule_day", dayData, CACHE_TTL_SCHEDULE);
       setInCache("teacher_rooms", roomsData, CACHE_TTL);
       setInCache("teacher_leaves", leavesData, CACHE_TTL);
-      setInCache("my_schedules", schedulesListData, CACHE_TTL);
+      setInCache("my_schedules", schedulesListData, CACHE_TTL_SCHEDULE);
     } catch {
       // Tampilkan kosong, user tetap bisa presensi
     } finally {
@@ -266,6 +267,19 @@ const TeacherDashboard = () => {
                 <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">{user?.email}</p>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
+                <button
+                  onClick={() => {
+                    // Clear schedule cache & reload
+                    localStorage.removeItem("sipguru_cache_todays_schedule");
+                    localStorage.removeItem("sipguru_cache_schedule_day");
+                    localStorage.removeItem("sipguru_cache_my_schedules");
+                    loadData(true);
+                  }}
+                  className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-lg transition-colors"
+                  title="Refresh jadwal"
+                >
+                  <RotateCw className="w-5 h-5" />
+                </button>
                 <button
                   onClick={handleLogout}
                   className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors"

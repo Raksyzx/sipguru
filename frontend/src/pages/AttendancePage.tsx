@@ -135,6 +135,11 @@ const AttendancePage = () => {
 
       // Refresh today's stats after successful submission
       await fetchTodayStats();
+      
+      // Clear schedule cache to force refresh on dashboard
+      localStorage.removeItem("sipguru_cache_todays_schedule");
+      localStorage.removeItem("sipguru_cache_schedule_day");
+      localStorage.removeItem("sipguru_cache_my_schedules");
     } catch (err: unknown) {
       console.error("[Attendance] Submit error:", err);
 
