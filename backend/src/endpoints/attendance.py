@@ -218,6 +218,11 @@ async def submit_attendance(
     teacher_name = teacher_data.get("name", "") if teacher_data else auth_user.get("email", "Unknown")
     teacher_nip = teacher_data.get("nip", "-") if teacher_data else "-"
     
+    # Convert to WIB (UTC+7) for display
+    from datetime import timezone, timedelta
+    wib_tz = timezone(timedelta(hours=7))
+    now_wib = now.astimezone(wib_tz) if now.tzinfo else now.replace(tzinfo=timezone.utc).astimezone(wib_tz)
+    
     msg = "Presensi berhasil" if status == "on_time" else f"Terlambat {lateness} menit"
     return {
         "message": msg,
@@ -233,7 +238,7 @@ async def submit_attendance(
             "teacher_name": teacher_name,
             "teacher_nip": teacher_nip,
             "room_name": room.get("name", ""),
-            "timestamp": now.strftime("%H:%M:%S"),
+            "timestamp": now_wib.strftime("%H:%M:%S"),
             "status_text": "TEPAT WAKTU" if status == "on_time" else f"TERLAMBAT {lateness} MENIT",
             "status_color": "green" if status == "on_time" else "orange",
             "token_type": token_type,  # For ESP32 to know if entry or exit

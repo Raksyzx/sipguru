@@ -5,6 +5,7 @@ import { useAuthStore } from "../stores";
 import { useAuth } from "../hooks/useAuth";
 import { useGeolocation } from "../hooks/useGeolocation";
 import { QRScanner } from "../components/QRScanner";
+import { LogoutConfirmModal } from "../components/LogoutConfirmModal";
 import api from "../lib/api";
 
 /** QR token format: room_id:timestamp:expiry:nonce:signature */
@@ -37,6 +38,7 @@ const AttendancePage = () => {
   const [lcdDisplay, setLcdDisplay] = useState<LCDDisplay | null>(null);
   const [, setRoomInfo] = useState<{ room_code: string; name: string } | null>(null);
   const [todayStats, setTodayStats] = useState<{ submitted: boolean; count: number } | null>(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const roomId = qrToken ? parseRoomId(qrToken) : null;
 
@@ -398,13 +400,24 @@ const AttendancePage = () => {
         {/* Logout */}
         <div className="text-center pt-2">
           <button
-            onClick={() => useAuthStore.getState().logout()}
+            onClick={() => setShowLogoutConfirm(true)}
             className="btn-ghost text-sm"
           >
             Keluar
           </button>
         </div>
       </div>
+
+      {/* Logout Confirmation Modal */}
+      <LogoutConfirmModal
+        open={showLogoutConfirm}
+        onConfirm={() => {
+          useAuthStore.getState().logout();
+          setShowLogoutConfirm(false);
+          window.location.href = "/login";
+        }}
+        onCancel={() => setShowLogoutConfirm(false)}
+      />
 
       {/* Scanner Modal - centered on mobile */}
       {scanning && (
