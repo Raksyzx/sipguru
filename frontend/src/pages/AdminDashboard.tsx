@@ -316,11 +316,11 @@ const AdminDashboard = () => {
         setQrRoom("QR Token");
       }
       setCopied(false);
-      setQrModalOpen(true); // Open modal
-      setMsg("");
+      setQrModalOpen(true);
+      showToast("QR token berhasil digenerate!", "success");
     } catch (err: any) {
       const errorMsg = err?.response?.data?.detail || "Gagal generate QR token";
-      setMsg(errorMsg);
+      showToast(errorMsg, "error");
     } finally {
       setGeneratingId(null);
     }
@@ -342,34 +342,34 @@ const AdminDashboard = () => {
       setLeaves((prev) =>
         prev.map((l) => (l.id === id ? { ...l, status: approve ? "approved" : "rejected" } : l))
       );
+      showToast(`Izin ${approve ? "disetujui" : "ditolak"}!`, "success");
     } catch (err: any) {
       console.error('[DECIDE LEAVE] Error:', err.response?.status, err.response?.data);
-      setMsg(err?.response?.data?.detail || "Gagal memproses izin");
+      showToast(err?.response?.data?.detail || "Gagal memproses izin", "error");
     }
   };
 
   const addSubject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSubject.name || !newSubject.code) return;
-    if (!newSubject.jurusan_id) { setMsg("Pilih jurusan dulu untuk mapel ini"); return; }
+    if (!newSubject.jurusan_id) { showToast("Pilih jurusan dulu untuk mapel ini", "error"); return; }
     try {
       console.log('[ADD SUBJECT] Payload:', newSubject);
       await api.post("/admin/subjects", newSubject);
       const res = await api.get("/admin/subjects");
       setSubjects(res.data?.subjects || []);
       setNewSubject({ name: "", code: "", description: "", jurusan_id: "" });
-      setMsg("Mata pelajaran berhasil ditambah!");
-      setTimeout(() => setMsg(""), 3000);
+      showToast("Mata pelajaran berhasil ditambahkan!", "success");
     } catch (err: any) {
       console.error('[ADD SUBJECT] Error:', err.response?.status, err.response?.data);
-      setMsg(err?.response?.data?.detail || "Gagal menambah mata pelajaran");
+      showToast(err?.response?.data?.detail || "Gagal menambah mata pelajaran", "error");
     }
   };
 
   const addGrade = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newGrade.name) return;
-    if (!newGrade.jurusan_id) { setMsg("Pilih jurusan dulu untuk kelas ini"); return; }
+    if (!newGrade.jurusan_id) { showToast("Pilih jurusan dulu untuk kelas ini", "error"); return; }
     try {
       console.log('[ADD GRADE] Payload:', newGrade);
       const jurDetail = await api.get(`/admin/jurusan/${newGrade.jurusan_id}`);
@@ -379,11 +379,10 @@ const AdminDashboard = () => {
       const res = await api.get("/admin/grades");
       setGrades(res.data?.grades || []);
       setNewGrade({ name: "", grade_level: 1, jurusan_id: "" });
-      setMsg("Kelas berhasil ditambah!");
-      setTimeout(() => setMsg(""), 3000);
+      showToast("Kelas berhasil ditambahkan!", "success");
     } catch (err: any) {
       console.error('[ADD GRADE] Error:', err.response?.status, err.response?.data);
-      setMsg(err?.response?.data?.detail || "Gagal menambah kelas");
+      showToast(err?.response?.data?.detail || "Gagal menambah kelas", "error");
     }
   };
 
@@ -405,11 +404,10 @@ const AdminDashboard = () => {
       const res = await api.get("/admin/jurusan");
       setJurusanList(res.data?.jurusan || []);
       setNewJurusan({ name: "", code: "", description: "" });
-      setMsg("Jurusan berhasil ditambah!");
-      setTimeout(() => setMsg(""), 3000);
+      showToast("Jurusan berhasil ditambahkan!", "success");
     } catch (err: any) {
       console.error('[ADD JURUSAN] Error:', err.response?.status, err.response?.data);
-      setMsg(err?.response?.data?.detail || "Gagal menambah jurusan");
+      showToast(err?.response?.data?.detail || "Gagal menambah jurusan", "error");
     }
   };
 
@@ -589,15 +587,15 @@ const AdminDashboard = () => {
   const handleAddTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTeacherForm.name || !newTeacherForm.nip || !newTeacherForm.email) {
-      setMsg("Nama, NIP, dan Email wajib diisi");
+      showToast("Nama, NIP, dan Email wajib diisi", "error");
       return;
     }
     if (newTeacherForm.password.length < 6) {
-      setMsg("Password minimal 6 karakter");
+      showToast("Password minimal 6 karakter", "error");
       return;
     }
     if (newTeacherForm.password !== newTeacherForm.confirmPassword) {
-      setMsg("Password tidak cocok");
+      showToast("Password tidak cocok", "error");
       return;
     }
 
@@ -625,11 +623,11 @@ const AdminDashboard = () => {
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword.length < 6) {
-      setMsg("Password minimal 6 karakter");
+      showToast("Password minimal 6 karakter", "error");
       return;
     }
     if (newPassword !== confirmPassword) {
-      setMsg("Password tidak cocok");
+      showToast("Password tidak cocok", "error");
       return;
     }
 
@@ -639,11 +637,10 @@ const AdminDashboard = () => {
         teacher_id: resetPasswordModal.teacherId,
         new_password: newPassword,
       });
-      setMsg(`Password guru ${resetPasswordModal.teacherName} berhasil direset`);
-      setTimeout(() => setMsg(""), 3000);
+      showToast(`Password guru ${resetPasswordModal.teacherName} berhasil direset`, "success");
       setResetPasswordModal({ open: false, teacherId: "", teacherName: "", teacherEmail: "" });
     } catch (err: any) {
-      setMsg(err.response?.data?.detail || "Gagal mereset password");
+      showToast(err.response?.data?.detail || "Gagal mereset password", "error");
     } finally {
       setResetPasswordLoading(false);
     }
