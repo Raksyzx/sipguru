@@ -82,21 +82,83 @@ async def get_todays_schedule(
 async def get_attendance_history(
     auth_user: dict = Depends(verify_jwt),
     month: int = None,
-    year: int = None
+    year: int = None,
+    search: str = None,
+    day: str = None,
+    room_id: str = None,
+    status: str = None
 ):
-    """Get attendance history"""
-    if month is None:
-        month = 10
-    if year is None:
-        year = 2026
+    """Get attendance history with optional filters (search, day, room, status)"""
+    import datetime
+    now = datetime.datetime.now()
+    target_year = year if year is not None else now.year
+    target_month = month if month is not None else now.month
     
     history = db.get_attendance_by_teacher_and_month(
         auth_user["user_id"],
-        year,
-        month
+        target_year,
+        target_month
     )
     
-    return {"history": history, "month": month, "year": year}
+    # Enrich with room names
+    rooms = await _get_cached_rooms()
+    room_map = {r["id"]: r["name"] for r in rooms}
+    
+    enriched_history = []
+    for h in history:
+        enriched = dict(h)
+        enriched["room_name"] = room_map.get(h.get("room_id"), "Unknown")
+        
+        # Parse created_at for day name
+        created_at = h.get("created_at", "") or ""
+        if created_at:
+            try:
+                dt = datetime.datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                dt_wib = dt.astimezone(datetime.timezone(datetime.timedelta(hours=7)))
+                enriched["day_name"] = get_day_name_indonesian(dt_wib.strftime("%A"))
+                enriched["date_str"] = dt_wib.strftime("%Y-%m-%d")
+                enriched["time_str"] = dt_wib.strftime("%H:%M")
+            except:
+                enriched["day_name"] = ""
+                enriched["date_str"] = ""
+                enriched["time_str"] = ""
+        else:
+            enriched["day_name"] = ""
+            enriched["date_str"] = ""
+            enriched["time_str"] = ""
+        
+        # Apply filters
+        if search:
+            search_lower = search.lower()
+            match = (
+                search_lower in enriched.get("room_name", "").lower() or
+                search_lower in enriched.get("day_name", "").lower()
+            )
+            if not match:
+                continue
+        
+        if day and enriched.get("day_name") != day:
+            continue
+        
+        if room_id and enriched.get("room_id") != room_id:
+            continue
+        
+        if status and enriched.get("status") != status:
+            continue
+        
+        enriched_history.append(enriched)
+    
+    # Sort by created_at desc
+    enriched_history.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    
+    return {
+        "history": enriched_history,
+        "month": target_month,
+        "year": target_year,
+        "total": len(enriched_history),
+        "on_time": len([h for h in enriched_history if h.get("status") == "on_time"]),
+        "late": len([h for h in enriched_history if h.get("status") == "late"]),
+    }
 
 @router.post("/leave")
 async def submit_leave(

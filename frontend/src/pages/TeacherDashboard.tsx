@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { CalendarCheck, CalendarDays, Clock, FileText, LogOut, QrCode, User, CalendarX, Sun, Moon } from "lucide-react";
+import { CalendarCheck, CalendarDays, Clock, FileText, LogOut, QrCode, User, CalendarX, Sun, Moon, Search, X, ChevronDown, ChevronUp } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useAuthStore } from "../stores";
 import { useTheme } from "../contexts/ThemeContext";
@@ -27,8 +27,12 @@ interface Schedule {
 interface AttendanceLog {
   id: string;
   room_id: string;
+  room_name?: string;
   status: string;
   created_at: string;
+  day_name?: string;
+  date_str?: string;
+  time_str?: string;
   lateness_minutes?: number | null;
 }
 
@@ -76,6 +80,14 @@ const TeacherDashboard = () => {
     schedule_id: "",
   });
 
+  // History filters
+  const [historySearch, setHistorySearch] = useState("");
+  const [historyDayFilter, setHistoryDayFilter] = useState("");
+  const [historyRoomFilter, setHistoryRoomFilter] = useState("");
+  const [historyStatusFilter, setHistoryStatusFilter] = useState("");
+  const [showHistoryFilters, setShowHistoryFilters] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const handleLogout = () => {
@@ -89,19 +101,39 @@ const TeacherDashboard = () => {
 
   const { theme, toggleTheme } = useTheme();
 
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (historySearch) params.append("search", historySearch);
+      if (historyDayFilter) params.append("day", historyDayFilter);
+      if (historyRoomFilter) params.append("room_id", historyRoomFilter);
+      if (historyStatusFilter) params.append("status", historyStatusFilter);
+      
+      const res = await api.get(`/teacher/history?${params.toString()}`);
+      setHistory(res.data.history || []);
+    } catch (err) {
+      console.error("Failed to load history:", err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [historySearch, historyDayFilter, historyRoomFilter, historyStatusFilter]);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
+
   const loadData = useCallback(async (forceRefresh = false) => {
     if (!forceRefresh) {
       const cachedSchedules = getFromCache<Schedule[]>("todays_schedule");
       const cachedDay = getFromCache<string>("schedule_day");
-      const cachedHistory = getFromCache<AttendanceLog[]>("attendance_history");
       const cachedRooms = getFromCache<{ id: string; name: string }[]>("teacher_rooms");
       const cachedLeaves = getFromCache<LeaveRequest[]>("teacher_leaves");
       const cachedSchedulesList = getFromCache<GradeSchedule[]>("my_schedules");
 
-      if (cachedSchedules && cachedHistory && cachedRooms) {
+      if (cachedSchedules && cachedRooms) {
         setSchedules(cachedSchedules);
         setDay(cachedDay || "");
-        setHistory(cachedHistory);
         setRooms(cachedRooms);
         setLeaves(cachedLeaves || []);
         setSchedulesList(cachedSchedulesList || []);
@@ -111,9 +143,8 @@ const TeacherDashboard = () => {
     }
 
     try {
-      const [schedRes, histRes, rmRes, leavesRes, mySchedRes] = await Promise.all([
+      const [schedRes, rmRes, leavesRes, mySchedRes] = await Promise.all([
         api.get("/teacher/todays-schedule").catch(() => ({ data: { schedules: [], day: "" } })),
-        api.get("/teacher/history").catch(() => ({ data: { history: [] } })),
         api.get("/teacher/rooms").catch(() => ({ data: { rooms: [] } })),
         api.get("/teacher/leave").catch(() => ({ data: { leaves: [] } })),
         api.get("/teacher/my-schedules").catch(() => ({ data: { schedules: [] } })),
@@ -121,21 +152,18 @@ const TeacherDashboard = () => {
 
       const schedulesData = schedRes.data?.schedules || [];
       const dayData = schedRes.data?.day || "";
-      const historyData = histRes.data?.history || [];
       const roomsData = rmRes.data?.rooms || [];
       const leavesData = leavesRes.data?.leaves || [];
       const schedulesListData = mySchedRes.data?.schedules || [];
 
       setSchedules(schedulesData);
       setDay(dayData);
-      setHistory(historyData);
       setRooms(roomsData);
       setLeaves(leavesData);
       setSchedulesList(schedulesListData);
 
       setInCache("todays_schedule", schedulesData, CACHE_TTL);
       setInCache("schedule_day", dayData, CACHE_TTL);
-      setInCache("attendance_history", historyData, CACHE_TTL);
       setInCache("teacher_rooms", roomsData, CACHE_TTL);
       setInCache("teacher_leaves", leavesData, CACHE_TTL);
       setInCache("my_schedules", schedulesListData, CACHE_TTL);
@@ -152,6 +180,24 @@ const TeacherDashboard = () => {
 
   const roomName = (id: string) =>
     rooms.find((r) => r.id === id)?.name || `Ruangan ${id.slice(0, 8)}…`;
+
+  const daysOfWeek = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+  const roomOptions = useMemo(() => {
+    const uniqueRooms = new Map();
+    history.forEach(h => {
+      if (h.room_id && h.room_name) {
+        uniqueRooms.set(h.room_id, h.room_name);
+      }
+    });
+    return Array.from(uniqueRooms.entries()).map(([id, name]) => ({ id, name }));
+  }, [history]);
+
+  const clearHistoryFilters = () => {
+    setHistorySearch("");
+    setHistoryDayFilter("");
+    setHistoryRoomFilter("");
+    setHistoryStatusFilter("");
+  };
 
   const thisMonth = history.length;
   const onTime = history.filter((h) => h.status === "on_time").length;
@@ -422,26 +468,121 @@ const TeacherDashboard = () => {
           <SkeletonHistoryList />
         ) : (
           <div className="glass-card-light p-4 sm:p-5 animate-stagger-5">
-            <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4">Riwayat Presensi</h3>
-            {history.length === 0 ? (
-              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Belum ada riwayat bulan ini.</p>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Riwayat Presensi</h3>
+              <button
+                onClick={() => setShowHistoryFilters(!showHistoryFilters)}
+                className="p-2 text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30 rounded-lg transition-colors"
+                title={showHistoryFilters ? "Sembunyikan filter" : "Tampilkan filter"}
+              >
+                {showHistoryFilters ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+              </button>
+            </div>
+            
+            {/* Filter Section */}
+            {showHistoryFilters && (
+              <div className="mb-4 p-3 sm:p-4 bg-gray-50 dark:bg-white/5 rounded-xl space-y-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Cari hari atau ruangan..."
+                    value={historySearch}
+                    onChange={(e) => setHistorySearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                  />
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <select
+                    value={historyDayFilter}
+                    onChange={(e) => setHistoryDayFilter(e.target.value)}
+                    className="px-2.5 py-2 text-xs sm:text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                  >
+                    <option value="">Semua Hari</option>
+                    {daysOfWeek.map(day => (
+                      <option key={day} value={day}>{day}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={historyStatusFilter}
+                    onChange={(e) => setHistoryStatusFilter(e.target.value)}
+                    className="px-2.5 py-2 text-xs sm:text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                  >
+                    <option value="">Semua Status</option>
+                    <option value="on_time">Tepat Waktu</option>
+                    <option value="late">Terlambat</option>
+                  </select>
+                  <select
+                    value={historyRoomFilter}
+                    onChange={(e) => setHistoryRoomFilter(e.target.value)}
+                    className="px-2.5 py-2 text-xs sm:text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                  >
+                    <option value="">Semua Ruangan</option>
+                    {roomOptions.map((room: { id: string; name: string }) => (
+                      <option key={room.id} value={room.id}>{room.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {history.length} hasil
+                  </span>
+                  <button
+                    onClick={clearHistoryFilters}
+                    className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 hover:underline"
+                  >
+                    <X className="w-3 h-3" />
+                    Reset Filter
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {historyLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="animate-pulse flex items-center justify-between py-3">
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32"></div>
+                      <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-20"></div>
+                    </div>
+                    <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-20"></div>
+                  </div>
+                ))}
+              </div>
+            ) : history.length === 0 ? (
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                {historySearch || historyDayFilter || historyRoomFilter || historyStatusFilter 
+                  ? "Tidak ada hasil yang sesuai filter." 
+                  : "Belum ada riwayat bulan ini."}
+              </p>
             ) : (
-              <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                {history.slice(0, 10).map((h) => (
+              <div className="divide-y divide-gray-100 dark:divide-gray-800 max-h-96 overflow-y-auto">
+                {history.map((h) => (
                   <div key={h.id} className="py-2.5 sm:py-3 flex items-center justify-between">
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white truncate">
-                        {new Date(h.created_at).toLocaleDateString("id-ID", {
-                          weekday: "short",
-                          day: "numeric",
-                          month: "short",
-                        })}
-                      </p>
-                      {h.lateness_minutes ? (
-                        <p className="text-[10px] sm:text-xs text-amber-600 dark:text-amber-400">
-                          Terlambat {h.lateness_minutes} mnt
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white truncate">
+                          {h.day_name || "N/A"}, {h.date_str ? new Date(h.date_str).toLocaleDateString("id-ID", { day: "numeric", month: "short" }) : "N/A"}
                         </p>
-                      ) : null}
+                        <span className="text-[10px] text-gray-400 dark:text-gray-500">•</span>
+                        <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {h.room_name || "Unknown"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
+                          {h.time_str || "N/A"}
+                        </p>
+                        {h.lateness_minutes ? (
+                          <>
+                            <span className="text-[10px] text-gray-400 dark:text-gray-500">•</span>
+                            <p className="text-[10px] sm:text-xs text-amber-600 dark:text-amber-400">
+                              Terlambat {h.lateness_minutes} mnt
+                            </p>
+                          </>
+                        ) : null}
+                      </div>
                     </div>
                     <span
                       className={`px-2.5 py-1 text-[10px] sm:text-xs rounded-full font-medium flex-shrink-0 ml-2 ${
@@ -450,7 +591,7 @@ const TeacherDashboard = () => {
                           : "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
                       }`}
                     >
-                      {h.status === "on_time" ? "Tepat waktu" : h.status}
+                      {h.status === "on_time" ? "Tepat waktu" : "Terlambat"}
                     </span>
                   </div>
                 ))}
