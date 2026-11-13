@@ -11,6 +11,7 @@ interface UserProfile {
   email: string;
   nip: string;
   phone?: string;
+  avatar_url?: string;
 }
 
 const TeacherProfile = () => {
@@ -23,6 +24,7 @@ const TeacherProfile = () => {
     email: "",
     nip: "",
     phone: "",
+    avatar_url: "",
   });
 
   const [passwords, setPasswords] = useState({
@@ -54,6 +56,48 @@ const TeacherProfile = () => {
       setMsg({ type: "error", text: "Gagal memuat profil" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      setMsg({ type: "error", text: "Ukuran foto maksimal 2MB" });
+      return;
+    }
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      setMsg({ type: "error", text: "File harus berupa gambar" });
+      return;
+    }
+
+    try {
+      setMsg({ type: "success", text: "Mengunggah foto..." });
+      
+      const formData = new FormData();
+      formData.append("avatar", file);
+
+      const res = await api.post("/teacher/upload-avatar", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      if (res.data.avatar_url) {
+        setProfile({ ...profile, avatar_url: res.data.avatar_url });
+        setMsg({ type: "success", text: "Foto profil berhasil diperbarui" });
+        
+        // Refresh user in auth store
+        const userRes = await api.get("/teacher/profile");
+        refreshUser(userRes.data.user);
+      }
+    } catch (err: any) {
+      setMsg({
+        type: "error",
+        text: err.response?.data?.detail || "Gagal mengunggah foto",
+      });
     }
   };
 
@@ -175,8 +219,19 @@ const TeacherProfile = () => {
         {/* Profile Info Card */}
         <div className="glass-card p-5">
           <div className="flex items-center gap-4 mb-4">
-            <div className="w-16 h-16 bg-gradient-to-tr from-emerald-600 to-emerald-500 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-[0_6px_20px_rgba(16,185,129,0.25)]">
-              {profile.name.charAt(0).toUpperCase()}
+            {/* Avatar with photo support */}
+            <div className="relative w-16 h-16 flex-shrink-0">
+              {profile.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt={profile.name}
+                  className="w-16 h-16 rounded-full object-cover shadow-[0_6px_20px_rgba(16,185,129,0.25)]"
+                />
+              ) : (
+                <div className="w-16 h-16 bg-gradient-to-tr from-emerald-600 to-emerald-500 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-[0_6px_20px_rgba(16,185,129,0.25)]">
+                  {profile.name.charAt(0).toUpperCase()}
+                </div>
+              )}
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{profile.name}</h2>
@@ -186,6 +241,20 @@ const TeacherProfile = () => {
 
           {/* Edit Profile Form */}
           <form onSubmit={handleSave} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Foto Profil
+              </label>
+              <div className="relative">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarChange}
+                  className="w-full px-3 py-2.5 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                />
+              </div>
+            </div>
+
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                 Nama Lengkap

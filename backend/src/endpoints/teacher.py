@@ -1,7 +1,7 @@
 from src.config import settings
 from src.database import get_db
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from src.deps import get_current_user as verify_jwt
 from src.supabase import get_day_name_indonesian
 import datetime
@@ -196,6 +196,44 @@ async def get_profile(
     """Get user profile"""
     user = db.get_user(auth_user["user_id"])
     return {"user": user}
+
+@router.post("/upload-avatar")
+async def upload_avatar(
+    avatar: UploadFile = File(...),
+    auth_user: dict = Depends(verify_jwt)
+):
+    """Upload profile avatar photo"""
+    import hashlib
+    import time
+    
+    user_id = auth_user["user_id"]
+    
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/png", "image/webp"]
+    if avatar.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Format gambar harus JPG, PNG, atau WebP")
+    
+    # Validate file size (max 2MB)
+    content = await avatar.read()
+    if len(content) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Ukuran gambar maksimal 2MB")
+    
+    # Generate unique filename
+    file_ext = avatar.filename.split(".")[-1] if "." in avatar.filename else "jpg"
+    file_hash = hashlib.md5(f"{user_id}{time.time()}".encode()).hexdigest()
+    filename = f"avatar_{user_id}_{file_hash}.{file_ext}"
+    
+    # For now, store as base64 in DB (in production, use S3/Cloud storage)
+    import base64
+    avatar_base64 = base64.b64encode(content).decode()
+    avatar_url = f"data:{avatar.content_type};base64,{avatar_base64}"
+    
+    # Update user
+    success = db.update_user(user_id, avatar_url=avatar_url)
+    if not success:
+        raise HTTPException(status_code=500, detail="Gagal menyimpan foto profil")
+    
+    return {"avatar_url": avatar_url}
 
 @router.patch("/profile")
 async def update_profile(
