@@ -253,7 +253,14 @@ const TeacherProfile = () => {
             <div className="text-center mt-4">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{profile.name}</h2>
               <p className="text-sm text-gray-600 dark:text-gray-400">{profile.email}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">NIP: {profile.nip || "-"}</p>
+              {profile.phone && (
+                <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                  📱 {profile.phone}
+                </p>
+              )}
+              <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                NIP: {profile.nip || "-"}
+              </p>
             </div>
           </div>
 
