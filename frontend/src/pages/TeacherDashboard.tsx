@@ -283,8 +283,7 @@ const TeacherDashboard = () => {
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2 text-gray-900 dark:text-white truncate">
-                  <User className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white truncate">
                   <span className="truncate">{user?.name}</span>
                 </h2>
                 <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">{user?.email}</p>
