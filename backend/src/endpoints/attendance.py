@@ -47,7 +47,7 @@ def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return R * 2 * atan2(sqrt(a), sqrt(1 - a))
 
 
-def _validate_schedule(teacher_id: str, room_id: str, now: datetime) -> tuple[bool, dict]:
+def _validate_schedule(teacher_id: str, room_id: str, now: datetime, schedule_id: str = None) -> tuple[bool, dict]:
     # FIX: Convert UTC to WIB (UTC+7) for schedule comparison
     from datetime import timezone, timedelta
     wib_offset = timezone(timedelta(hours=7))
@@ -63,7 +63,7 @@ def _validate_schedule(teacher_id: str, room_id: str, now: datetime) -> tuple[bo
     }
     day_name_id = day_name_map.get(day_name_en, day_name_en)  # "Kamis"
     
-    print(f"[SCHEDULE DEBUG] teacher_id={teacher_id}, room_id={room_id}")
+    print(f"[SCHEDULE DEBUG] teacher_id={teacher_id}, room_id={room_id}, schedule_id={schedule_id}")
     print(f"[SCHEDULE DEBUG] now_wib={now_wib}, day_name_id={day_name_id}")
     
     # FIX: Use Indonesian day name for DB query
@@ -71,11 +71,17 @@ def _validate_schedule(teacher_id: str, room_id: str, now: datetime) -> tuple[bo
     
     print(f"[SCHEDULE DEBUG] schedules count={len(schedules)}")
     if schedules:
-        print(f"[SCHEDULE DEBUG] schedules={[(s['start_time'], s['end_time'], s.get('room_id')) for s in schedules]}")
+        print(f"[SCHEDULE DEBUG] schedules={[(s['start_time'], s['end_time'], s.get('room_id'), s.get('id')) for s in schedules]}")
     
-    # Filter by room_id if provided
+    # Filter by room_id AND schedule_id (from QR token) if provided
     schedule = None
-    if room_id and schedules:
+    if schedule_id and schedules:
+        # Priority: match by schedule_id from QR token
+        schedule = next((s for s in schedules if s.get("id") == schedule_id), None)
+        print(f"[SCHEDULE DEBUG] filtered schedule by schedule_id {schedule_id}: {schedule}")
+    
+    # Fallback: filter by room_id if no schedule_id match or not provided
+    if not schedule and room_id and schedules:
         schedule = next((s for s in schedules if s.get("room_id") == room_id), None)
         print(f"[SCHEDULE DEBUG] filtered schedule for room {room_id}: {schedule}")
     
@@ -145,6 +151,7 @@ async def submit_attendance(
         reasons.append("QR token bukan untuk ruangan ini")
 
     # Layer 1b: If QR is bound to schedule, validate teacher matches the schedule's teacher
+    schedule_id: str | None = None
     if token_data and token_data.get("schedule_id"):
         qr_token_data = db.get_qr_token(data.qr_token)
         if qr_token_data:
@@ -156,13 +163,15 @@ async def submit_attendance(
                 reasons.append("QR token tidak cocok dengan jadwal")
             # Get token type for state update
             token_type = qr_token_data.get("token_type", "entry")
+            # Pass schedule_id to schedule validation
+            schedule_id = token_data.get("schedule_id")
 
     room = db.get_room(data.room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Ruangan tidak ditemukan")
 
-    # Layer 2: schedule match
-    sched_ok, sched_info = _validate_schedule(teacher_id, data.room_id, now)
+    # Layer 2: schedule match (pass schedule_id from QR token)
+    sched_ok, sched_info = _validate_schedule(teacher_id, data.room_id, now, schedule_id)
     if not sched_ok:
         reasons.append(sched_info.get("reason", "Jadwal tidak cocok"))
 
