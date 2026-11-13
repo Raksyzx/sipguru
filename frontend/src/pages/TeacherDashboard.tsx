@@ -92,6 +92,7 @@ const TeacherDashboard = () => {
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const handleLogout = () => {
     setShowLogoutConfirm(true);
@@ -125,6 +126,15 @@ const TeacherDashboard = () => {
   useEffect(() => {
     loadHistory();
   }, [loadHistory]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    localStorage.removeItem("sipguru_cache_todays_schedule");
+    localStorage.removeItem("sipguru_cache_schedule_day");
+    localStorage.removeItem("sipguru_cache_my_schedules");
+    await loadData(true);
+    setRefreshing(false);
+  };
 
   const loadData = useCallback(async (forceRefresh = false) => {
     if (!forceRefresh) {
@@ -282,20 +292,18 @@ const TeacherDashboard = () => {
               <div className="flex items-center gap-1 flex-shrink-0">
                 {/* Refresh button - separate */}
                 <button
-                  onClick={() => {
-                    localStorage.removeItem("sipguru_cache_todays_schedule");
-                    localStorage.removeItem("sipguru_cache_schedule_day");
-                    localStorage.removeItem("sipguru_cache_my_schedules");
-                    loadData(true);
-                  }}
-                  className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-lg transition-colors"
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  className={`p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-lg transition-colors ${
+                    refreshing ? "animate-spin" : ""
+                  }`}
                   title="Refresh jadwal"
                 >
                   <RotateCw className="w-5 h-5" />
                 </button>
 
                 {/* Burger menu - logout, theme, profile */}
-                <div className="relative">
+                <div className="relative" style={{ zIndex: 9999 }}>
                   <button
                     onClick={() => setShowMenu(!showMenu)}
                     className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-lg transition-colors"
@@ -306,7 +314,7 @@ const TeacherDashboard = () => {
 
                   {showMenu && (
                     <>
-                      <div className="absolute right-0 top-full mt-2 w-40 bg-white dark:bg-stone-800 rounded-xl shadow-lg border border-gray-200 dark:border-stone-700 py-1 z-50 animate-in zoom-in-95 duration-150">
+                      <div className="absolute right-0 top-full mt-2 w-40 bg-white dark:bg-stone-800 rounded-xl shadow-2xl border-2 border-gray-200 dark:border-stone-700 py-1" style={{ zIndex: 10000 }}>
                         <button
                           onClick={() => {
                             setShowMenu(false);
@@ -339,7 +347,8 @@ const TeacherDashboard = () => {
 
                       {/* Backdrop overlay - only visible when menu open */}
                       <div
-                        className="fixed inset-0 z-40"
+                        className="fixed inset-0"
+                        style={{ zIndex: 9999 }}
                         onClick={() => setShowMenu(false)}
                         aria-hidden="true"
                       />
