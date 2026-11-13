@@ -348,12 +348,18 @@ class SupabaseClient:
                 logger.warning(f"Invalid geolocation format: {geolocation}")
                 geo_point = None
         
+        # Hash long QR tokens to fit VARCHAR(255) - store first 64 chars of SHA256
+        qr_hash = None
+        if qr_token:
+            import hashlib
+            qr_hash = hashlib.sha256(qr_token.encode()).hexdigest()
+        
         result = client.table("attendance_logs").insert({
             "teacher_id": teacher_id,
             "room_id": room_id,
             "status": status,
             "geolocation": geo_point,
-            "qr_token": qr_token,
+            "qr_token": qr_hash,
             "device_fingerprint": device_fingerprint,
             "admin_remarks": admin_remarks
         }).execute()
