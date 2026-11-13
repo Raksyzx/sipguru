@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, User, Mail, Hash, Lock, Save, CheckCircle, AlertCircle, LogOut, Camera } from "lucide-react";
+import { ArrowLeft, User, Mail, Hash, Lock, Save, LogOut, Camera } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useAuthStore } from "../stores";
 import { LogoutConfirmModal } from "../components/LogoutConfirmModal";
+import { useToast, ToastContainer } from "../components/Toast";
 import api from "../lib/api";
 
 interface UserProfile {
@@ -36,7 +37,7 @@ const TeacherProfile = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
-  const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const { success, error, toasts, removeToast } = useToast("top-center");
 
   useEffect(() => {
     loadProfile();
@@ -56,7 +57,7 @@ const TeacherProfile = () => {
       });
     } catch (err) {
       console.error("Failed to load profile:", err);
-      setMsg({ type: "error", text: "Gagal memuat profil" });
+      error("Gagal memuat profil");
     } finally {
       setLoading(false);
     }
@@ -68,19 +69,17 @@ const TeacherProfile = () => {
 
     // Validate file size (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
-      setMsg({ type: "error", text: "Ukuran foto maksimal 2MB" });
+      error("Ukuran foto maksimal 2MB");
       return;
     }
 
     // Validate file type
     if (!file.type.startsWith("image/")) {
-      setMsg({ type: "error", text: "File harus berupa gambar" });
+      error("File harus berupa gambar");
       return;
     }
 
     try {
-      setMsg({ type: "success", text: "Mengunggah foto..." });
-      
       const formData = new FormData();
       formData.append("avatar", file);
 
@@ -90,24 +89,20 @@ const TeacherProfile = () => {
 
       if (res.data.avatar_url) {
         setProfile({ ...profile, avatar_url: res.data.avatar_url });
-        setMsg({ type: "success", text: "Foto profil berhasil diperbarui" });
+        success("Foto profil berhasil diperbarui");
         
         // Refresh user in auth store
         const userRes = await api.get("/teacher/profile");
         refreshUser(userRes.data.user);
       }
     } catch (err: any) {
-      setMsg({
-        type: "error",
-        text: err.response?.data?.detail || "Gagal mengunggah foto",
-      });
+      error(err.response?.data?.detail || "Gagal mengunggah foto");
     }
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    setMsg(null);
 
     try {
       await api.patch("/teacher/profile", {
@@ -116,15 +111,12 @@ const TeacherProfile = () => {
         phone: profile.phone,
       });
 
-      setMsg({ type: "success", text: "Profil berhasil diperbarui" });
+      success("Profil berhasil diperbarui");
       // Fetch updated user
       const res = await api.get("/teacher/profile");
       refreshUser(res.data.user);
     } catch (err: any) {
-      setMsg({
-        type: "error",
-        text: err.response?.data?.detail || "Gagal memperbarui profil",
-      });
+      error(err.response?.data?.detail || "Gagal memperbarui profil");
     } finally {
       setSaving(false);
     }
@@ -133,16 +125,15 @@ const TeacherProfile = () => {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setChangingPassword(true);
-    setMsg(null);
 
     if (passwords.new !== passwords.confirm) {
-      setMsg({ type: "error", text: "Password baru tidak cocok" });
+      error("Password baru tidak cocok");
       setChangingPassword(false);
       return;
     }
 
     if (passwords.new.length < 6) {
-      setMsg({ type: "error", text: "Password minimal 6 karakter" });
+      error("Password minimal 6 karakter");
       setChangingPassword(false);
       return;
     }
@@ -153,13 +144,10 @@ const TeacherProfile = () => {
         new_password: passwords.new,
       });
 
-      setMsg({ type: "success", text: "Password berhasil diubah" });
+      success("Password berhasil diubah");
       setPasswords({ current: "", new: "", confirm: "" });
     } catch (err: any) {
-      setMsg({
-        type: "error",
-        text: err.response?.data?.detail || "Gagal mengubah password",
-      });
+      error(err.response?.data?.detail || "Gagal mengubah password");
     } finally {
       setChangingPassword(false);
     }
@@ -188,6 +176,7 @@ const TeacherProfile = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-stone-50 dark:from-stone-950 dark:to-emerald-950/20 py-6 px-4">
+      <ToastContainer toasts={toasts} remove={removeToast} position="top-center" />
       <div className="max-w-lg mx-auto space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
@@ -200,24 +189,6 @@ const TeacherProfile = () => {
           <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Profil Guru</h1>
           <div className="w-9" /> {/* Spacer */}
         </div>
-
-        {/* Message */}
-        {msg && (
-          <div
-            className={`p-4 rounded-xl border flex items-center gap-2 ${
-              msg.type === "success"
-                ? "bg-emerald-50/50 border-emerald-200/50 text-emerald-700 dark:bg-emerald-950/20 dark:border-emerald-800/50 dark:text-emerald-300"
-                : "bg-red-50/50 border-red-200/50 text-red-700 dark:bg-red-950/20 dark:border-red-800/50 dark:text-red-300"
-            }`}
-          >
-            {msg.type === "success" ? (
-              <CheckCircle className="w-5 h-5" />
-            ) : (
-              <AlertCircle className="w-5 h-5" />
-            )}
-            <p className="text-sm font-medium">{msg.text}</p>
-          </div>
-        )}
 
         {/* Profile Info Card - Centered Avatar Layout */}
         <div className="glass-card p-5">
