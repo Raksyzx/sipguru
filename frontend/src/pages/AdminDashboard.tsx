@@ -17,6 +17,8 @@ import {
   Sun,
   Moon,
   MapPin,
+  Menu,
+  X,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useAuth } from "../hooks/useAuth";
@@ -29,6 +31,18 @@ import { Modal } from "../components/Modal";
 import api from "../lib/api";
 
 // Jurusan dihapus — belum ada endpoint backend, tab dinonaktifkan sementara
+
+  const tabs: { id: Tab; label: string; Icon: typeof LayoutDashboard }[] = [
+    { id: "dashboard", label: "Dashboard", Icon: LayoutDashboard },
+    { id: "guru", label: "Guru", Icon: Users },
+    { id: "qr", label: "QR Ruangan", Icon: QrCode },
+    { id: "izin", label: "Izin", Icon: CheckCircle },
+    { id: "jurusan", label: "Jurusan", Icon: Briefcase },
+    { id: "mapel", label: "Mata Pelajaran", Icon: BookOpen },
+    { id: "kelas", label: "Kelas", Icon: GraduationCap },
+    { id: "jadwal", label: "Jadwal Kelas", Icon: CalendarDays },
+    { id: "laporan", label: "Laporan", Icon: FileOutput },
+  ];
 
 interface Teacher {
   id: string;
@@ -142,6 +156,9 @@ const AdminDashboard = () => {
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
+
+  // Mobile sidebar/drawer state
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Form states
   const [newSubject, setNewSubject] = useState({ name: "", code: "", description: "", jurusan_id: "" });
@@ -654,6 +671,7 @@ const AdminDashboard = () => {
       onClick={() => {
         setTab(id);
         localStorage.setItem("sipguru-active-tab", id);
+        setMobileSidebarOpen(false);
       }}
       className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors duration-200 ${
         tab === id
@@ -668,9 +686,95 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-stone-950">
-      <div className="flex h-screen">
-        {/* Sidebar */}
-        <div className="w-64 bg-white dark:bg-stone-900 border-r border-gray-200 dark:border-stone-800 hidden md:flex flex-col shadow-card dark:shadow-none">
+      {/* Mobile sidebar overlay */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Mobile sidebar drawer */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-white dark:bg-stone-900 border-r border-gray-200 dark:border-stone-800 shadow-xl transform transition-transform duration-300 ease-in-out lg:hidden ${
+          mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+        aria-label="Mobile navigation"
+      >
+        <div className="flex flex-col h-full">
+          {/* Header with logo and close button */}
+          <div className="p-6 border-b border-gray-200 dark:border-stone-800 flex items-center justify-between">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
+              SIPGURU
+            </h1>
+            <button
+              onClick={() => setMobileSidebarOpen(false)}
+              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
+              aria-label="Tutup menu"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Navigation tabs */}
+          <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+            {tabs.map(({ id, label, Icon }) => (
+              <button
+                key={id}
+                onClick={() => {
+                  setTab(id);
+                  localStorage.setItem("sipguru-active-tab", id);
+                  setMobileSidebarOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors duration-200 ${
+                  tab === id
+                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 font-semibold"
+                    : "text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-white/5"
+                }`}
+              >
+                <Icon className="w-5 h-5" />
+                <span className="font-medium">{label}</span>
+              </button>
+            ))}
+          </nav>
+
+          {/* Profile section at bottom */}
+          <div className="p-4 border-t border-gray-200 dark:border-stone-800 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-tr from-emerald-600 to-emerald-500 rounded-full flex items-center justify-center text-white shadow-emerald-glow">
+                <span className="font-bold">{user?.name?.charAt(0) || "A"}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate text-gray-900 dark:text-white">{user?.name}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user?.email}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 pt-2 border-t border-gray-100 dark:border-stone-800">
+              <button
+                onClick={toggleTheme}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-stone-800 rounded-lg hover:bg-gray-200 dark:hover:bg-stone-700 transition-colors"
+                title={theme === "dark" ? "Mode Terang" : "Mode Gelap"}
+              >
+                {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                <span>{theme === "dark" ? "Mode Terang" : "Mode Gelap"}</span>
+              </button>
+              <button
+                onClick={() => { setShowLogoutConfirm(true); setMobileSidebarOpen(false); }}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-lg hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors"
+                title="Keluar"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Keluar</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <div className="flex h-screen lg:flex">
+        {/* Desktop Sidebar */}
+        <div className="w-64 bg-white dark:bg-stone-900 border-r border-gray-200 dark:border-stone-800 hidden lg:flex flex-col shadow-card dark:shadow-none">
           <div className="p-6 border-b border-gray-200 dark:border-stone-800">
             <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
               SIPGURU
@@ -678,15 +782,7 @@ const AdminDashboard = () => {
             <p className="text-sm text-gray-600 dark:text-gray-400">Admin Dashboard</p>
           </div>
           <nav className="flex-1 p-4 space-y-2 overflow-y-auto max-h-[calc(100vh-200px)]">
-            {nav("dashboard", "Dashboard", LayoutDashboard)}
-            {nav("guru", "Guru", Users)}
-            {nav("qr", "QR Ruangan", QrCode)}
-            {nav("izin", "Izin", CheckCircle)}
-            {nav("jurusan", "Jurusan", Briefcase)}
-            {nav("mapel", "Mata Pelajaran", BookOpen)}
-            {nav("kelas", "Kelas", GraduationCap)}
-            {nav("jadwal", "Jadwal Kelas", CalendarDays)}
-            {nav("laporan", "Laporan", FileOutput)}
+            {tabs.map(({ id, label, Icon }) => nav(id, label, Icon))}
           </nav>
           <div className="p-4 border-t border-gray-200 dark:border-stone-800">
             <div className="flex items-center gap-3">
@@ -716,34 +812,33 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Mobile Nav */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="md:hidden bg-white dark:bg-stone-900 border-b border-gray-200 dark:border-stone-800 p-2 flex gap-2 overflow-x-auto sticky top-0 z-10 shadow-sm">
-            {(["dashboard", "guru", "qr", "izin", "jurusan", "mapel", "kelas", "jadwal", "laporan"] as Tab[]).map((t) => (
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col overflow-hidden lg:overflow-y-auto">
+          {/* Mobile Top Bar with Burger Menu */}
+          <header className="lg:hidden bg-white dark:bg-stone-900 border-b border-gray-200 dark:border-stone-800 p-4 sticky top-0 z-30 shadow-sm">
+            <div className="flex items-center justify-between">
               <button
-                key={t}
-                onClick={() => {
-                  setTab(t);
-                  localStorage.setItem("sipguru-active-tab", t);
-                }}
-                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                  tab === t
-                    ? "bg-emerald-600 text-white dark:bg-emerald-600 dark:text-white"
-                    : "bg-gray-100 text-gray-700 dark:bg-stone-800 dark:text-gray-300"
-                }`}
+                onClick={() => setMobileSidebarOpen(true)}
+                className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
+                aria-label="Buka menu"
+                aria-expanded={mobileSidebarOpen}
               >
-                {t === "dashboard" ? "Dashboard" : t === "guru" ? "Guru" : t === "qr" ? "QR" : t === "izin" ? "Izin" : t === "jurusan" ? "Jurusan" : t === "mapel" ? "Mapel" : t === "kelas" ? "Kelas" : t === "jadwal" ? "Jadwal" : "Laporan"}
+                <Menu className="w-6 h-6" />
               </button>
-            ))}
-          </div>
+              <h1 className="text-xl font-bold bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
+                SIPGURU
+              </h1>
+              <div className="w-10" /> {/* spacer for centering */}
+            </div>
+          </header>
 
           {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto bg-gray-50/50 dark:bg-stone-950/50 p-4 md:p-8 animate-in fade-in duration-500 motion-reduce:animate-none">
+          <div className="flex-1 overflow-y-auto bg-gray-50/50 dark:bg-stone-950/50 p-4 lg:p-8 animate-in fade-in duration-500 motion-reduce:animate-none">
             <div className="flex justify-between items-center mb-6 md:mb-8">
               <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
                 {tab === "dashboard" ? "Dashboard" : tab === "guru" ? "Data Guru" : tab === "qr" ? "QR Ruangan" : tab === "izin" ? "Permohonan Izin" : tab === "mapel" ? "Mata Pelajaran" : tab === "kelas" ? "Kelas" : tab === "jurusan" ? "Jurusan" : "Jadwal Kelas"}
               </h2>
-              <div className="text-xs md:text-sm text-gray-600 dark:text-gray-400 flex flex-col items-end gap-1">
+              <div className="text-xs lg:text-sm text-gray-600 dark:text-gray-400 flex flex-col items-end gap-1 hidden sm:block">
                 <div>{currentTime.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</div>
                 <div className="text-xs font-mono text-gray-500 dark:text-gray-500">
                   {currentTime.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
@@ -759,22 +854,22 @@ const AdminDashboard = () => {
 
             {tab === "dashboard" && (
               <>
-                {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8 animate-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none">
+                {/* Stats Grid - Responsive: 1 col mobile, 2 col tablet (sm), 4 col desktop (lg) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-6 lg:mb-8 animate-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none">
                   {[
                     { label: "Total Guru", value: teachers.length, icon: Users, bg: "bg-emerald-500" },
                     { label: "Hari Ini Presensi", value: stats.total, icon: CheckCircle, bg: "bg-green-500" },
                     { label: "Terlambat", value: stats.late, icon: Clock, bg: "bg-amber-500" },
                     { label: "Izin Pending", value: pending.length, icon: Calendar, bg: "bg-blue-500" },
                   ].map(({ label, value, icon: Icon, bg }) => (
-                    <div key={label} className="glass-card-light p-6 transition-colors duration-300 hover:-translate-y-1 hover:shadow-lg motion-reduce:transition-none motion-reduce:hover:translate-y-0 motion-reduce:hover:shadow-none">
-                      <div className="flex items-center gap-4">
+                    <div key={label} className="glass-card-light p-4 lg:p-6 transition-colors duration-300 hover:-translate-y-1 hover:shadow-lg motion-reduce:transition-none motion-reduce:hover:translate-y-0 motion-reduce:hover:shadow-none">
+                      <div className="flex items-center gap-3 lg:gap-4">
                         <div className={`p-3 rounded-xl ${bg} text-white shadow-lg`}>
-                          <Icon className="w-6 h-6" />
+                          <Icon className="w-5 h-5 lg:w-6 lg:h-6" />
                         </div>
-                        <div>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">{label}</p>
-                          <p className="text-2xl font-bold text-gray-900 dark:text-white">{loading ? "…" : value}</p>
+                        <div className="min-w-0">
+                          <p className="text-sm text-gray-600 dark:text-gray-400 truncate">{label}</p>
+                          <p className="text-xl lg:text-2xl font-bold text-gray-900 dark:text-white">{loading ? "…" : value}</p>
                         </div>
                       </div>
                     </div>
@@ -783,7 +878,7 @@ const AdminDashboard = () => {
 
                 {/* Teachers List */}
                 <div className="glass-card-light overflow-hidden animate-in slide-in-from-bottom-4 duration-500 delay-100 motion-reduce:animate-none">
-                  <div className="p-6 border-b border-gray-100 dark:border-gray-800">
+                  <div className="p-4 lg:p-6 border-b border-gray-100 dark:border-gray-800">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Daftar Guru</h3>
                   </div>
                   <div className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -794,13 +889,13 @@ const AdminDashboard = () => {
                     )}
                     {teachers.map((t) => (
                       <div key={t.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center">
+                        <div className="flex items-center gap-3 lg:gap-4 min-w-0">
+                          <div className="w-10 h-10 flex-shrink-0 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center">
                             <span className="font-bold text-gray-600 dark:text-gray-300">{t.name.charAt(0)}</span>
                           </div>
-                          <div>
-                            <p className="font-medium text-gray-900 dark:text-white">{t.name}</p>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">{t.nip} • {t.email}</p>
+                          <div className="min-w-0">
+                            <p className="font-medium text-gray-900 dark:text-white truncate">{t.name}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 truncate">{t.nip} • {t.email}</p>
                           </div>
                         </div>
                       </div>
