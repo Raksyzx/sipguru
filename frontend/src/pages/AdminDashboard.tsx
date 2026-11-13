@@ -1734,11 +1734,11 @@ const AdminDashboard = () => {
                         <option key={t.id} value={t.id}>{t.name}</option>
                       ))}
                     </select>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
                       <select
                         value={newSchedule.day_of_week}
                         onChange={(e) => setNewSchedule({ ...newSchedule, day_of_week: e.target.value })}
-                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                        className="px-2 md:px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
                       >
                         <option value="Senin">Senin</option>
                         <option value="Selasa">Selasa</option>
@@ -1750,13 +1750,15 @@ const AdminDashboard = () => {
                         type="time"
                         value={newSchedule.start_time}
                         onChange={(e) => setNewSchedule({ ...newSchedule, start_time: e.target.value })}
-                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                        className="px-2 md:px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                        placeholder="Mulai"
                       />
                       <input
                         type="time"
                         value={newSchedule.end_time}
                         onChange={(e) => setNewSchedule({ ...newSchedule, end_time: e.target.value })}
-                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                        className="px-2 md:px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none md:col-span-1"
+                        placeholder="Selesai"
                       />
                     </div>
                     <select
