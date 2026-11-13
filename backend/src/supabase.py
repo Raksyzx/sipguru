@@ -333,11 +333,26 @@ class SupabaseClient:
                              admin_remarks: str = None) -> str:
         """Create new attendance log entry"""
         client = self._get_client()
+        
+        # Convert JSON geolocation to Postgres POINT format: "(lat,lon)"
+        geo_point = None
+        if geolocation:
+            try:
+                import json
+                geo_data = json.loads(geolocation)
+                lat = geo_data.get("latitude")
+                lon = geo_data.get("longitude")
+                if lat is not None and lon is not None:
+                    geo_point = f"({lat},{lon})"
+            except (json.JSONDecodeError, KeyError, TypeError):
+                logger.warning(f"Invalid geolocation format: {geolocation}")
+                geo_point = None
+        
         result = client.table("attendance_logs").insert({
             "teacher_id": teacher_id,
             "room_id": room_id,
             "status": status,
-            "geolocation": geolocation,
+            "geolocation": geo_point,
             "qr_token": qr_token,
             "device_fingerprint": device_fingerprint,
             "admin_remarks": admin_remarks
