@@ -213,6 +213,11 @@ async def submit_attendance(
     # Update QR token state to scanned
     db.update_qr_token_state(data.qr_token, f"{token_type}_scanned", now.isoformat())
 
+    # Get full teacher data from DB (auth_user only has user_id, email, role)
+    teacher_data = db.get_user(teacher_id)
+    teacher_name = teacher_data.get("name", "") if teacher_data else auth_user.get("email", "Unknown")
+    teacher_nip = teacher_data.get("nip", "-") if teacher_data else "-"
+    
     msg = "Presensi berhasil" if status == "on_time" else f"Terlambat {lateness} menit"
     return {
         "message": msg,
@@ -225,8 +230,8 @@ async def submit_attendance(
         # LCD display fields
         "display": {
             "success": True,
-            "teacher_name": auth_user.get("name", ""),
-            "teacher_nip": auth_user.get("nip", ""),
+            "teacher_name": teacher_name,
+            "teacher_nip": teacher_nip,
             "room_name": room.get("name", ""),
             "timestamp": now.strftime("%H:%M:%S"),
             "status_text": "TEPAT WAKTU" if status == "on_time" else f"TERLAMBAT {lateness} MENIT",
