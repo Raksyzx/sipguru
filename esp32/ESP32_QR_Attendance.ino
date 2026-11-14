@@ -896,15 +896,41 @@ const int DISPLAY_UPDATE_INTERVAL = 1000;  // Update display only once per secon
 unsigned long lastSuccessfulLoop = 0;
 const int WATCHDOG_TIMEOUT = 5000;  // 5 seconds
 
+// State transition flags (set in checkTimeBasedTransition, handled in loop)
+bool shouldForceClassActive = false;
+bool shouldForcePreClass = false;
+
 void loop() {
   // Handle callback server
   server.handleClient();
   yield();
   
   unsigned long now = millis();
-  lastSuccessfulLoop = now;  // Mark successful loop iteration
+  lastSuccessfulLoop = now;
   
-  // Poll every 5 seconds for instant response to schedule changes
+  // Check time every loop for instant transition at class start
+  checkTimeBasedTransition();
+  
+  // Handle forced state transitions (non-blocking)
+  if (shouldForceClassActive) {
+    shouldForceClassActive = false;
+    Serial.println("[TRANSITION] Forcing CLASS_ACTIVE via flag");
+    currentState = STATE_CLASS_ACTIVE;
+    currentSchedule = nextSchedule;
+    currentSchedule.id = nextSchedule.id;
+    hasValidToken = false;  // Force token fetch
+  }
+  
+  if (shouldForcePreClass) {
+    shouldForcePreClass = false;
+    Serial.println("[TRANSITION] Forcing PRE_CLASS via flag");
+    currentState = STATE_PRE_CLASS;
+    currentSchedule = nextSchedule;
+    currentSchedule.id = nextSchedule.id;
+    hasValidToken = false;
+  }
+  
+  // Poll every 5 seconds
   if (now - lastPollTime >= 5000) {
     lastPollTime = now;
     
@@ -923,20 +949,24 @@ void loop() {
     yield();
   }
   
-  // Check time every second for instant transition at class start
-  checkTimeBasedTransition();
+  // Process token fetching if needed (after state transition)
+  if (!hasValidToken && currentSchedule.id.length() > 0) {
+    if (currentState == STATE_PRE_CLASS || currentState == STATE_CLASS_ACTIVE) {
+      Serial.println("[LOOP] Fetching token for current state...");
+      processState();
+    }
+  }
   
   // QR countdown refresh
   if (hasValidToken) {
     qrCountdown--;
     if (qrCountdown <= 0) {
       qrCountdown = QR_DISPLAY_TIME / 1000;
-      // Token expired, will be refetched on next poll
       hasValidToken = false;
     }
   }
   
-  // Update display only once per second (not every loop)
+  // Update display once per second
   if (now - lastDisplayUpdate >= DISPLAY_UPDATE_INTERVAL) {
     lastDisplayUpdate = now;
     updateDisplay();
@@ -944,7 +974,7 @@ void loop() {
   
   // Feed watchdog
   yield();
-  delay(50);  // Small delay
+  delay(50);
 }
 
 void checkTimeBasedTransition() {
@@ -981,14 +1011,17 @@ void checkTimeBasedTransition() {
     int currentTotalMin = currentHour * 60 + currentMin;
     int nextTotalMin = nextHour * 60 + nextMin;
     
-    // If past start time, force CLASS_ACTIVE immediately
+    // If past start time, force CLASS_ACTIVE
     if (currentTotalMin >= nextTotalMin) {
-      Serial.printf("[INSTANT] Time %02d:%02d >= %02d:%02d, forcing CLASS_ACTIVE\n", 
+      Serial.printf("[INSTANT] Time %02d:%02d >= %02d:%02d, flagging CLASS_ACTIVE\n", 
                     currentHour, currentMin, nextHour, nextMin);
-      currentState = STATE_CLASS_ACTIVE;
-      currentSchedule = nextSchedule;
-      currentSchedule.id = nextSchedule.id;
-      processState();  // Fetch token immediately
+      shouldForceClassActive = true;
+    }
+    // If within 2 min before start, force PRE_CLASS
+    else if (currentTotalMin >= nextTotalMin - 2) {
+      Serial.printf("[INSTANT] Time %02d:%02d near %02d:%02d, flagging PRE_CLASS\n", 
+                    currentHour, currentMin, nextHour, nextMin);
+      shouldForcePreClass = true;
     }
   }
 }
