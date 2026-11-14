@@ -511,6 +511,7 @@ async def get_attendance_history(
             FROM attendance_logs al
             JOIN users u ON al.teacher_id = u.id
             WHERE strftime('%Y-%m-%d', al.created_at) = ?
+            GROUP BY al.teacher_id, period_date
         """, [date_filter])
     elif filter_type == "week":
         if week is None:
@@ -531,6 +532,7 @@ async def get_attendance_history(
             FROM attendance_logs al
             JOIN users u ON al.teacher_id = u.id
             WHERE strftime('%Y-%m-%d', al.created_at) BETWEEN ? AND ?
+            GROUP BY al.teacher_id, period_date
         """, [start_date, end_date])
     elif filter_type == "month":
         start_date = f"{year}-{month:02d}-01"
@@ -551,6 +553,7 @@ async def get_attendance_history(
             FROM attendance_logs al
             JOIN users u ON al.teacher_id = u.id
             WHERE strftime('%Y-%m-%d', al.created_at) BETWEEN ? AND ?
+            GROUP BY al.teacher_id, period_date
         """, [start_date, end_date])
     else:  # year
         start_date = f"{year}-01-01"
@@ -568,6 +571,7 @@ async def get_attendance_history(
             FROM attendance_logs al
             JOIN users u ON al.teacher_id = u.id
             WHERE strftime('%Y-%m-%d', al.created_at) BETWEEN ? AND ?
+            GROUP BY al.teacher_id, period_date
         """, [start_date, end_date])
     
     if teacher_id:
@@ -586,6 +590,7 @@ async def get_attendance_history(
                 FROM attendance_logs al
                 JOIN users u ON al.teacher_id = u.id
                 WHERE strftime('%Y-%m-%d', al.created_at) = ? AND al.teacher_id = ?
+                GROUP BY al.teacher_id, period_date
             """, [date_filter, teacher_id])
         elif filter_type == "week":
             cursor.execute("""
@@ -601,6 +606,7 @@ async def get_attendance_history(
                 FROM attendance_logs al
                 JOIN users u ON al.teacher_id = u.id
                 WHERE strftime('%Y-%m-%d', al.created_at) BETWEEN ? AND ? AND al.teacher_id = ?
+                GROUP BY al.teacher_id, period_date
             """, [start_date, end_date, teacher_id])
         elif filter_type == "month":
             cursor.execute("""
@@ -616,6 +622,7 @@ async def get_attendance_history(
                 FROM attendance_logs al
                 JOIN users u ON al.teacher_id = u.id
                 WHERE strftime('%Y-%m-%d', al.created_at) BETWEEN ? AND ? AND al.teacher_id = ?
+                GROUP BY al.teacher_id, period_date
             """, [start_date, end_date, teacher_id])
         else:
             cursor.execute("""
@@ -631,6 +638,7 @@ async def get_attendance_history(
                 FROM attendance_logs al
                 JOIN users u ON al.teacher_id = u.id
                 WHERE strftime('%Y-%m-%d', al.created_at) BETWEEN ? AND ? AND al.teacher_id = ?
+                GROUP BY al.teacher_id, period_date
             """, [start_date, end_date, teacher_id])
     
     rows = cursor.fetchall()
