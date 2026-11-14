@@ -403,6 +403,7 @@ bool fetchRoomState() {
     }
     
     int currentHour = 0, currentMin = 0;
+    bool timeValid = false;
     if (rtcAvailable) {
       DateTime utc = rtc.now();
       time_t utc_epoch = utc.unixtime();
@@ -410,24 +411,42 @@ bool fetchRoomState() {
       struct tm* tm_wib = localtime(&wib_epoch);
       currentHour = tm_wib->tm_hour;
       currentMin = tm_wib->tm_min;
+      timeValid = true;
+    } else {
+      time_t now = time(nullptr);
+      if (now > 1000000000) {
+        struct tm* tm_now = localtime(&now);
+        currentHour = tm_now->tm_hour;
+        currentMin = tm_now->tm_min;
+        timeValid = true;
+      }
     }
     
-    int currentTotalMin = currentHour * 60 + currentMin;
-    int nextTotalMin = nextHour * 60 + nextMin;
-    
-    // If within 2 minutes before next schedule, force PRE_CLASS
-    if (currentTotalMin >= nextTotalMin - 2 && currentTotalMin < nextTotalMin) {
-      Serial.println("[DEBUG] Forcing PRE_CLASS based on next schedule time");
-      currentState = STATE_PRE_CLASS;
-      currentSchedule = nextSchedule;
-      currentSchedule.id = nextSchedule.id;
-    }
-    // If past start time, force CLASS_ACTIVE
-    else if (currentTotalMin >= nextTotalMin) {
-      Serial.println("[DEBUG] Forcing CLASS_ACTIVE based on schedule time");
-      currentState = STATE_CLASS_ACTIVE;
-      currentSchedule = nextSchedule;
-      currentSchedule.id = nextSchedule.id;
+    if (timeValid) {
+      int currentTotalMin = currentHour * 60 + currentMin;
+      int nextTotalMin = nextHour * 60 + nextMin;
+      
+      Serial.printf("[DEBUG] Time check: now=%02d:%02d (%d), next=%02d:%02d (%d), diff=%d min\n", 
+                    currentHour, currentMin, currentTotalMin,
+                    nextHour, nextMin, nextTotalMin,
+                    currentTotalMin - nextTotalMin);
+      
+      // If within 2 minutes before next schedule, force PRE_CLASS
+      if (currentTotalMin >= nextTotalMin - 2 && currentTotalMin < nextTotalMin) {
+        Serial.println("[DEBUG] Forcing PRE_CLASS based on next schedule time");
+        currentState = STATE_PRE_CLASS;
+        currentSchedule = nextSchedule;
+        currentSchedule.id = nextSchedule.id;
+      }
+      // If past start time, force CLASS_ACTIVE
+      else if (currentTotalMin >= nextTotalMin) {
+        Serial.println("[DEBUG] Forcing CLASS_ACTIVE based on schedule time");
+        currentState = STATE_CLASS_ACTIVE;
+        currentSchedule = nextSchedule;
+        currentSchedule.id = nextSchedule.id;
+      }
+    } else {
+      Serial.println("[DEBUG] Time not valid yet (RTC/NTP not synced)");
     }
   }
   
@@ -888,12 +907,18 @@ void loop() {
   // Poll every 30 seconds (reduced from 60 for faster response)
   if (now - lastPollTime >= 30000) {
     lastPollTime = now;
-    Serial.println("Polling room state...");
     
-    if (fetchRoomState()) {
-      processState();
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("Polling room state...");
+      
+      if (fetchRoomState()) {
+        processState();
+      } else {
+        Serial.println("Poll failed, keeping current display");
+      }
     } else {
-      Serial.println("Poll failed, keeping current display");
+      Serial.println("WiFi not connected, skipping poll");
+      connectWiFi();
     }
     yield();
   }
