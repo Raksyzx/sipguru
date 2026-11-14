@@ -210,10 +210,20 @@ async def delete_room(
     auth_user: dict = Depends(require_admin)
 ):
     """Delete room (admin only)"""
-    success = db.delete_room(room_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Room not found")
-    return {"message": "Room deleted"}
+    try:
+        success = db.delete_room(room_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Room not found")
+        return {"message": "Room deleted"}
+    except Exception as e:
+        error_msg = str(e)
+        # Check for foreign key constraint error
+        if "foreign key constraint" in error_msg.lower() or "23503" in error_msg:
+            raise HTTPException(
+                status_code=400, 
+                detail="Ruangan tidak dapat dihapus karena masih digunakan dalam jadwal kelas. Hapus jadwal yang menggunakan ruangan ini terlebih dahulu."
+            )
+        raise e
 
 @router.get("/schedules")
 async def get_schedules(
