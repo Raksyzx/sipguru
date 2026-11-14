@@ -93,6 +93,7 @@ String currentQRToken = "";
 String qrTokenType = "entry";  // "entry" or "exit"
 unsigned long lastPollTime = 0;
 unsigned long lastQRRefreshTime = 0;
+unsigned long tokenGeneratedAt = 0;  // Track token generation time for expiry
 bool hasValidToken = false;
 int qrCountdown = QR_DISPLAY_TIME / 1000;
 bool deviceRegistered = false;
@@ -658,7 +659,6 @@ void updateDisplay() {
 
 // ==================== State Machine Logic ====================
 // Track token expiry for auto-refresh
-unsigned long tokenGeneratedAt = 0;
 const int TOKEN_EXPIRY_SECONDS = 300;  // 5 minutes (matches backend QR_EXPIRY_SECONDS)
 
 void processState() {
