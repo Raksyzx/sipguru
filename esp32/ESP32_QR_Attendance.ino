@@ -186,32 +186,47 @@ String httpGetWithRetry(const String& endpoint) {
   }
   
   for (int attempt = 1; attempt <= MAX_RETRY; attempt++) {
-    HTTPClient http;
     String protocol = USE_HTTPS ? "https://" : "http://";
     String url = protocol + String(API_HOST) + endpoint;
     
     if (USE_HTTPS) {
-      // Skip certificate validation for ESP32 (Railway cert may not be in trust store)
-      http.setInsecure();
+      WiFiClientSecure secureClient;
+      secureClient.setInsecure();
+      HTTPClient http;
+      
+      if (!http.begin(secureClient, url)) {
+        Serial.printf("HTTPClient.begin failed (attempt %d)\n", attempt);
+        continue;
+      }
+      http.setTimeout(10000);
+      
+      int code = http.GET();
+      if (code == 200) {
+        String payload = http.getString();
+        http.end();
+        return payload;
+      } else {
+        Serial.printf("HTTP GET %s failed (attempt %d/%d): %d\n", endpoint.c_str(), attempt, MAX_RETRY, code);
+        http.end();
+      }
+    } else {
+      HTTPClient http;
+      http.begin(url);
+      http.setTimeout(10000);
+      
+      int code = http.GET();
+      if (code == 200) {
+        String payload = http.getString();
+        http.end();
+        return payload;
+      } else {
+        Serial.printf("HTTP GET %s failed (attempt %d/%d): %d\n", endpoint.c_str(), attempt, MAX_RETRY, code);
+        http.end();
+      }
     }
     
-    http.begin(url);
-    http.setTimeout(10000);
-    
-    int code = http.GET();
-    String payload = "";
-    
-    if (code == 200) {
-      payload = http.getString();
-      http.end();
-      return payload;
-    } else {
-      Serial.printf("HTTP GET %s failed (attempt %d/%d): %d\n", endpoint.c_str(), attempt, MAX_RETRY, code);
-      http.end();
-      
-      if (attempt < MAX_RETRY) {
-        delay(RETRY_DELAY);
-      }
+    if (attempt < MAX_RETRY) {
+      delay(RETRY_DELAY);
     }
   }
   
@@ -224,32 +239,49 @@ String httpPostWithRetry(const String& endpoint, const String& body = "") {
   }
   
   for (int attempt = 1; attempt <= MAX_RETRY; attempt++) {
-    HTTPClient http;
     String protocol = USE_HTTPS ? "https://" : "http://";
     String url = protocol + String(API_HOST) + endpoint;
     
     if (USE_HTTPS) {
-      http.setInsecure();
+      WiFiClientSecure secureClient;
+      secureClient.setInsecure();
+      HTTPClient http;
+      
+      if (!http.begin(secureClient, url)) {
+        Serial.printf("HTTPClient.begin failed (attempt %d)\n", attempt);
+        continue;
+      }
+      http.addHeader("Content-Type", "application/json");
+      http.setTimeout(10000);
+      
+      int code = http.POST(body);
+      if (code == 200 || code == 201) {
+        String payload = http.getString();
+        http.end();
+        return payload;
+      } else {
+        Serial.printf("HTTP POST %s failed (attempt %d/%d): %d\n", endpoint.c_str(), attempt, MAX_RETRY, code);
+        http.end();
+      }
+    } else {
+      HTTPClient http;
+      http.begin(url);
+      http.addHeader("Content-Type", "application/json");
+      http.setTimeout(10000);
+      
+      int code = http.POST(body);
+      if (code == 200 || code == 201) {
+        String payload = http.getString();
+        http.end();
+        return payload;
+      } else {
+        Serial.printf("HTTP POST %s failed (attempt %d/%d): %d\n", endpoint.c_str(), attempt, MAX_RETRY, code);
+        http.end();
+      }
     }
     
-    http.begin(url);
-    http.addHeader("Content-Type", "application/json");
-    http.setTimeout(10000);
-    
-    int code = http.POST(body);
-    String payload = "";
-    
-    if (code == 200 || code == 201) {
-      payload = http.getString();
-      http.end();
-      return payload;
-    } else {
-      Serial.printf("HTTP POST %s failed (attempt %d/%d): %d\n", endpoint.c_str(), attempt, MAX_RETRY, code);
-      http.end();
-      
-      if (attempt < MAX_RETRY) {
-        delay(RETRY_DELAY);
-      }
+    if (attempt < MAX_RETRY) {
+      delay(RETRY_DELAY);
     }
   }
   
