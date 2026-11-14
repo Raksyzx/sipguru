@@ -536,38 +536,42 @@ void setupCallbackServer() {
 }
 
 // ==================== Display Functions ====================
-// Static QR buffer - version 7 needs 45*45 bits = 2025 bits = 254 bytes + overhead
-#define QR_VERSION 7
-static uint8_t qrcodeDataStatic[300];  // Safe buffer size
+// Static QR buffer - version 3 needs 29x29 modules = 841 bits = 106 bytes + overhead
+#define QR_VERSION 3
+static uint8_t qrcodeDataStatic[150];  // Safe buffer for version 3
+static QRCode qrcodeStatic;  // Static QRCode struct to avoid stack overflow
 
 void drawQRCode(const String& token) {
-  if (token.length() == 0) return;
-  
-  // Truncate token if too long for QR version 7 (max ~120 chars)
-  String qrToken = token;
-  if (token.length() > 100) {
-    int keepLen = token.length() - 32;
-    if (keepLen > 0) {
-      qrToken = token.substring(0, keepLen);
-      Serial.println("[QR] Token truncated for display (still valid)");
-    }
-  }
-  
-  QRCode qrcode;
-  uint8_t status = qrcode_initText(&qrcode, qrcodeDataStatic, QR_VERSION, ECC_LOW, qrToken.c_str());
-  
-  if (status != 0) {
-    Serial.printf("[QR] Init failed: %d, token len: %d\n", status, qrToken.length());
-    // Draw error indicator
-    display.setTextSize(2);
-    drawStringCenter("ERR", 28, 2);
+  if (token.length() == 0) {
+    Serial.println("[QR] Empty token");
     return;
   }
   
-  // QR version 7 = 45x45 modules
-  // Use 1px per module = 45x45 pixels, centered on 128x64
-  int moduleSize = 1;
-  int qrPixelSize = qrcode.size * moduleSize;
+  // Truncate token if too long for QR version 3 (max ~35 alphanumeric chars)
+  String qrToken = token;
+  if (token.length() > 30) {
+    // Keep first 30 chars - QR still scannable for testing
+    qrToken = token.substring(0, 30);
+    Serial.printf("[QR] Token truncated to 30 chars: %s...\n", qrToken.c_str());
+  }
+  
+  // Initialize QR code
+  uint8_t status = qrcode_initText(&qrcodeStatic, qrcodeDataStatic, QR_VERSION, ECC_LOW, qrToken.c_str());
+  
+  if (status != 0) {
+    Serial.printf("[QR] Init failed: %d, token len: %d\n", status, qrToken.length());
+    display.setTextSize(1);
+    drawStringCenter("QR Error", 25, 1);
+    display.display();
+    return;
+  }
+  
+  Serial.printf("[QR] Success: version=%d, size=%dx%d\n", QR_VERSION, qrcodeStatic.size, qrcodeStatic.size);
+  
+  // QR version 3 = 29x29 modules
+  // Scale to fit 128x64 screen (use 2px per module = 58x58 pixels)
+  int moduleSize = 2;
+  int qrPixelSize = qrcodeStatic.size * moduleSize;
   
   // Center QR on screen
   int offsetX = (SCREEN_WIDTH - qrPixelSize) / 2;
@@ -577,15 +581,15 @@ void drawQRCode(const String& token) {
   if (offsetX < 0) offsetX = 0;
   if (offsetY < 0) offsetY = 0;
   
-  // Draw QR modules - bounds check every pixel
-  for (int y = 0; y < qrcode.size; y++) {
-    for (int x = 0; x < qrcode.size; x++) {
-      if (qrcode_getModule(&qrcode, x, y)) {
-        int px = offsetX + x;
-        int py = offsetY + y;
+  // Draw QR modules with bounds check
+  for (int y = 0; y < qrcodeStatic.size; y++) {
+    for (int x = 0; x < qrcodeStatic.size; x++) {
+      if (qrcode_getModule(&qrcodeStatic, x, y)) {
+        int px = offsetX + x * moduleSize;
+        int py = offsetY + y * moduleSize;
         // Bounds check
         if (px >= 0 && px < SCREEN_WIDTH && py >= 0 && py < SCREEN_HEIGHT) {
-          display.drawPixel(px, py, SSD1306_WHITE);
+          display.fillRect(px, py, moduleSize, moduleSize, SSD1306_WHITE);
         }
       }
     }
