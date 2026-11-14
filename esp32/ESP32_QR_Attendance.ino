@@ -786,5 +786,8 @@ void loop() {
     }
   }
   
+  // Update display every second for realtime clock
+  updateDisplay();
+  
   delay(1000);
 }
