@@ -536,18 +536,16 @@ void setupCallbackServer() {
 }
 
 // ==================== Display Functions ====================
-// Static QR buffer to avoid stack overflow (version 7 = 45x45 modules, ~600 bytes)
+// Static QR buffer - version 7 needs 7*7+2+1 = 52 bytes minimum, use 60 for safety
 #define QR_VERSION 7
-static uint8_t qrcodeDataStatic[QR_VERSION * QR_VERSION + 2 + 1];
+static uint8_t qrcodeDataStatic[60];
 
 void drawQRCode(const String& token) {
   if (token.length() == 0) return;
   
-  // Use QR version 7 for tokens up to ~120 chars (balances size vs stability)
-  // If token > 120 chars, truncate hash portion (still valid for verification)
+  // Truncate token if too long for QR version 7 (max ~120 chars)
   String qrToken = token;
   if (token.length() > 100) {
-    // Truncate the signature portion (last 32 chars) to fit QR version 7
     int keepLen = token.length() - 32;
     if (keepLen > 0) {
       qrToken = token.substring(0, keepLen);
@@ -556,24 +554,34 @@ void drawQRCode(const String& token) {
   }
   
   QRCode qrcode;
-  qrcode_initText(&qrcode, qrcodeDataStatic, 7, ECC_LOW, qrToken.c_str());
+  uint8_t status = qrcode_initText(&qrcode, qrcodeDataStatic, QR_VERSION, ECC_LOW, qrToken.c_str());
   
-  // Full screen QR (version 7 = 45x45 modules, scale to fill 128x64)
-  int qrSize = 60;  // Max height for 64px screen
-  int offsetX = (SCREEN_WIDTH - (qrcode.size * (qrSize / qrcode.size))) / 2;
-  int offsetY = (SCREEN_HEIGHT - qrSize) / 2;
+  if (status != 0) {
+    Serial.printf("[QR] Init failed: %d, token len: %d\n", status, qrToken.length());
+    // Draw error indicator
+    display.setTextSize(2);
+    drawStringCenter("ERR", 28, 2);
+    return;
+  }
   
-  int moduleSize = qrSize / qrcode.size;
+  // Calculate module size to fit screen (128x64)
+  // QR version 7 = 45x45 modules
+  int moduleSize = 1;  // Minimum 1px per module
+  int qrPixelSize = qrcode.size * moduleSize;
   
+  // Center QR on screen
+  int offsetX = (SCREEN_WIDTH - qrPixelSize) / 2;
+  int offsetY = (SCREEN_HEIGHT - qrPixelSize) / 2;
+  
+  // Ensure positive offsets
+  if (offsetX < 0) offsetX = 0;
+  if (offsetY < 0) offsetY = 0;
+  
+  // Draw QR modules
   for (int y = 0; y < qrcode.size; y++) {
     for (int x = 0; x < qrcode.size; x++) {
       if (qrcode_getModule(&qrcode, x, y)) {
-        display.fillRect(
-          offsetX + x * moduleSize, 
-          offsetY + y * moduleSize, 
-          moduleSize, moduleSize, 
-          SSD1306_WHITE
-        );
+        display.drawPixel(offsetX + x, offsetY + y, SSD1306_WHITE);
       }
     }
     yield();  // Feed watchdog every row
