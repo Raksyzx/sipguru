@@ -649,15 +649,30 @@ void updateDisplay() {
 }
 
 // ==================== State Machine Logic ====================
+// Track token expiry for auto-refresh
+unsigned long tokenGeneratedAt = 0;
+const int TOKEN_EXPIRY_SECONDS = 300;  // 5 minutes (matches backend QR_EXPIRY_SECONDS)
+
 void processState() {
   bool tokenNeeded = false;
   String targetType = "";
   String targetScheduleId = "";
   
+  // Check if current token is expired
+  bool tokenExpired = false;
+  if (hasValidToken && tokenGeneratedAt > 0) {
+    unsigned long elapsed = (millis() - tokenGeneratedAt) / 1000;
+    if (elapsed >= TOKEN_EXPIRY_SECONDS) {
+      tokenExpired = true;
+      hasValidToken = false;
+      Serial.printf("[TOKEN] Expired after %lu seconds, will refresh\n", elapsed);
+    }
+  }
+  
   switch (currentState) {
     case STATE_PRE_CLASS:
       // 15 min before class - generate ENTRY QR
-      if (!hasValidToken) {
+      if (!hasValidToken || tokenExpired) {
         tokenNeeded = true;
         targetType = "entry";
         targetScheduleId = nextSchedule.id;  // PRE_CLASS uses next schedule
@@ -666,18 +681,53 @@ void processState() {
       
     case STATE_CLASS_ACTIVE:
       // Check if we need ENTRY or EXIT token
-      if (!hasValidToken) {
-        // Need entry token first
-        tokenNeeded = true;
-        targetType = "entry";
-        targetScheduleId = currentSchedule.id;
-      } else if (qrTokenType == "entry") {
-        // Switch to EXIT token after class start time
-        if (isTimePast(currentSchedule.start_time)) {
+      // Calculate time until class ends
+      int endHour = 0, endMin = 0;
+      if (currentSchedule.end_time.length() >= 5) {
+        endHour = currentSchedule.end_time.substring(0, 2).toInt();
+        endMin = currentSchedule.end_time.substring(3, 5).toInt();
+      }
+      
+      // Get current time in minutes since midnight
+      int currentHour = 0, currentMin = 0;
+      if (rtcAvailable) {
+        DateTime utc = rtc.now();
+        time_t utc_epoch = utc.unixtime();
+        time_t wib_epoch = utc_epoch + 25200;
+        struct tm* tm_wib = localtime(&wib_epoch);
+        currentHour = tm_wib->tm_hour;
+        currentMin = tm_wib->tm_min;
+      } else {
+        time_t now = time(nullptr);
+        struct tm* tm_now = localtime(&now);
+        currentHour = tm_now->tm_hour;
+        currentMin = tm_now->tm_min;
+      }
+      
+      int currentTotalMin = currentHour * 60 + currentMin;
+      int endTotalMin = endHour * 60 + endMin;
+      int minsUntilEnd = endTotalMin - currentTotalMin;
+      
+      // Switch to EXIT token 5 minutes before class ends
+      bool shouldSwitchToExit = (minsUntilEnd <= 5 && minsUntilEnd > 0);
+      
+      if (!hasValidToken || tokenExpired) {
+        // Need token (entry or exit based on time)
+        if (shouldSwitchToExit) {
           tokenNeeded = true;
           targetType = "exit";
           targetScheduleId = currentSchedule.id;
+        } else {
+          tokenNeeded = true;
+          targetType = "entry";
+          targetScheduleId = currentSchedule.id;
         }
+      } else if (qrTokenType == "entry" && shouldSwitchToExit) {
+        // Switch from ENTRY to EXIT token 5 min before end
+        tokenNeeded = true;
+        targetType = "exit";
+        targetScheduleId = currentSchedule.id;
+        Serial.printf("[STATE] Switching to EXIT token (%d min until end)\n", minsUntilEnd);
       }
       break;
       
@@ -690,7 +740,7 @@ void processState() {
       break;
       
     case STATE_EARLY_REQUEST:
-      if (!hasValidToken) {
+      if (!hasValidToken || tokenExpired) {
         tokenNeeded = true;
         targetType = "entry";
         targetScheduleId = currentSchedule.id;
@@ -704,6 +754,7 @@ void processState() {
   
   if (tokenNeeded && targetScheduleId.length() > 0) {
     if (fetchAutoToken(targetScheduleId, targetType)) {
+      tokenGeneratedAt = millis();  // Track when token was generated
       Serial.printf("Token fetched: %s for schedule %s\n", targetType.c_str(), targetScheduleId.c_str());
     }
   }
