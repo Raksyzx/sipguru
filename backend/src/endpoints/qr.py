@@ -368,77 +368,88 @@ async def generate_auto_qr_token(
 ):
     """Auto-generate QR token for current/next schedule (for ESP32)"""
     from datetime import datetime, timedelta
+    import traceback
     
-    schedule = db.get_grade_schedule(schedule_id)
-    if not schedule:
-        raise HTTPException(status_code=404, detail="Schedule not found")
-    
-    room_id = schedule.get("room_id")
-    if not room_id:
-        raise HTTPException(status_code=400, detail="Schedule must have a room assigned")
-    
-    room = db.get_room(room_id)
-    if not room:
-        raise HTTPException(status_code=404, detail="Room not found")
-    
-    # Generate token
-    token = generate_hmac_token(
-        room_id=room_id,
-        schedule_id=schedule_id,
-        subject_id=schedule.get("subject_id"),
-        teacher_id=schedule.get("teacher_id"),
-        grade_id=schedule.get("grade_id"),
-        expiry_seconds=settings.QR_EXPIRY_SECONDS,
-        secret=settings.JWT_SECRET
-    )
-    
-    # Store in qr_tokens table
-    from datetime import datetime, timedelta
-    expires_at = (datetime.now() + timedelta(seconds=settings.QR_EXPIRY_SECONDS)).isoformat()
-    qr_id = db.create_qr_token(
-        schedule_id=schedule_id,
-        room_id=room_id,
-        grade_id=schedule["grade_id"],
-        subject_id=schedule["subject_id"],
-        teacher_id=schedule["teacher_id"],
-        token=token,
-        expires_at=expires_at,
-        token_type=token_type  # "entry" or "exit"
-    )
-    
-    # Push to ESP32 via HTTP callback (if device is registered)
-    device = db.get_device_by_room(room_id)
-    if device and device.get("callback_url"):
-        try:
-            import requests
-            requests.post(
-                device["callback_url"],
-                json={
-                    "event": "qr_generated",
-                    "room_id": room_id,
-                    "room_code": room["room_code"],
-                    "schedule_id": schedule_id,
-                    "token": token,
-                    "token_type": token_type,
-                    "expires_at": expires_at,
-                    "grade_name": schedule.get("grade_name"),
-                    "subject_name": schedule.get("subject_name")
-                },
-                timeout=5
-            )
-        except Exception as e:
-            print(f"Failed to push QR to ESP32: {e}")
-    
-    return {
-        "message": f"QR token generated for {token_type}",
-        "qr_id": qr_id,
-        "token": token,
-        "schedule_id": schedule_id,
-        "room_id": room_id,
-        "token_type": token_type,
-        "expires_at": expires_at,
-        "expires_in": settings.QR_EXPIRY_SECONDS
-    }
+    try:
+        schedule = db.get_grade_schedule(schedule_id)
+        if not schedule:
+            raise HTTPException(status_code=404, detail="Schedule not found")
+        
+        room_id = schedule.get("room_id")
+        if not room_id:
+            raise HTTPException(status_code=400, detail="Schedule must have a room assigned")
+        
+        room = db.get_room(room_id)
+        if not room:
+            raise HTTPException(status_code=404, detail="Room not found")
+        
+        # Generate token
+        token = generate_hmac_token(
+            room_id=room_id,
+            schedule_id=schedule_id,
+            subject_id=schedule.get("subject_id"),
+            teacher_id=schedule.get("teacher_id"),
+            grade_id=schedule.get("grade_id"),
+            expiry_seconds=settings.QR_EXPIRY_SECONDS,
+            secret=settings.JWT_SECRET
+        )
+        
+        # Store in qr_tokens table
+        expires_at = (datetime.now() + timedelta(seconds=settings.QR_EXPIRY_SECONDS)).isoformat()
+        
+        print(f"[AUTO-TOKEN] Creating token for schedule={schedule_id}, room={room_id}, type={token_type}")
+        
+        qr_id = db.create_qr_token(
+            schedule_id=schedule_id,
+            room_id=room_id,
+            grade_id=schedule["grade_id"],
+            subject_id=schedule["subject_id"],
+            teacher_id=schedule["teacher_id"],
+            token=token,
+            expires_at=expires_at,
+            token_type=token_type
+        )
+        
+        print(f"[AUTO-TOKEN] Token created successfully: qr_id={qr_id}")
+        
+        # Push to ESP32 via HTTP callback (if device is registered)
+        device = db.get_device_by_room(room_id)
+        if device and device.get("callback_url"):
+            try:
+                import requests
+                requests.post(
+                    device["callback_url"],
+                    json={
+                        "event": "qr_generated",
+                        "room_id": room_id,
+                        "room_code": room["room_code"],
+                        "schedule_id": schedule_id,
+                        "token": token,
+                        "token_type": token_type,
+                        "expires_at": expires_at,
+                        "grade_name": schedule.get("grade_name"),
+                        "subject_name": schedule.get("subject_name")
+                    },
+                    timeout=5
+                )
+                print(f"[AUTO-TOKEN] Pushed to ESP32 callback: {device['callback_url']}")
+            except Exception as e:
+                print(f"[AUTO-TOKEN] Failed to push QR to ESP32: {e}")
+        
+        return {
+            "message": f"QR token generated for {token_type}",
+            "qr_id": qr_id,
+            "token": token,
+            "schedule_id": schedule_id,
+            "room_id": room_id,
+            "token_type": token_type,
+            "expires_at": expires_at,
+            "expires_in": settings.QR_EXPIRY_SECONDS
+        }
+    except Exception as e:
+        print(f"[AUTO-TOKEN] ERROR: {e}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
     
     expires_at = (datetime.now() + timedelta(seconds=settings.QR_EXPIRY_SECONDS)).isoformat()
     qr_id = db.create_qr_token(
