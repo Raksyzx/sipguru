@@ -500,7 +500,7 @@ async def get_attendance_history(
         start_date, end_date = date_filter, date_filter
         cursor.execute("""
             SELECT 
-                strftime('%Y-%m-%d', created_at) as period_date,
+                strftime('%Y-%m-%d', al.created_at) as period_date,
                 al.teacher_id,
                 u.name as teacher_name,
                 u.nip,
@@ -520,7 +520,7 @@ async def get_attendance_history(
         end_date = f"{year}-{month:02d}-{end_day:02d}"
         cursor.execute("""
             SELECT 
-                strftime('%Y-%m-%d', created_at) as period_date,
+                strftime('%Y-%m-%d', al.created_at) as period_date,
                 al.teacher_id,
                 u.name as teacher_name,
                 u.nip,
@@ -540,7 +540,7 @@ async def get_attendance_history(
             end_date = f"{year}-{month + 1:02d}-01"
         cursor.execute("""
             SELECT 
-                strftime('%Y-%m-%d', created_at) as period_date,
+                strftime('%Y-%m-%d', al.created_at) as period_date,
                 al.teacher_id,
                 u.name as teacher_name,
                 u.nip,
@@ -557,7 +557,7 @@ async def get_attendance_history(
         end_date = f"{year}-12-31"
         cursor.execute("""
             SELECT 
-                strftime('%Y-%m-%d', created_at) as period_date,
+                strftime('%Y-%m-%d', al.created_at) as period_date,
                 al.teacher_id,
                 u.name as teacher_name,
                 u.nip,
@@ -575,7 +575,7 @@ async def get_attendance_history(
         if filter_type == "day":
             cursor.execute("""
                 SELECT 
-                    strftime('%Y-%m-%d', created_at) as period_date,
+                    strftime('%Y-%m-%d', al.created_at) as period_date,
                     al.teacher_id,
                     u.name as teacher_name,
                     u.nip,
@@ -590,7 +590,7 @@ async def get_attendance_history(
         elif filter_type == "week":
             cursor.execute("""
                 SELECT 
-                    strftime('%Y-%m-%d', created_at) as period_date,
+                    strftime('%Y-%m-%d', al.created_at) as period_date,
                     al.teacher_id,
                     u.name as teacher_name,
                     u.nip,
@@ -605,7 +605,7 @@ async def get_attendance_history(
         elif filter_type == "month":
             cursor.execute("""
                 SELECT 
-                    strftime('%Y-%m-%d', created_at) as period_date,
+                    strftime('%Y-%m-%d', al.created_at) as period_date,
                     al.teacher_id,
                     u.name as teacher_name,
                     u.nip,
@@ -620,7 +620,7 @@ async def get_attendance_history(
         else:
             cursor.execute("""
                 SELECT 
-                    strftime('%Y-%m-%d', created_at) as period_date,
+                    strftime('%Y-%m-%d', al.created_at) as period_date,
                     al.teacher_id,
                     u.name as teacher_name,
                     u.nip,
