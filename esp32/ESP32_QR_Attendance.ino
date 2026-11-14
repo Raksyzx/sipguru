@@ -923,6 +923,9 @@ void loop() {
     yield();
   }
   
+  // Check time every second for instant transition at class start
+  checkTimeBasedTransition();
+  
   // QR countdown refresh
   if (hasValidToken) {
     qrCountdown--;
@@ -942,4 +945,50 @@ void loop() {
   // Feed watchdog
   yield();
   delay(50);  // Small delay
+}
+
+void checkTimeBasedTransition() {
+  // Only check if we're IDLE with a next schedule
+  if (currentState != STATE_IDLE || nextSchedule.id.length() == 0) return;
+  
+  int nextHour = 0, nextMin = 0;
+  if (nextSchedule.start_time.length() >= 5) {
+    nextHour = nextSchedule.start_time.substring(0, 2).toInt();
+    nextMin = nextSchedule.start_time.substring(3, 5).toInt();
+  }
+  
+  int currentHour = 0, currentMin = 0;
+  bool timeValid = false;
+  if (rtcAvailable) {
+    DateTime utc = rtc.now();
+    time_t utc_epoch = utc.unixtime();
+    time_t wib_epoch = utc_epoch + 25200;
+    struct tm* tm_wib = localtime(&wib_epoch);
+    currentHour = tm_wib->tm_hour;
+    currentMin = tm_wib->tm_min;
+    timeValid = true;
+  } else {
+    time_t now = time(nullptr);
+    if (now > 1000000000) {
+      struct tm* tm_now = localtime(&now);
+      currentHour = tm_now->tm_hour;
+      currentMin = tm_now->tm_min;
+      timeValid = true;
+    }
+  }
+  
+  if (timeValid) {
+    int currentTotalMin = currentHour * 60 + currentMin;
+    int nextTotalMin = nextHour * 60 + nextMin;
+    
+    // If past start time, force CLASS_ACTIVE immediately
+    if (currentTotalMin >= nextTotalMin) {
+      Serial.printf("[INSTANT] Time %02d:%02d >= %02d:%02d, forcing CLASS_ACTIVE\n", 
+                    currentHour, currentMin, nextHour, nextMin);
+      currentState = STATE_CLASS_ACTIVE;
+      currentSchedule = nextSchedule;
+      currentSchedule.id = nextSchedule.id;
+      processState();  // Fetch token immediately
+    }
+  }
 }
