@@ -307,6 +307,13 @@ String httpPostWithRetry(const String& endpoint, const String& body = "") {
 
 // ==================== Device Registration ====================
 void registerDevice() {
+  // Skip device registration - endpoint requires auth (401)
+  // ESP32 can function without device registration
+  Serial.println("Device registration skipped (requires auth)");
+  deviceRegistered = true;
+  deviceId = "esp32-" + ROOM_CODE;
+  
+  /* Disabled - endpoint requires authentication
   if (deviceRegistered) return;
   
   String payload = "{\"room_code\":\"" + ROOM_CODE + "\",\"device_name\":\"ESP32-" + ROOM_CODE + "\"}";
@@ -320,15 +327,11 @@ void registerDevice() {
       deviceId = doc["device_id"].as<String>();
       deviceRegistered = true;
       Serial.println("Device registered: " + deviceId);
-      
-      // Save to NVS (optional)
-      // preferences.begin("sipguru", false);
-      // preferences.putString("device_id", deviceId);
-      // preferences.end();
     }
   } else {
     Serial.println("Device registration failed");
   }
+  */
 }
 
 // ==================== Room State Polling ====================
@@ -399,6 +402,9 @@ bool fetchAutoToken(const String& scheduleId, const String& type) {
   }
   
   String endpoint = "/api/qr/auto-token/" + scheduleId + "?token_type=" + type;
+  
+  Serial.printf("[TOKEN] Fetching %s token for %s...\n", type.c_str(), scheduleId.c_str());
+  
   String response = httpPostWithRetry(endpoint);
   
   if (response.length() == 0) {
@@ -419,6 +425,7 @@ bool fetchAutoToken(const String& scheduleId, const String& type) {
     currentQRToken = String(token);
     qrTokenType = type;
     hasValidToken = true;
+    tokenGeneratedAt = millis();
     qrCountdown = QR_DISPLAY_TIME / 1000;  // Reset countdown on new token
     Serial.printf("Token received (%s): %s...\n", type.c_str(), currentQRToken.substring(0, 16).c_str());
     return true;
@@ -825,12 +832,17 @@ void setup() {
 unsigned long lastDisplayUpdate = 0;
 const int DISPLAY_UPDATE_INTERVAL = 1000;  // Update display only once per second
 
+// Watchdog timer tracking
+unsigned long lastSuccessfulLoop = 0;
+const int WATCHDOG_TIMEOUT = 5000;  // 5 seconds
+
 void loop() {
   // Handle callback server
   server.handleClient();
   yield();
   
   unsigned long now = millis();
+  lastSuccessfulLoop = now;  // Mark successful loop iteration
   
   // Poll every 30 seconds (reduced from 60 for faster response)
   if (now - lastPollTime >= 30000) {
@@ -845,15 +857,12 @@ void loop() {
     yield();
   }
   
-  // Local state machine: check if we need to transition based on time
-  checkLocalStateTransition();
-  
   // QR countdown refresh
   if (hasValidToken) {
     qrCountdown--;
     if (qrCountdown <= 0) {
       qrCountdown = QR_DISPLAY_TIME / 1000;
-      // Token expired, will be refetched on next processState
+      // Token expired, will be refetched on next poll
       hasValidToken = false;
     }
   }
@@ -867,25 +876,4 @@ void loop() {
   // Feed watchdog
   yield();
   delay(50);  // Small delay
-}
-
-void checkLocalStateTransition() {
-  // Only relevant if we have a current schedule
-  if (currentSchedule.id.length() == 0) return;
-  
-  // If in PRE_CLASS and past start time, transition to CLASS_ACTIVE locally
-  if (currentState == STATE_PRE_CLASS && isTimePast(currentSchedule.start_time)) {
-    Serial.println("[LOCAL] Transition: PRE_CLASS -> CLASS_ACTIVE (time based)");
-    currentState = STATE_CLASS_ACTIVE;
-    hasValidToken = false;  // Force token refetch
-    processState();
-  }
-  
-  // If in CLASS_ACTIVE and past end time, transition to CLASS_ENDED
-  if (currentState == STATE_CLASS_ACTIVE && isTimePast(currentSchedule.end_time)) {
-    Serial.println("[LOCAL] Transition: CLASS_ACTIVE -> CLASS_ENDED (time based)");
-    currentState = STATE_CLASS_ENDED;
-    hasValidToken = false;
-    updateDisplay();
-  }
 }
