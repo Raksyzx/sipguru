@@ -536,9 +536,9 @@ void setupCallbackServer() {
 }
 
 // ==================== Display Functions ====================
-// Static QR buffer - version 7 needs 7*7+2+1 = 52 bytes minimum, use 60 for safety
+// Static QR buffer - version 7 needs 45*45 bits = 2025 bits = 254 bytes + overhead
 #define QR_VERSION 7
-static uint8_t qrcodeDataStatic[60];
+static uint8_t qrcodeDataStatic[300];  // Safe buffer size
 
 void drawQRCode(const String& token) {
   if (token.length() == 0) return;
@@ -564,9 +564,9 @@ void drawQRCode(const String& token) {
     return;
   }
   
-  // Calculate module size to fit screen (128x64)
   // QR version 7 = 45x45 modules
-  int moduleSize = 1;  // Minimum 1px per module
+  // Use 1px per module = 45x45 pixels, centered on 128x64
+  int moduleSize = 1;
   int qrPixelSize = qrcode.size * moduleSize;
   
   // Center QR on screen
@@ -577,11 +577,16 @@ void drawQRCode(const String& token) {
   if (offsetX < 0) offsetX = 0;
   if (offsetY < 0) offsetY = 0;
   
-  // Draw QR modules
+  // Draw QR modules - bounds check every pixel
   for (int y = 0; y < qrcode.size; y++) {
     for (int x = 0; x < qrcode.size; x++) {
       if (qrcode_getModule(&qrcode, x, y)) {
-        display.drawPixel(offsetX + x, offsetY + y, SSD1306_WHITE);
+        int px = offsetX + x;
+        int py = offsetY + y;
+        // Bounds check
+        if (px >= 0 && px < SCREEN_WIDTH && py >= 0 && py < SCREEN_HEIGHT) {
+          display.drawPixel(px, py, SSD1306_WHITE);
+        }
       }
     }
     yield();  // Feed watchdog every row
