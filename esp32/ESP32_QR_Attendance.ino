@@ -392,6 +392,38 @@ bool fetchRoomState() {
                 currentSchedule.end_time.c_str(),
                 nextSchedule.subject_name.c_str(),
                 nextSchedule.start_time.c_str());
+  
+  // DEBUG: Force CLASS_ACTIVE if we have a next schedule and time matches
+  // Remove this in production
+  if (currentState == STATE_IDLE && nextSchedule.id.length() > 0) {
+    int nextHour = 0, nextMin = 0;
+    if (nextSchedule.start_time.length() >= 5) {
+      nextHour = nextSchedule.start_time.substring(0, 2).toInt();
+      nextMin = nextSchedule.start_time.substring(3, 5).toInt();
+    }
+    
+    int currentHour = 0, currentMin = 0;
+    if (rtcAvailable) {
+      DateTime utc = rtc.now();
+      time_t utc_epoch = utc.unixtime();
+      time_t wib_epoch = utc_epoch + 25200;
+      struct tm* tm_wib = localtime(&wib_epoch);
+      currentHour = tm_wib->tm_hour;
+      currentMin = tm_wib->tm_min;
+    }
+    
+    int currentTotalMin = currentHour * 60 + currentMin;
+    int nextTotalMin = nextHour * 60 + nextMin;
+    
+    // If within 2 minutes of next schedule, force PRE_CLASS
+    if (currentTotalMin >= nextTotalMin - 2 && currentTotalMin <= nextTotalMin + 60) {
+      Serial.println("[DEBUG] Forcing PRE_CLASS based on next schedule time");
+      currentState = STATE_PRE_CLASS;
+      currentSchedule = nextSchedule;  // Promote next to current
+      currentSchedule.id = nextSchedule.id;
+    }
+  }
+  
   return true;
 }
 
