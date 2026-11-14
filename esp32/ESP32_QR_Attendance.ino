@@ -471,18 +471,27 @@ void setupCallbackServer() {
 void drawQRCode(const String& token) {
   if (token.length() == 0) return;
   
-  uint8_t qrcodeData[qrcode_getBufferSize(3)];
+  // Use QR version 10 for long tokens (supports up to ~250 chars)
+  uint8_t qrcodeData[qrcode_getBufferSize(10)];
   QRCode qrcode;
-  qrcode_initText(&qrcode, qrcodeData, 3, ECC_LOW, token.c_str());
+  qrcode_initText(&qrcode, qrcodeData, 10, ECC_LOW, token.c_str());
   
-  int qrSize = 40;
+  // Scale QR to fit screen (version 10 = 61x61 modules)
+  int qrSize = 58;  // Max that fits in 64px height with header/footer
   int offsetX = (SCREEN_WIDTH - qrSize) / 2;
-  int offsetY = 24;
+  int offsetY = 5;  // Start below header
+  
+  int moduleSize = qrSize / qrcode.size;  // Scale down if needed
   
   for (int y = 0; y < qrcode.size; y++) {
     for (int x = 0; x < qrcode.size; x++) {
       if (qrcode_getModule(&qrcode, x, y)) {
-        display.fillRect(offsetX + x * 2, offsetY + y * 2, 2, 2, SSD1306_WHITE);
+        display.fillRect(
+          offsetX + x * moduleSize, 
+          offsetY + y * moduleSize, 
+          moduleSize, moduleSize, 
+          SSD1306_WHITE
+        );
       }
     }
   }
