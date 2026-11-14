@@ -37,11 +37,11 @@ const char* WIFI_SSID = "Bapak ade";
 const char* WIFI_PASSWORD = "Lapor.pak7";
 
 // Backend API (Railway Production) - CHANGE THIS
-const char* API_HOST = "sipguru-six.up.railway.app";
+const char* API_HOST = "sipguru-production.up.railway.app";
 const bool USE_HTTPS = true;  // Railway forces HTTPS
 
 // Room Code - MUST MATCH DB EXACTLY (case-sensitive)
-const String ROOM_CODE = "RUMAH YOGA";
+const String ROOM_CODE = "RQ2";
 
 // Supabase Realtime (optional - fallback to polling)
 const char* SUPABASE_URL = "https://kyhbcguycelqstmoewlm.supabase.co";
