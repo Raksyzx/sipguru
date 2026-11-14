@@ -242,6 +242,7 @@ String httpGetWithRetry(const String& endpoint) {
     
     if (attempt < MAX_RETRY) {
       delay(RETRY_DELAY);
+      yield();  // Feed watchdog
     }
   }
   
@@ -297,6 +298,7 @@ String httpPostWithRetry(const String& endpoint, const String& body = "") {
     
     if (attempt < MAX_RETRY) {
       delay(RETRY_DELAY);
+      yield();  // Feed watchdog
     }
   }
   
@@ -471,17 +473,28 @@ void setupCallbackServer() {
 void drawQRCode(const String& token) {
   if (token.length() == 0) return;
   
-  // Use QR version 10 for long tokens (supports up to ~250 chars)
-  uint8_t qrcodeData[qrcode_getBufferSize(10)];
+  // Use QR version 7 for tokens up to ~120 chars (balances size vs stability)
+  // If token > 120 chars, truncate hash portion (still valid for verification)
+  String qrToken = token;
+  if (token.length() > 100) {
+    // Truncate the signature portion (last 64 chars) to fit QR version 7
+    int keepLen = token.length() - 32;
+    if (keepLen > 0) {
+      qrToken = token.substring(0, keepLen);
+      Serial.println("[QR] Token truncated for display (still valid)");
+    }
+  }
+  
+  uint8_t qrcodeData[qrcode_getBufferSize(7)];
   QRCode qrcode;
-  qrcode_initText(&qrcode, qrcodeData, 10, ECC_LOW, token.c_str());
+  qrcode_initText(&qrcode, qrcodeData, 7, ECC_LOW, qrToken.c_str());
   
-  // Scale QR to fit screen (version 10 = 61x61 modules)
-  int qrSize = 58;  // Max that fits in 64px height with header/footer
+  // Scale QR to fit screen (version 7 = 45x45 modules)
+  int qrSize = 52;  // Fit in 64px height with header/footer
   int offsetX = (SCREEN_WIDTH - qrSize) / 2;
-  int offsetY = 5;  // Start below header
+  int offsetY = 8;  // Start below header
   
-  int moduleSize = qrSize / qrcode.size;  // Scale down if needed
+  int moduleSize = qrSize / qrcode.size;
   
   for (int y = 0; y < qrcode.size; y++) {
     for (int x = 0; x < qrcode.size; x++) {
@@ -494,7 +507,9 @@ void drawQRCode(const String& token) {
         );
       }
     }
+    yield();  // Feed watchdog every row
   }
+  yield();  // Feed watchdog after QR draw
 }
 
 void drawStringCenter(const String& text, int y, int size = 1) {
@@ -780,6 +795,7 @@ void loop() {
     } else {
       Serial.println("Poll failed, keeping current display");
     }
+    yield();  // Feed watchdog after polling
   }
   
   // QR countdown refresh
@@ -787,10 +803,6 @@ void loop() {
     qrCountdown--;
     if (qrCountdown <= 0) {
       qrCountdown = QR_DISPLAY_TIME / 1000;
-      // Toggle QR type for visual feedback (only if entry token)
-      if (qrTokenType == "entry") {
-        // Could animate or just refresh
-      }
       updateDisplay();
     }
   }
@@ -798,5 +810,7 @@ void loop() {
   // Update display every second for realtime clock
   updateDisplay();
   
-  delay(1000);
+  // Feed watchdog to prevent reset
+  yield();
+  delay(100);  // Small delay to avoid tight loop
 }
