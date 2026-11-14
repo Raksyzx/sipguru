@@ -393,7 +393,7 @@ bool fetchRoomState() {
                 nextSchedule.subject_name.c_str(),
                 nextSchedule.start_time.c_str());
   
-  // DEBUG: Force CLASS_ACTIVE if we have a next schedule and time matches
+  // DEBUG: Force state based on schedule times (bypass backend IDLE issue)
   // Remove this in production
   if (currentState == STATE_IDLE && nextSchedule.id.length() > 0) {
     int nextHour = 0, nextMin = 0;
@@ -415,11 +415,18 @@ bool fetchRoomState() {
     int currentTotalMin = currentHour * 60 + currentMin;
     int nextTotalMin = nextHour * 60 + nextMin;
     
-    // If within 2 minutes of next schedule, force PRE_CLASS
-    if (currentTotalMin >= nextTotalMin - 2 && currentTotalMin <= nextTotalMin + 60) {
+    // If within 2 minutes before next schedule, force PRE_CLASS
+    if (currentTotalMin >= nextTotalMin - 2 && currentTotalMin < nextTotalMin) {
       Serial.println("[DEBUG] Forcing PRE_CLASS based on next schedule time");
       currentState = STATE_PRE_CLASS;
-      currentSchedule = nextSchedule;  // Promote next to current
+      currentSchedule = nextSchedule;
+      currentSchedule.id = nextSchedule.id;
+    }
+    // If past start time, force CLASS_ACTIVE
+    else if (currentTotalMin >= nextTotalMin) {
+      Serial.println("[DEBUG] Forcing CLASS_ACTIVE based on schedule time");
+      currentState = STATE_CLASS_ACTIVE;
+      currentSchedule = nextSchedule;
       currentSchedule.id = nextSchedule.id;
     }
   }
@@ -605,6 +612,7 @@ void displayIdle() {
   
   displayFooter();
   display.display();
+  yield();
 }
 
 void displayPreClass() {
@@ -638,6 +646,7 @@ void displayClassActive() {
   }
   
   display.display();
+  yield();  // Feed watchdog after display
 }
 
 void displayClassEnded() {
