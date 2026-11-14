@@ -20,6 +20,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <WebServer.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
@@ -101,9 +102,14 @@ String deviceId = "";
 String getCurrentTimeStr() {
   char timeBuf[9];
   if (rtcAvailable) {
-    DateTime now = rtc.now();
-    sprintf(timeBuf, "%02d:%02d:%02d", now.hour(), now.minute(), now.second());
+    // RTC stores UTC, convert to WIB (+7 hours)
+    DateTime utc = rtc.now();
+    time_t utc_epoch = utc.unixtime();
+    time_t wib_epoch = utc_epoch + 25200;
+    struct tm* tm_wib = localtime(&wib_epoch);
+    strftime(timeBuf, sizeof(timeBuf), "%H:%M:%S", tm_wib);
   } else {
+    // NTP already synced with WIB timezone via configTime()
     time_t now = time(nullptr);
     strftime(timeBuf, sizeof(timeBuf), "%H:%M:%S", localtime(&now));
   }
@@ -111,15 +117,19 @@ String getCurrentTimeStr() {
 }
 
 bool isTimePast(const String& targetTime) {
-  // targetTime format: "HH:MM"
+  // targetTime format: "HH:MM" in WIB
   if (targetTime.length() < 5) return false;
   
   int targetHour = targetTime.substring(0, 2).toInt();
   int targetMin = targetTime.substring(3, 5).toInt();
   
   if (rtcAvailable) {
-    DateTime now = rtc.now();
-    return (now.hour() > targetHour) || (now.hour() == targetHour && now.minute() >= targetMin);
+    // RTC stores UTC, convert to WIB for comparison
+    DateTime utc = rtc.now();
+    time_t utc_epoch = utc.unixtime();
+    time_t wib_epoch = utc_epoch + 25200;
+    struct tm* tm_wib = localtime(&wib_epoch);
+    return (tm_wib->tm_hour > targetHour) || (tm_wib->tm_hour == targetHour && tm_wib->tm_min >= targetMin);
   } else {
     time_t now = time(nullptr);
     struct tm* tm_now = localtime(&now);
@@ -151,23 +161,28 @@ void connectWiFi() {
 
 // ==================== NTP Time Sync ====================
 void syncNTP() {
-  configTime(0, 0, "pool.ntp.org", "time.google.com");
+  // WIB = UTC+7 (25200 seconds), no DST
+  configTime(25200, 0, "pool.ntp.org", "time.google.com", "time.cloudflare.com");
   time_t now = time(nullptr);
   int attempts = 0;
   
-  while (now < 1000000000 && attempts < 10) {
+  while (now < 1000000000 && attempts < 20) {
     delay(500);
     now = time(nullptr);
     attempts++;
   }
   
   if (now >= 1000000000) {
-    Serial.println("NTP Synced!");
-    // Sync RTC from NTP if RTC available
+    Serial.println("NTP Synced (WIB)!");
+    struct tm* tm_wib = localtime(&now);
+    Serial.printf("WIB Time: %02d:%02d:%02d\n", tm_wib->tm_hour, tm_wib->tm_min, tm_wib->tm_sec);
+    
+    // Sync RTC from NTP (RTC stores UTC, so convert WIB->UTC)
     if (rtcAvailable) {
-      DateTime ntp = DateTime(now);
-      rtc.adjust(ntp);
-      Serial.println("RTC synced from NTP");
+      time_t utc = now - 25200;  // WIB to UTC
+      DateTime ntp_utc = DateTime(utc);
+      rtc.adjust(ntp_utc);
+      Serial.println("RTC synced from NTP (stored as UTC)");
     }
   } else {
     Serial.println("NTP Failed!");
