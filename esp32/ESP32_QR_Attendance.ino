@@ -470,6 +470,9 @@ void setupCallbackServer() {
 }
 
 // ==================== Display Functions ====================
+// Static QR buffer to avoid stack overflow
+static uint8_t qrcodeDataStatic[qrcode_getBufferSize(7)];
+
 void drawQRCode(const String& token) {
   if (token.length() == 0) return;
   
@@ -485,9 +488,8 @@ void drawQRCode(const String& token) {
     }
   }
   
-  uint8_t qrcodeData[qrcode_getBufferSize(7)];
   QRCode qrcode;
-  qrcode_initText(&qrcode, qrcodeData, 7, ECC_LOW, qrToken.c_str());
+  qrcode_initText(&qrcode, qrcodeDataStatic, 7, ECC_LOW, qrToken.c_str());
   
   // Full screen QR (version 7 = 45x45 modules, scale to fill 128x64)
   int qrSize = 60;  // Max height for 64px screen
@@ -653,10 +655,6 @@ void processState() {
   String targetScheduleId = "";
   
   switch (currentState) {
-    case STATE_IDLE:
-      hasValidToken = false;
-      break;
-      
     case STATE_PRE_CLASS:
       // 15 min before class - generate ENTRY QR
       if (!hasValidToken) {
@@ -697,6 +695,10 @@ void processState() {
         targetType = "entry";
         targetScheduleId = currentSchedule.id;
       }
+      break;
+      
+    case STATE_IDLE:
+      hasValidToken = false;
       break;
   }
   
@@ -767,39 +769,70 @@ void setup() {
 }
 
 // ==================== Loop ====================
+unsigned long lastDisplayUpdate = 0;
+const int DISPLAY_UPDATE_INTERVAL = 1000;  // Update display only once per second
+
 void loop() {
   // Handle callback server
   server.handleClient();
+  yield();
   
   unsigned long now = millis();
   
-  // Poll every 60 seconds
-  if (now - lastPollTime >= POLL_INTERVAL) {
+  // Poll every 30 seconds (reduced from 60 for faster response)
+  if (now - lastPollTime >= 30000) {
     lastPollTime = now;
     Serial.println("Polling room state...");
     
     if (fetchRoomState()) {
       processState();
-      updateDisplay();
     } else {
       Serial.println("Poll failed, keeping current display");
     }
-    yield();  // Feed watchdog after polling
+    yield();
   }
+  
+  // Local state machine: check if we need to transition based on time
+  checkLocalStateTransition();
   
   // QR countdown refresh
   if (hasValidToken) {
     qrCountdown--;
     if (qrCountdown <= 0) {
       qrCountdown = QR_DISPLAY_TIME / 1000;
-      updateDisplay();
+      // Token expired, will be refetched on next processState
+      hasValidToken = false;
     }
   }
   
-  // Update display every second for realtime clock
-  updateDisplay();
+  // Update display only once per second (not every loop)
+  if (now - lastDisplayUpdate >= DISPLAY_UPDATE_INTERVAL) {
+    lastDisplayUpdate = now;
+    updateDisplay();
+  }
   
-  // Feed watchdog to prevent reset
+  // Feed watchdog
   yield();
-  delay(100);  // Small delay to avoid tight loop
+  delay(50);  // Small delay
+}
+
+void checkLocalStateTransition() {
+  // Only relevant if we have a current schedule
+  if (currentSchedule.id.length() == 0) return;
+  
+  // If in PRE_CLASS and past start time, transition to CLASS_ACTIVE locally
+  if (currentState == STATE_PRE_CLASS && isTimePast(currentSchedule.start_time)) {
+    Serial.println("[LOCAL] Transition: PRE_CLASS -> CLASS_ACTIVE (time based)");
+    currentState = STATE_CLASS_ACTIVE;
+    hasValidToken = false;  // Force token refetch
+    processState();
+  }
+  
+  // If in CLASS_ACTIVE and past end time, transition to CLASS_ENDED
+  if (currentState == STATE_CLASS_ACTIVE && isTimePast(currentSchedule.end_time)) {
+    Serial.println("[LOCAL] Transition: CLASS_ACTIVE -> CLASS_ENDED (time based)");
+    currentState = STATE_CLASS_ENDED;
+    hasValidToken = false;
+    updateDisplay();
+  }
 }
