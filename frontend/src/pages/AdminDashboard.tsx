@@ -19,6 +19,10 @@ import {
   MapPin,
   Menu,
   X,
+  Filter,
+  FileSpreadsheet,
+  FileText,
+  Loader2,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useAuth } from "../hooks/useAuth";
@@ -41,7 +45,7 @@ import api from "../lib/api";
     { id: "mapel", label: "Mata Pelajaran", Icon: BookOpen },
     { id: "kelas", label: "Kelas", Icon: GraduationCap },
     { id: "jadwal", label: "Jadwal Kelas", Icon: CalendarDays },
-    { id: "laporan", label: "Laporan", Icon: FileOutput },
+    { id: "laporan", label: "History Absensi", Icon: FileOutput },
   ];
 
 interface Teacher {
@@ -215,6 +219,83 @@ const AdminDashboard = () => {
     confirmPassword: "",
   });
   const [addTeacherLoading, setAddTeacherLoading] = useState(false);
+
+  // History Absensi State
+  const [historyFilterType, setHistoryFilterType] = useState<"day" | "week" | "month" | "year">("month");
+  const [historyYear, setHistoryYear] = useState(new Date().getFullYear());
+  const [historyMonth, setHistoryMonth] = useState(new Date().getMonth() + 1);
+  const [historyDay, setHistoryDay] = useState(new Date().getDate());
+  const [historyWeek, setHistoryWeek] = useState(1);
+  const [historyTeacherId, setHistoryTeacherId] = useState<string | null>(null);
+  const [historyData, setHistoryData] = useState<any>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [exportingHistory, setExportingHistory] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadHistory();
+  }, [historyFilterType, historyYear, historyMonth, historyDay, historyWeek, historyTeacherId]);
+
+  const loadHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const params = new URLSearchParams({
+        filter_type: historyFilterType,
+        year: historyYear.toString(),
+        month: historyMonth.toString(),
+      });
+      if (historyFilterType === "day") {
+        params.append("day", historyDay.toString());
+      } else if (historyFilterType === "week") {
+        params.append("week", historyWeek.toString());
+      }
+      if (historyTeacherId) {
+        params.append("teacher_id", historyTeacherId);
+      }
+      const res = await api.get(`/reports/attendance/history?${params.toString()}`);
+      setHistoryData(res.data);
+    } catch (err) {
+      console.error("Failed to load history:", err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const exportHistory = async (format: "csv" | "excel" | "pdf") => {
+    setExportingHistory(format);
+    try {
+      const params = new URLSearchParams({
+        filter_type: historyFilterType,
+        year: historyYear.toString(),
+        month: historyMonth.toString(),
+      });
+      if (historyFilterType === "day") {
+        params.append("day", historyDay.toString());
+      } else if (historyFilterType === "week") {
+        params.append("week", historyWeek.toString());
+      }
+      if (historyTeacherId) {
+        params.append("teacher_id", historyTeacherId);
+      }
+
+      const response = await api.get(`/reports/attendance/${format}?${params.toString()}`, {
+        responseType: "blob",
+      });
+
+      const blob = new Blob([response.data], {
+        type: format === "csv" ? "text/csv" : format === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `history_absensi_${historyYear}-${historyMonth}.${format}`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Export failed:", err);
+    } finally {
+      setExportingHistory(null);
+    }
+  };
 
   // Theme
   const { theme, toggleTheme } = useTheme();
@@ -1810,17 +1891,207 @@ const AdminDashboard = () => {
 
             {tab === "laporan" && (
               <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none">
+                {/* Filter Controls */}
                 <div className="glass-card-light p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Laporan Absensi</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                    Akses halaman laporan lengkap dengan fitur export PDF/Excel/CSV
+                  <div className="flex items-center gap-2 mb-4">
+                    <Filter className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                    <h3 className="font-semibold text-gray-900 dark:text-white">Filter History</h3>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    {/* Filter Type */}
+                    <select
+                      value={historyFilterType}
+                      onChange={(e) => setHistoryFilterType(e.target.value as "day" | "week" | "month" | "year")}
+                      className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                    >
+                      <option value="day">Harian</option>
+                      <option value="week">Mingguan</option>
+                      <option value="month">Bulanan</option>
+                      <option value="year">Tahunan</option>
+                    </select>
+                    {/* Year */}
+                    <select
+                      value={historyYear}
+                      onChange={(e) => setHistoryYear(parseInt(e.target.value))}
+                      className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                    >
+                      {[2024, 2025, 2026, 2027].map((y) => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                    {/* Month */}
+                    {(historyFilterType === "day" || historyFilterType === "week" || historyFilterType === "month") && (
+                      <select
+                        value={historyMonth}
+                        onChange={(e) => setHistoryMonth(parseInt(e.target.value))}
+                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                      >
+                        {["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"].map((m, i) => (
+                          <option key={i + 1} value={i + 1}>{m}</option>
+                        ))}
+                      </select>
+                    )}
+                    {/* Day */}
+                    {historyFilterType === "day" && (
+                      <select
+                        value={historyDay}
+                        onChange={(e) => setHistoryDay(parseInt(e.target.value))}
+                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                      >
+                        {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
+                    )}
+                    {/* Week */}
+                    {historyFilterType === "week" && (
+                      <select
+                        value={historyWeek}
+                        onChange={(e) => setHistoryWeek(parseInt(e.target.value))}
+                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                      >
+                        {[1, 2, 3, 4].map((w) => (
+                          <option key={w} value={w}>Minggu ke-{w}</option>
+                        ))}
+                      </select>
+                    )}
+                    {/* Teacher Filter */}
+                    <select
+                      value={historyTeacherId || ""}
+                      onChange={(e) => setHistoryTeacherId(e.target.value || null)}
+                      className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                    >
+                      <option value="">Semua Guru</option>
+                      {teachers.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {/* Export Buttons */}
+                  <div className="flex gap-2 mt-4">
+                    <button
+                      onClick={() => exportHistory("csv")}
+                      disabled={exportingHistory !== null}
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                    >
+                      <FileOutput className="w-4 h-4" />
+                      CSV
+                    </button>
+                    <button
+                      onClick={() => exportHistory("excel")}
+                      disabled={exportingHistory !== null}
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                    >
+                      <FileSpreadsheet className="w-4 h-4" />
+                      Excel
+                    </button>
+                    <button
+                      onClick={() => exportHistory("pdf")}
+                      disabled={exportingHistory !== null}
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                    >
+                      <FileText className="w-4 h-4" />
+                      PDF
+                    </button>
+                  </div>
+                </div>
+
+                {/* Summary Stats */}
+                {historyData && historyData.summary && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                      { label: "Total Absensi", value: historyData.summary.total, color: "bg-emerald-500" },
+                      { label: "Tepat Waktu", value: historyData.summary.on_time, color: "bg-green-500" },
+                      { label: "Terlambat", value: historyData.summary.late, color: "bg-amber-500" },
+                      { label: "Rate Kehadiran", value: `${historyData.summary.attendance_rate}%`, color: "bg-blue-500" },
+                    ].map((stat) => (
+                      <div key={stat.label} className="glass-card-light p-4">
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">{stat.label}</p>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-2 rounded-full ${stat.color}`} />
+                          <p className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* History Table */}
+                <div className="glass-card-light overflow-hidden">
+                  <div className="p-6 border-b border-gray-100 dark:border-gray-800">
+                    <h3 className="font-semibold text-gray-900 dark:text-white">Detail Absensi per Tanggal</h3>
+                  </div>
+                  {historyLoading ? (
+                    <div className="p-8 text-center">
+                      <Loader2 className="w-8 h-8 animate-spin mx-auto text-emerald-600" />
+                      <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Memuat data...</p>
+                    </div>
+                  ) : !historyData?.history?.length ? (
+                    <div className="p-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                      Tidak ada data absensi untuk periode yang dipilih.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-gray-50 dark:bg-white/5">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Tanggal</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Guru</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">NIP</th>
+                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
+                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Tepat Waktu</th>
+                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Terlambat</th>
+                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Rata-rata Telat</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                          {historyData.history.map((day: any) =>
+                            day.teachers.map((teacher: any, idx: number) => (
+                              <tr key={`${day.date}-${teacher.teacher_id}`} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                                {idx === 0 && (
+                                  <td
+                                    rowSpan={day.teachers.length}
+                                    className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white align-top"
+                                  >
+                                    {new Date(day.date).toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short" })}
+                                  </td>
+                                )}
+                                <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{teacher.teacher_name}</td>
+                                <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{teacher.nip}</td>
+                                <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{teacher.total}</td>
+                                <td className="px-4 py-3 text-sm text-center">
+                                  <span className="px-2 py-1 text-xs rounded-full bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-300">
+                                    {teacher.on_time}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-center">
+                                  <span className="px-2 py-1 text-xs rounded-full bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300">
+                                    {teacher.late}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-center text-gray-600 dark:text-gray-400">
+                                  {teacher.avg_lateness > 0 ? `${teacher.avg_lateness} mnt` : "-"}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Link to full report page */}
+                <div className="glass-card-light p-6">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    Butuh laporan lengkap dengan detail per sesi absensi?
                   </p>
                   <a
                     href="/admin/reports"
                     className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors shadow-emerald-glow"
                   >
                     <FileOutput className="w-5 h-5" />
-                    Buka Halaman Laporan
+                    Buka Halaman Laporan Lengkap
                   </a>
                 </div>
               </div>

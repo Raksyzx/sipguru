@@ -471,3 +471,222 @@ async def get_teacher_summary(
         "summary": stats,
         "attendance_rate": round(stats["on_time"] / max(stats["total"], 1) * 100, 2)
     }
+
+
+@router.get("/attendance/history")
+async def get_attendance_history(
+    filter_type: str = Query("month", enum=["day", "week", "month", "year"]),
+    year: int = Query(None),
+    month: int = Query(None),
+    day: int = Query(None),
+    week: int = Query(None),
+    teacher_id: Optional[str] = Query(None),
+    auth_user: dict = Depends(get_current_user),
+):
+    """Get attendance history grouped by period with teacher breakdown."""
+    if year is None:
+        year = datetime.now().year
+    if month is None:
+        month = datetime.now().month
+    
+    conn = db._get_connection()
+    cursor = conn.cursor()
+    
+    # Build date filter based on filter_type
+    if filter_type == "day":
+        if day is None:
+            day = datetime.now().day
+        date_filter = f"{year}-{month:02d}-{day:02d}"
+        start_date, end_date = date_filter, date_filter
+        cursor.execute("""
+            SELECT 
+                strftime('%Y-%m-%d', created_at) as period_date,
+                al.teacher_id,
+                u.name as teacher_name,
+                u.nip,
+                COUNT(*) as total,
+                SUM(CASE WHEN al.status = 'on_time' THEN 1 ELSE 0 END) as on_time,
+                SUM(CASE WHEN al.status = 'late' THEN 1 ELSE 0 END) as late,
+                AVG(CASE WHEN al.status = 'late' THEN al.lateness_minutes ELSE NULL END) as avg_late
+            FROM attendance_logs al
+            JOIN users u ON al.teacher_id = u.id
+            WHERE strftime('%Y-%m-%d', al.created_at) = ?
+        """, [date_filter])
+    elif filter_type == "week":
+        if week is None:
+            week = (datetime.now().day - 1) // 7 + 1
+        start_date = f"{year}-{month:02d}-{max(1, (week - 1) * 7 + 1):02d}"
+        end_day = min(week * 7, 28)  # Simplified week handling
+        end_date = f"{year}-{month:02d}-{end_day:02d}"
+        cursor.execute("""
+            SELECT 
+                strftime('%Y-%m-%d', created_at) as period_date,
+                al.teacher_id,
+                u.name as teacher_name,
+                u.nip,
+                COUNT(*) as total,
+                SUM(CASE WHEN al.status = 'on_time' THEN 1 ELSE 0 END) as on_time,
+                SUM(CASE WHEN al.status = 'late' THEN 1 ELSE 0 END) as late,
+                AVG(CASE WHEN al.status = 'late' THEN al.lateness_minutes ELSE NULL END) as avg_late
+            FROM attendance_logs al
+            JOIN users u ON al.teacher_id = u.id
+            WHERE strftime('%Y-%m-%d', al.created_at) BETWEEN ? AND ?
+        """, [start_date, end_date])
+    elif filter_type == "month":
+        start_date = f"{year}-{month:02d}-01"
+        if month == 12:
+            end_date = f"{year + 1}-01-01"
+        else:
+            end_date = f"{year}-{month + 1:02d}-01"
+        cursor.execute("""
+            SELECT 
+                strftime('%Y-%m-%d', created_at) as period_date,
+                al.teacher_id,
+                u.name as teacher_name,
+                u.nip,
+                COUNT(*) as total,
+                SUM(CASE WHEN al.status = 'on_time' THEN 1 ELSE 0 END) as on_time,
+                SUM(CASE WHEN al.status = 'late' THEN 1 ELSE 0 END) as late,
+                AVG(CASE WHEN al.status = 'late' THEN al.lateness_minutes ELSE NULL END) as avg_late
+            FROM attendance_logs al
+            JOIN users u ON al.teacher_id = u.id
+            WHERE strftime('%Y-%m-%d', al.created_at) BETWEEN ? AND ?
+        """, [start_date, end_date])
+    else:  # year
+        start_date = f"{year}-01-01"
+        end_date = f"{year}-12-31"
+        cursor.execute("""
+            SELECT 
+                strftime('%Y-%m-%d', created_at) as period_date,
+                al.teacher_id,
+                u.name as teacher_name,
+                u.nip,
+                COUNT(*) as total,
+                SUM(CASE WHEN al.status = 'on_time' THEN 1 ELSE 0 END) as on_time,
+                SUM(CASE WHEN al.status = 'late' THEN 1 ELSE 0 END) as late,
+                AVG(CASE WHEN al.status = 'late' THEN al.lateness_minutes ELSE NULL END) as avg_late
+            FROM attendance_logs al
+            JOIN users u ON al.teacher_id = u.id
+            WHERE strftime('%Y-%m-%d', al.created_at) BETWEEN ? AND ?
+        """, [start_date, end_date])
+    
+    if teacher_id:
+        # Re-execute with teacher filter
+        if filter_type == "day":
+            cursor.execute("""
+                SELECT 
+                    strftime('%Y-%m-%d', created_at) as period_date,
+                    al.teacher_id,
+                    u.name as teacher_name,
+                    u.nip,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN al.status = 'on_time' THEN 1 ELSE 0 END) as on_time,
+                    SUM(CASE WHEN al.status = 'late' THEN 1 ELSE 0 END) as late,
+                    AVG(CASE WHEN al.status = 'late' THEN al.lateness_minutes ELSE NULL END) as avg_late
+                FROM attendance_logs al
+                JOIN users u ON al.teacher_id = u.id
+                WHERE strftime('%Y-%m-%d', al.created_at) = ? AND al.teacher_id = ?
+            """, [date_filter, teacher_id])
+        elif filter_type == "week":
+            cursor.execute("""
+                SELECT 
+                    strftime('%Y-%m-%d', created_at) as period_date,
+                    al.teacher_id,
+                    u.name as teacher_name,
+                    u.nip,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN al.status = 'on_time' THEN 1 ELSE 0 END) as on_time,
+                    SUM(CASE WHEN al.status = 'late' THEN 1 ELSE 0 END) as late,
+                    AVG(CASE WHEN al.status = 'late' THEN al.lateness_minutes ELSE NULL END) as avg_late
+                FROM attendance_logs al
+                JOIN users u ON al.teacher_id = u.id
+                WHERE strftime('%Y-%m-%d', al.created_at) BETWEEN ? AND ? AND al.teacher_id = ?
+            """, [start_date, end_date, teacher_id])
+        elif filter_type == "month":
+            cursor.execute("""
+                SELECT 
+                    strftime('%Y-%m-%d', created_at) as period_date,
+                    al.teacher_id,
+                    u.name as teacher_name,
+                    u.nip,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN al.status = 'on_time' THEN 1 ELSE 0 END) as on_time,
+                    SUM(CASE WHEN al.status = 'late' THEN 1 ELSE 0 END) as late,
+                    AVG(CASE WHEN al.status = 'late' THEN al.lateness_minutes ELSE NULL END) as avg_late
+                FROM attendance_logs al
+                JOIN users u ON al.teacher_id = u.id
+                WHERE strftime('%Y-%m-%d', al.created_at) BETWEEN ? AND ? AND al.teacher_id = ?
+            """, [start_date, end_date, teacher_id])
+        else:
+            cursor.execute("""
+                SELECT 
+                    strftime('%Y-%m-%d', created_at) as period_date,
+                    al.teacher_id,
+                    u.name as teacher_name,
+                    u.nip,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN al.status = 'on_time' THEN 1 ELSE 0 END) as on_time,
+                    SUM(CASE WHEN al.status = 'late' THEN 1 ELSE 0 END) as late,
+                    AVG(CASE WHEN al.status = 'late' THEN al.lateness_minutes ELSE NULL END) as avg_late
+                FROM attendance_logs al
+                JOIN users u ON al.teacher_id = u.id
+                WHERE strftime('%Y-%m-%d', al.created_at) BETWEEN ? AND ? AND al.teacher_id = ?
+            """, [start_date, end_date, teacher_id])
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    # Group by date and teacher
+    history = {}
+    for row in rows:
+        date = row["period_date"]
+        teacher_id_key = row["teacher_id"]
+        
+        if date not in history:
+            history[date] = {"date": date, "teachers": [], "day_total": 0, "day_on_time": 0, "day_late": 0}
+        
+        teacher_record = {
+            "teacher_id": teacher_id_key,
+            "teacher_name": row["teacher_name"],
+            "nip": row["nip"],
+            "total": row["total"] or 0,
+            "on_time": row["on_time"] or 0,
+            "late": row["late"] or 0,
+            "avg_lateness": round(row["avg_late"], 1) if row["avg_late"] else 0,
+        }
+        
+        # Check if teacher already exists for this date
+        existing = next((t for t in history[date]["teachers"] if t["teacher_id"] == teacher_id_key), None)
+        if existing:
+            existing["total"] += teacher_record["total"]
+            existing["on_time"] += teacher_record["on_time"]
+            existing["late"] += teacher_record["late"]
+        else:
+            history[date]["teachers"].append(teacher_record)
+        
+        history[date]["day_total"] += teacher_record["total"]
+        history[date]["day_on_time"] += teacher_record["on_time"]
+        history[date]["day_late"] += teacher_record["late"]
+    
+    # Convert to sorted list
+    history_list = sorted(history.values(), key=lambda x: x["date"], reverse=True)
+    
+    # Calculate overall summary
+    total_all = sum(h["day_total"] for h in history_list)
+    on_time_all = sum(h["day_on_time"] for h in history_list)
+    late_all = sum(h["day_late"] for h in history_list)
+    
+    return {
+        "filter_type": filter_type,
+        "period": {"year": year, "month": month, "day": day, "week": week},
+        "start_date": start_date,
+        "end_date": end_date,
+        "summary": {
+            "total": total_all,
+            "on_time": on_time_all,
+            "late": late_all,
+            "attendance_rate": round(on_time_all / max(total_all, 1) * 100, 2),
+            "unique_teachers": len(set(r["teacher_id"] for r in rows)),
+        },
+        "history": history_list,
+    }
