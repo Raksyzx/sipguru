@@ -904,8 +904,8 @@ void loop() {
   unsigned long now = millis();
   lastSuccessfulLoop = now;  // Mark successful loop iteration
   
-  // Poll every 30 seconds (reduced from 60 for faster response)
-  if (now - lastPollTime >= 30000) {
+  // Poll every 10 seconds for faster response to schedule changes
+  if (now - lastPollTime >= 10000) {
     lastPollTime = now;
     
     if (WiFi.status() == WL_CONNECTED) {
