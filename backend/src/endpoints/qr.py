@@ -412,29 +412,8 @@ async def generate_auto_qr_token(
         
         print(f"[AUTO-TOKEN] Token created successfully: qr_id={qr_id}")
         
-        # Push to ESP32 via HTTP callback (if device is registered)
-        device = db.get_device_by_room(room_id)
-        if device and device.get("callback_url"):
-            try:
-                import requests
-                requests.post(
-                    device["callback_url"],
-                    json={
-                        "event": "qr_generated",
-                        "room_id": room_id,
-                        "room_code": room["room_code"],
-                        "schedule_id": schedule_id,
-                        "token": token,
-                        "token_type": token_type,
-                        "expires_at": expires_at,
-                        "grade_name": schedule.get("grade_name"),
-                        "subject_name": schedule.get("subject_name")
-                    },
-                    timeout=5
-                )
-                print(f"[AUTO-TOKEN] Pushed to ESP32 callback: {device['callback_url']}")
-            except Exception as e:
-                print(f"[AUTO-TOKEN] Failed to push QR to ESP32: {e}")
+        # Note: ESP32 callback via devices table temporarily disabled
+        # Device will receive token directly from POST response
         
         return {
             "message": f"QR token generated for {token_type}",
