@@ -470,8 +470,9 @@ void setupCallbackServer() {
 }
 
 // ==================== Display Functions ====================
-// Static QR buffer to avoid stack overflow
-static uint8_t qrcodeDataStatic[qrcode_getBufferSize(7)];
+// Static QR buffer to avoid stack overflow (version 7 = 45x45 modules, ~600 bytes)
+#define QR_VERSION 7
+static uint8_t qrcodeDataStatic[QR_VERSION * QR_VERSION + 2 + 1];
 
 void drawQRCode(const String& token) {
   if (token.length() == 0) return;
@@ -679,7 +680,7 @@ void processState() {
       }
       break;
       
-    case STATE_CLASS_ACTIVE:
+    case STATE_CLASS_ACTIVE: {
       // Check if we need ENTRY or EXIT token
       // Calculate time until class ends
       int endHour = 0, endMin = 0;
@@ -730,6 +731,7 @@ void processState() {
         Serial.printf("[STATE] Switching to EXIT token (%d min until end)\n", minsUntilEnd);
       }
       break;
+    }
       
     case STATE_CLASS_ENDED:
       hasValidToken = false;
