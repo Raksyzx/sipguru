@@ -267,22 +267,35 @@ class LocalDBClient:
     
     # User operations
     def verify_credentials(self, email: str, password: str) -> Optional[Dict]:
-        """Verify email+password"""
+        """Verify email+password (supports both plain text and bcrypt hashed passwords)"""
         conn = self._get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM users WHERE email = ? AND password = ?", (email, password))
+        cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
         row = cursor.fetchone()
         conn.close()
         
-        if row:
-            return {
-                "id": row["id"],
-                "email": row["email"],
-                "name": row["name"],
-                "role": row["role"],
-                "nip": row["nip"]
-            }
-        return None
+        if not row:
+            return None
+        
+        stored_password = row["password"]
+        # Check if password is bcrypt hashed (starts with $2)
+        if stored_password.startswith("$2"):
+            from passlib.context import CryptContext
+            pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+            if not pwd_context.verify(password, stored_password):
+                return None
+        else:
+            # Plain text comparison (legacy)
+            if stored_password != password:
+                return None
+        
+        return {
+            "id": row["id"],
+            "email": row["email"],
+            "name": row["name"],
+            "role": row["role"],
+            "nip": row["nip"]
+        }
     
     def get_user(self, user_id: str) -> Optional[Dict]:
         """Get user by ID"""
@@ -311,17 +324,46 @@ class LocalDBClient:
         conn.close()
         return dict(row) if row else None
     
+    def is_email_taken(self, email: str, exclude_id: str = None) -> bool:
+        """Check if email is already taken (optionally excluding a specific user ID)"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        if exclude_id:
+            cursor.execute("SELECT id FROM users WHERE email = ? AND id != ?", (email, exclude_id))
+        else:
+            cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+        row = cursor.fetchone()
+        conn.close()
+        return row is not None
+    
+    def is_nip_taken(self, nip: str, exclude_id: str = None) -> bool:
+        """Check if NIP is already taken (optionally excluding a specific user ID)"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        if exclude_id:
+            cursor.execute("SELECT id FROM users WHERE nip = ? AND id != ?", (nip, exclude_id))
+        else:
+            cursor.execute("SELECT id FROM users WHERE nip = ?", (nip,))
+        row = cursor.fetchone()
+        conn.close()
+        return row is not None
+    
     def create_user(self, email: str, name: str, nip: str, 
                    role: str = "teacher", phone: str = None,
-                   school_id: str = None, password: str = "password123") -> str:
-        """Create new user"""
+                   school_id: str = None, password: str = "password123",
+                   password_hash: str = None) -> str:
+        """Create new user (supports both plain password and pre-hashed password)"""
         user_id = self._generate_id()
         conn = self._get_connection()
         cursor = conn.cursor()
+        
+        # Use password_hash if provided, otherwise use plain password
+        final_password = password_hash if password_hash is not None else password
+        
         cursor.execute("""
             INSERT INTO users (id, email, name, nip, role, phone, school_id, password)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (user_id, email, name, nip, role, phone, school_id, password))
+        """, (user_id, email, name, nip, role, phone, school_id, final_password))
         conn.commit()
         conn.close()
         return user_id
@@ -407,6 +449,45 @@ class LocalDBClient:
         conn.commit()
         conn.close()
         return room_id
+    
+    def update_room(self, room_id: str, name: str = None, room_code: str = None, geofence_radius: int = None, geolocation: str = None) -> bool:
+        """Update room"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        fields = []
+        values = []
+        if name is not None:
+            fields.append("name = ?")
+            values.append(name)
+        if room_code is not None:
+            fields.append("room_code = ?")
+            values.append(room_code)
+        if geofence_radius is not None:
+            fields.append("geofence_radius = ?")
+            values.append(geofence_radius)
+        if geolocation is not None:
+            fields.append("geolocation = ?")
+            values.append(geolocation)
+        
+        if not fields:
+            conn.close()
+            return False
+            
+        values.append(room_id)
+        cursor.execute(f"UPDATE rooms SET {', '.join(fields)} WHERE id = ?", values)
+        conn.commit()
+        conn.close()
+        return cursor.rowcount > 0
+    
+    def delete_room(self, room_id: str) -> bool:
+        """Delete room"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM rooms WHERE id = ?", (room_id,))
+        conn.commit()
+        conn.close()
+        return cursor.rowcount > 0
     
     # Schedule operations
     def get_schedule_by_teacher_and_day(self, teacher_id: str, 
