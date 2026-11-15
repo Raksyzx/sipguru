@@ -3,7 +3,8 @@
   "build": {
     "builder": "NIXPACKS",
     "nixpacksConfig": {
-      "rootDirectory": "backend"
+      "rootDirectory": ".",
+      "buildCommand": "cd frontend && npm install && npm run build && cp -r dist ../backend/"
     }
   },
   "deploy": {
