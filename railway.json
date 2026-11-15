@@ -4,7 +4,7 @@
     "builder": "NIXPACKS",
     "nixpacksConfig": {
       "rootDirectory": ".",
-      "buildCommand": "cd frontend && npm install && npm run build && cp -r dist ../backend/"
+      "buildCommand": "npm install --prefix frontend && npm run build --prefix frontend && cp -r frontend/dist backend/"
     }
   },
   "deploy": {
