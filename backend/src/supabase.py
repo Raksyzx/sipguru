@@ -460,8 +460,9 @@ class SupabaseClient:
         import json
         client = self._get_client()
 
+        # Select without lateness_minutes initially (fallback if column missing)
         query = client.table("attendance_logs").select(
-            "id,teacher_id,room_id,status,lateness_minutes,geolocation,created_at"
+            "id,teacher_id,room_id,status,geolocation,created_at"
         ).gte("created_at", f"{start_date}T00:00:00").lt("created_at", f"{end_date}T23:59:59.999")
 
         if teacher_id:
@@ -472,6 +473,18 @@ class SupabaseClient:
 
         if not result.data:
             return []
+
+        # Try to get lateness_minutes if column exists
+        lateness_map = {}
+        try:
+            lat_query = client.table("attendance_logs").select(
+                "id,lateness_minutes"
+            ).in_("id", [log["id"] for log in result.data]).execute()
+            if lat_query.data:
+                lateness_map = {log["id"]: log.get("lateness_minutes", 0) for log in lat_query.data}
+        except Exception:
+            # Column doesn't exist yet - use 0 as fallback
+            pass
 
         teacher_ids = list(set(log["teacher_id"] for log in result.data))
         room_ids = list(set(log["room_id"] for log in result.data if log.get("room_id")))
@@ -497,6 +510,8 @@ class SupabaseClient:
             r = rooms.get(log["room_id"]) if log.get("room_id") else None
             record["room_name"] = r["name"] if r else ""
             record["room_code"] = r["room_code"] if r else ""
+            # Add lateness_minutes with fallback
+            record["lateness_minutes"] = lateness_map.get(log["id"], 0)
             if record.get("geolocation"):
                 try:
                     record["geolocation"] = json.loads(record["geolocation"])
