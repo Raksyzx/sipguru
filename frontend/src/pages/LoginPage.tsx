@@ -185,9 +185,27 @@ const LoginPage = () => {
         navigate("/teacher/dashboard");
       }
     } catch (err: unknown) {
-      const detail =
-        (err as { response?: { data?: { detail?: string } } }).response?.data?.detail;
-      setError(detail || "Gagal menghubungi server. Periksa koneksi.");
+      const axiosErr = err as {
+        response?: { status?: number; data?: { detail?: string } };
+        message?: string;
+      };
+      const status = axiosErr.response?.status;
+      const detail = axiosErr.response?.data?.detail;
+
+      // Map common failures to user-friendly Indonesian messages.
+      // A raw "Not Found" (404) here means the request never reached a real
+      // API route (misconfigured VITE_API_URL / baseURL without "/api").
+      if (status === 404) {
+        setError(
+          "Endpoint login tidak ditemukan (404). Periksa konfigurasi VITE_API_URL — URL API harus mengarah ke backend dengan akhiran /api."
+        );
+      } else if (status === 401) {
+        setError("Email atau password salah.");
+      } else if (!axiosErr.response) {
+        setError("Tidak dapat terhubung ke server. Pastikan backend berjalan dan periksa koneksi jaringan.");
+      } else {
+        setError(detail || "Terjadi kesalahan. Silakan coba lagi.");
+      }
     } finally {
       setIsLoading(false);
     }

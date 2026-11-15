@@ -371,35 +371,54 @@ const AdminDashboard = () => {
     setConfirmEdit(null);
   };
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [t, r, l, s, subj, grd, sched, jur] = await Promise.all([
-          api.get("/admin/teachers"),
-          api.get("/admin/rooms"),
-          api.get("/admin/leaves"),
-          api.get("/admin/stats/daily"),
-          api.get("/admin/subjects"),
-          api.get("/admin/grades"),
-          api.get("/admin/grade-schedules"),
-          api.get("/admin/jurusan"),
-        ]);
-        setTeachers(t.data?.teachers || []);
-        setRooms(r.data?.rooms || []);
-        setLeaves(l.data?.leaves || []);
-        setStats(s.data?.stats || { total: 0, on_time: 0, late: 0 });
-        setSubjects(subj.data?.subjects || []);
-        setGrades(grd.data?.grades || []);
-        setGradeSchedules(sched.data?.grade_schedules || []);
-        setJurusanList(jur.data?.jurusan || []);
-      } catch (err: any) {
-        const detail = err?.response?.data?.detail || err?.message || err?.code || "Unknown error";
-        setMsg(`Gagal memuat data dashboard: ${detail}`);
-      } finally {
-        setLoading(false);
+  const loadDashboard = async () => {
+    setLoading(true);
+    // Use allSettled so ONE failing endpoint doesn't blank the whole dashboard.
+    // Each section loads independently; failures are collected and reported.
+    const requests: Array<{ key: string; call: Promise<any>; apply: (data: any) => void }> = [
+      { key: "teachers", call: api.get("/admin/teachers"), apply: (d) => setTeachers(d?.teachers || []) },
+      { key: "rooms", call: api.get("/admin/rooms"), apply: (d) => setRooms(d?.rooms || []) },
+      { key: "leaves", call: api.get("/admin/leaves"), apply: (d) => setLeaves(d?.leaves || []) },
+      { key: "stats", call: api.get("/admin/stats/daily"), apply: (d) => setStats(d?.stats || { total: 0, on_time: 0, late: 0 }) },
+      { key: "subjects", call: api.get("/admin/subjects"), apply: (d) => setSubjects(d?.subjects || []) },
+      { key: "grades", call: api.get("/admin/grades"), apply: (d) => setGrades(d?.grades || []) },
+      { key: "grade-schedules", call: api.get("/admin/grade-schedules"), apply: (d) => setGradeSchedules(d?.grade_schedules || []) },
+      { key: "jurusan", call: api.get("/admin/jurusan"), apply: (d) => setJurusanList(d?.jurusan || []) },
+    ];
+
+    const results = await Promise.allSettled(requests.map((r) => r.call));
+    const failed: string[] = [];
+
+    results.forEach((res, i) => {
+      if (res.status === "fulfilled") {
+        try {
+          requests[i].apply(res.value?.data);
+        } catch (e) {
+          console.error(`[DASH] apply failed for ${requests[i].key}:`, e);
+        }
+      } else {
+        const err = res.reason;
+        const status = err?.response?.status;
+        const detail = err?.response?.data?.detail || err?.message || err?.code;
+        console.error(`[DASH] ${requests[i].key} failed:`, status, detail);
+        failed.push(`${requests[i].key}${status ? ` (${status})` : ""}`);
       }
-    };
-    load();
+    });
+
+    if (failed.length) {
+      setMsg(
+        `Sebagian data gagal dimuat: ${failed.join(", ")}. ` +
+        `Periksa koneksi ke backend dan pastikan URL API diakhiri /api.`
+      );
+    } else {
+      setMsg("");
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadDashboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const generateQR = async (scheduleId: string) => {
