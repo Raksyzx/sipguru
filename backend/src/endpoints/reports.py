@@ -1,4 +1,8 @@
-"""Report generation endpoints for SIPGURU - daily/weekly/monthly with PDF/Excel export."""
+"""Report generation endpoints for SIPGURU - daily/weekly/monthly with PDF/Excel export.
+
+Database-agnostic: uses get_db() interface (LocalDBClient or SupabaseClient)
+instead of raw SQLite queries. Works for both local dev and Supabase production.
+"""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -25,12 +29,10 @@ def _get_date_range(period: str, year: int, month: int, week: int = None):
         end = date.strftime("%Y-%m-%d")
         return start, end
     elif period == "weekly":
-        # Week number (1-4) or current week
         if week is None:
             week = (datetime.now().day - 1) // 7 + 1
         start_date = datetime(year, month, 1) + timedelta(weeks=week - 1)
         end_date = start_date + timedelta(days=6)
-        # Don't exceed month end
         if end_date.month != month:
             end_date = datetime(year, month + 1, 1) - timedelta(days=1)
         return start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
@@ -64,60 +66,18 @@ async def get_attendance_report(
         year = datetime.now().year
     if month is None:
         month = datetime.now().month
-    
+
     start_date, end_date = _get_date_range(period, year, month, week)
-    
-    conn = db._get_connection()
-    cursor = conn.cursor()
-    
-    # Build query based on filters
-    query = """
-        SELECT 
-            al.id,
-            al.teacher_id,
-            u.name as teacher_name,
-            u.nip,
-            al.room_id,
-            r.name as room_name,
-            r.room_code,
-            al.status,
-            al.lateness_minutes,
-            al.geolocation,
-            al.created_at
-        FROM attendance_logs al
-        JOIN users u ON al.teacher_id = u.id
-        LEFT JOIN rooms r ON al.room_id = r.id
-        WHERE strftime('%Y-%m-%d', al.created_at) BETWEEN ? AND ?
-    """
-    params = [start_date, end_date]
-    
-    if teacher_id:
-        query += " AND al.teacher_id = ?"
-        params.append(teacher_id)
-    
-    query += " ORDER BY al.created_at DESC"
-    
-    cursor.execute(query, params)
-    rows = cursor.fetchall()
-    conn.close()
-    
-    # Parse geolocation JSON
-    reports = []
-    for row in rows:
-        record = dict(row)
-        if record.get("geolocation"):
-            try:
-                record["geolocation"] = json.loads(record["geolocation"])
-            except:
-                record["geolocation"] = None
-        reports.append(record)
-    
+
+    # Use database-agnostic method (works for both SQLite and Supabase)
+    reports = db.get_attendance_logs_by_period(start_date, end_date, teacher_id)
+
     # Calculate summary stats
     total = len(reports)
     on_time = sum(1 for r in reports if r["status"] == "on_time")
     late = sum(1 for r in reports if r["status"] == "late")
     avg_lateness = sum(r.get("lateness_minutes") or 0 for r in reports if r["status"] == "late") / max(late, 1)
-    
+
     return {
         "period": period,
         "year": year,
@@ -146,19 +106,14 @@ async def export_attendance_csv(
     auth_user: dict = Depends(get_current_user),
 ):
     """Export attendance report as CSV."""
-    # Get data
     report = await get_attendance_report(
-        period=period, year=year, month=month, week=week, 
+        period=period, year=year, month=month, week=week,
         teacher_id=teacher_id, auth_user=auth_user
     )
-    
-    # Generate CSV
+
     output = io.StringIO()
-    
-    # Header
     output.write("Tanggal,Waktu,NIP,Nama Guru,Ruangan,Kode Ruangan,Status,Keterlambatan (menit)\n")
-    
-    # Data rows
+
     for record in report["records"]:
         created = record.get("created_at", "")
         date = created[:10] if created else ""
@@ -168,8 +123,7 @@ async def export_attendance_csv(
             f"{record.get('room_name','')},{record.get('room_code','')},"
             f"{record.get('status','')},{record.get('lateness_minutes') or ''}\n"
         )
-    
-    # Summary
+
     output.write(f"\nRingkasan:\n")
     output.write(f"Periode,{report['period']}\n")
     output.write(f"Total,{report['summary']['total']}\n")
@@ -177,12 +131,12 @@ async def export_attendance_csv(
     output.write(f"Terlambat,{report['summary']['late']}\n")
     output.write(f"Rate Kehadiran,{report['summary']['attendance_rate']}%\n")
     output.write(f"Rata-rata Keterlambatan,{report['summary']['avg_lateness_minutes']} menit\n")
-    
+
     csv_content = output.getvalue()
     output.close()
-    
+
     filename = f"laporan_absensi_{report['start_date']}_to_{report['end_date']}.csv"
-    
+
     return StreamingResponse(
         io.BytesIO(csv_content.encode('utf-8')),
         media_type="text/csv",
@@ -205,18 +159,16 @@ async def export_attendance_excel(
         from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
     except ImportError:
         raise HTTPException(status_code=500, detail="openpyxl not installed. Run: pip install openpyxl")
-    
-    # Get data
+
     report = await get_attendance_report(
         period=period, year=year, month=month, week=week,
         teacher_id=teacher_id, auth_user=auth_user
     )
-    
+
     wb = Workbook()
     ws = wb.active
     ws.title = "Absensi"
-    
-    # Styles
+
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill(start_color="064e3b", end_color="064e3b", fill_type="solid")
     header_alignment = Alignment(horizontal="center", vertical="center")
@@ -224,8 +176,7 @@ async def export_attendance_excel(
         left=Side(style="thin"), right=Side(style="thin"),
         top=Side(style="thin"), bottom=Side(style="thin")
     )
-    
-    # Headers
+
     headers = ["Tanggal", "Waktu", "NIP", "Nama Guru", "Ruangan", "Kode", "Status", "Keterlambatan (menit)"]
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col, value=header)
@@ -233,13 +184,12 @@ async def export_attendance_excel(
         cell.fill = header_fill
         cell.alignment = header_alignment
         cell.border = thin_border
-    
-    # Data rows
+
     for row_idx, record in enumerate(report["records"], 2):
         created = record.get("created_at", "")
         date = created[:10] if created else ""
         time = created[11:16] if len(created) > 11 else ""
-        
+
         ws.cell(row=row_idx, column=1, value=date).border = thin_border
         ws.cell(row=row_idx, column=2, value=time).border = thin_border
         ws.cell(row=row_idx, column=3, value=record.get("nip", "")).border = thin_border
@@ -248,11 +198,10 @@ async def export_attendance_excel(
         ws.cell(row=row_idx, column=6, value=record.get("room_code", "")).border = thin_border
         ws.cell(row=row_idx, column=7, value=record.get("status", "")).border = thin_border
         ws.cell(row=row_idx, column=8, value=record.get("lateness_minutes")).border = thin_border
-    
-    # Summary section
+
     summary_row = len(report["records"]) + 3
     ws.cell(row=summary_row, column=1, value="RINGKASAN").font = Font(bold=True)
-    
+
     summary_data = [
         ("Periode:", report["period"]),
         ("Tanggal:", f"{report['start_date']} - {report['end_date']}"),
@@ -262,12 +211,11 @@ async def export_attendance_excel(
         ("Rate Kehadiran:", f"{report['summary']['attendance_rate']}%"),
         ("Rata-rata Keterlambatan:", f"{report['summary']['avg_lateness_minutes']} menit"),
     ]
-    
+
     for i, (label, value) in enumerate(summary_data, 0):
         ws.cell(row=summary_row + i + 1, column=1, value=label).font = Font(bold=True)
         ws.cell(row=summary_row + i + 1, column=2, value=value)
-    
-    # Column widths
+
     ws.column_dimensions['A'].width = 12
     ws.column_dimensions['B'].width = 10
     ws.column_dimensions['C'].width = 15
@@ -276,14 +224,13 @@ async def export_attendance_excel(
     ws.column_dimensions['F'].width = 12
     ws.column_dimensions['G'].width = 15
     ws.column_dimensions['H'].width = 18
-    
-    # Save to buffer
+
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
-    
+
     filename = f"laporan_absensi_{report['start_date']}_to_{report['end_date']}.xlsx"
-    
+
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -310,16 +257,15 @@ async def export_attendance_pdf(
         from reportlab.lib.enums import TA_CENTER, TA_LEFT
     except ImportError:
         raise HTTPException(status_code=500, detail="reportlab not installed. Run: pip install reportlab")
-    
-    # Get data
+
     report = await get_attendance_report(
         period=period, year=year, month=month, week=week,
         teacher_id=teacher_id, auth_user=auth_user
     )
-    
+
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=0.5*inch, leftMargin=0.5*inch, topMargin=0.5*inch, bottomMargin=0.5*inch)
-    
+
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
         'CustomTitle',
@@ -329,19 +275,16 @@ async def export_attendance_pdf(
         spaceAfter=12,
         alignment=TA_CENTER
     )
-    
+
     elements = []
-    
-    # Title
+
     elements.append(Paragraph("SIPGURU - Laporan Absensi Guru", title_style))
     elements.append(Spacer(1, 0.2*inch))
-    
-    # Period info
+
     period_text = f"Periode: {report['period'].capitalize()} ({report['start_date']} s/d {report['end_date']})"
     elements.append(Paragraph(period_text, styles['Normal']))
     elements.append(Spacer(1, 0.3*inch))
-    
-    # Summary table
+
     summary_data = [
         ["Total Absensi", str(report["summary"]["total"])],
         ["Tepat Waktu", str(report["summary"]["on_time"])],
@@ -349,7 +292,7 @@ async def export_attendance_pdf(
         ["Rate Kehadiran", f"{report['summary']['attendance_rate']}%"],
         ["Rata-rata Keterlambatan", f"{report['summary']['avg_lateness_minutes']} menit"],
     ]
-    
+
     summary_table = Table(summary_data, colWidths=[2.5*inch, 2*inch])
     summary_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#064e3b')),
@@ -365,13 +308,12 @@ async def export_attendance_pdf(
     ]))
     elements.append(summary_table)
     elements.append(Spacer(1, 0.4*inch))
-    
-    # Detail table
+
     elements.append(Paragraph("Detail Absensi", styles['Heading2']))
     elements.append(Spacer(1, 0.2*inch))
-    
+
     table_data = [["Tanggal", "Waktu", "NIP", "Nama", "Ruangan", "Status", "Telat (mnt)"]]
-    
+
     for record in report["records"]:
         created = record.get("created_at", "")
         date = created[:10] if created else ""
@@ -385,7 +327,7 @@ async def export_attendance_pdf(
             record.get("status", ""),
             str(record.get("lateness_minutes") or ""),
         ])
-    
+
     detail_table = Table(table_data, colWidths=[0.9*inch, 0.7*inch, 1*inch, 1.5*inch, 1.2*inch, 0.9*inch, 0.8*inch])
     detail_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#064e3b')),
@@ -401,20 +343,19 @@ async def export_attendance_pdf(
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
     ]))
     elements.append(detail_table)
-    
-    # Footer
+
     elements.append(Spacer(1, 0.5*inch))
     footer = Paragraph(
         f"<i>Dicetak pada: {datetime.now().strftime('%d/%m/%Y %H:%M')} | SIPGURU System</i>",
         ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.grey)
     )
     elements.append(footer)
-    
+
     doc.build(elements)
     buffer.seek(0)
-    
+
     filename = f"laporan_absensi_{report['start_date']}_to_{report['end_date']}.pdf"
-    
+
     return StreamingResponse(
         buffer,
         media_type="application/pdf",
@@ -430,47 +371,8 @@ async def get_teacher_summary(
     auth_user: dict = Depends(get_current_user),
 ):
     """Get attendance summary for a specific teacher."""
-    if year is None:
-        year = datetime.now().year
-    if month is None:
-        month = datetime.now().month
-    
-    conn = db._get_connection()
-    cursor = conn.cursor()
-    
-    # Teacher info
-    cursor.execute("SELECT id, name, nip, email FROM users WHERE id = ?", (teacher_id,))
-    teacher = cursor.fetchone()
-    if not teacher:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Teacher not found")
-    
-    # Monthly stats
-    month_str = f"{year}-{month:02d}"
-    cursor.execute("""
-        SELECT status, COUNT(*) as count, AVG(lateness_minutes) as avg_late
-        FROM attendance_logs
-        WHERE teacher_id = ? AND strftime('%Y-%m', created_at) = ?
-        GROUP BY status
-    """, (teacher_id, month_str))
-    
-    stats = {"total": 0, "on_time": 0, "late": 0, "absent": 0, "avg_lateness": 0}
-    for row in cursor.fetchall():
-        status = row["status"]
-        if status in stats:
-            stats[status] = row["count"]
-        stats["total"] += row["count"]
-        if status == "late" and row["avg_late"]:
-            stats["avg_lateness"] = row["avg_late"]
-    
-    conn.close()
-    
-    return {
-        "teacher": dict(teacher),
-        "period": {"year": year, "month": month},
-        "summary": stats,
-        "attendance_rate": round(stats["on_time"] / max(stats["total"], 1) * 100, 2)
-    }
+    # Database-agnostic method (works for both SQLite and Supabase)
+    return db.get_teacher_summary(teacher_id, year, month)
 
 
 @router.get("/attendance/history")
@@ -488,213 +390,13 @@ async def get_attendance_history(
         year = datetime.now().year
     if month is None:
         month = datetime.now().month
-    
-    conn = db._get_connection()
-    cursor = conn.cursor()
-    
-    # Build date filter based on filter_type
-    if filter_type == "day":
-        if day is None:
-            day = datetime.now().day
-        date_filter = f"{year}-{month:02d}-{day:02d}"
-        start_date, end_date = date_filter, date_filter
-        cursor.execute("""
-            SELECT 
-                strftime('%Y-%m-%d', al.created_at) as period_date,
-                al.teacher_id,
-                u.name as teacher_name,
-                u.nip,
-                COUNT(*) as total,
-                SUM(CASE WHEN al.status = 'on_time' THEN 1 ELSE 0 END) as on_time,
-                SUM(CASE WHEN al.status = 'late' THEN 1 ELSE 0 END) as late,
-                AVG(CASE WHEN al.status = 'late' THEN al.lateness_minutes ELSE NULL END) as avg_late
-            FROM attendance_logs al
-            JOIN users u ON al.teacher_id = u.id
-            WHERE strftime('%Y-%m-%d', al.created_at) = ?
-            GROUP BY al.teacher_id, period_date
-        """, [date_filter])
-    elif filter_type == "week":
-        if week is None:
-            week = (datetime.now().day - 1) // 7 + 1
-        start_date = f"{year}-{month:02d}-{max(1, (week - 1) * 7 + 1):02d}"
-        end_day = min(week * 7, 28)  # Simplified week handling
-        end_date = f"{year}-{month:02d}-{end_day:02d}"
-        cursor.execute("""
-            SELECT 
-                strftime('%Y-%m-%d', al.created_at) as period_date,
-                al.teacher_id,
-                u.name as teacher_name,
-                u.nip,
-                COUNT(*) as total,
-                SUM(CASE WHEN al.status = 'on_time' THEN 1 ELSE 0 END) as on_time,
-                SUM(CASE WHEN al.status = 'late' THEN 1 ELSE 0 END) as late,
-                AVG(CASE WHEN al.status = 'late' THEN al.lateness_minutes ELSE NULL END) as avg_late
-            FROM attendance_logs al
-            JOIN users u ON al.teacher_id = u.id
-            WHERE strftime('%Y-%m-%d', al.created_at) BETWEEN ? AND ?
-            GROUP BY al.teacher_id, period_date
-        """, [start_date, end_date])
-    elif filter_type == "month":
-        start_date = f"{year}-{month:02d}-01"
-        if month == 12:
-            end_date = f"{year + 1}-01-01"
-        else:
-            end_date = f"{year}-{month + 1:02d}-01"
-        cursor.execute("""
-            SELECT 
-                strftime('%Y-%m-%d', al.created_at) as period_date,
-                al.teacher_id,
-                u.name as teacher_name,
-                u.nip,
-                COUNT(*) as total,
-                SUM(CASE WHEN al.status = 'on_time' THEN 1 ELSE 0 END) as on_time,
-                SUM(CASE WHEN al.status = 'late' THEN 1 ELSE 0 END) as late,
-                AVG(CASE WHEN al.status = 'late' THEN al.lateness_minutes ELSE NULL END) as avg_late
-            FROM attendance_logs al
-            JOIN users u ON al.teacher_id = u.id
-            WHERE strftime('%Y-%m-%d', al.created_at) BETWEEN ? AND ?
-            GROUP BY al.teacher_id, period_date
-        """, [start_date, end_date])
-    else:  # year
-        start_date = f"{year}-01-01"
-        end_date = f"{year}-12-31"
-        cursor.execute("""
-            SELECT 
-                strftime('%Y-%m-%d', al.created_at) as period_date,
-                al.teacher_id,
-                u.name as teacher_name,
-                u.nip,
-                COUNT(*) as total,
-                SUM(CASE WHEN al.status = 'on_time' THEN 1 ELSE 0 END) as on_time,
-                SUM(CASE WHEN al.status = 'late' THEN 1 ELSE 0 END) as late,
-                AVG(CASE WHEN al.status = 'late' THEN al.lateness_minutes ELSE NULL END) as avg_late
-            FROM attendance_logs al
-            JOIN users u ON al.teacher_id = u.id
-            WHERE strftime('%Y-%m-%d', al.created_at) BETWEEN ? AND ?
-            GROUP BY al.teacher_id, period_date
-        """, [start_date, end_date])
-    
-    if teacher_id:
-        # Re-execute with teacher filter
-        if filter_type == "day":
-            cursor.execute("""
-                SELECT 
-                    strftime('%Y-%m-%d', al.created_at) as period_date,
-                    al.teacher_id,
-                    u.name as teacher_name,
-                    u.nip,
-                    COUNT(*) as total,
-                    SUM(CASE WHEN al.status = 'on_time' THEN 1 ELSE 0 END) as on_time,
-                    SUM(CASE WHEN al.status = 'late' THEN 1 ELSE 0 END) as late,
-                    AVG(CASE WHEN al.status = 'late' THEN al.lateness_minutes ELSE NULL END) as avg_late
-                FROM attendance_logs al
-                JOIN users u ON al.teacher_id = u.id
-                WHERE strftime('%Y-%m-%d', al.created_at) = ? AND al.teacher_id = ?
-                GROUP BY al.teacher_id, period_date
-            """, [date_filter, teacher_id])
-        elif filter_type == "week":
-            cursor.execute("""
-                SELECT 
-                    strftime('%Y-%m-%d', al.created_at) as period_date,
-                    al.teacher_id,
-                    u.name as teacher_name,
-                    u.nip,
-                    COUNT(*) as total,
-                    SUM(CASE WHEN al.status = 'on_time' THEN 1 ELSE 0 END) as on_time,
-                    SUM(CASE WHEN al.status = 'late' THEN 1 ELSE 0 END) as late,
-                    AVG(CASE WHEN al.status = 'late' THEN al.lateness_minutes ELSE NULL END) as avg_late
-                FROM attendance_logs al
-                JOIN users u ON al.teacher_id = u.id
-                WHERE strftime('%Y-%m-%d', al.created_at) BETWEEN ? AND ? AND al.teacher_id = ?
-                GROUP BY al.teacher_id, period_date
-            """, [start_date, end_date, teacher_id])
-        elif filter_type == "month":
-            cursor.execute("""
-                SELECT 
-                    strftime('%Y-%m-%d', al.created_at) as period_date,
-                    al.teacher_id,
-                    u.name as teacher_name,
-                    u.nip,
-                    COUNT(*) as total,
-                    SUM(CASE WHEN al.status = 'on_time' THEN 1 ELSE 0 END) as on_time,
-                    SUM(CASE WHEN al.status = 'late' THEN 1 ELSE 0 END) as late,
-                    AVG(CASE WHEN al.status = 'late' THEN al.lateness_minutes ELSE NULL END) as avg_late
-                FROM attendance_logs al
-                JOIN users u ON al.teacher_id = u.id
-                WHERE strftime('%Y-%m-%d', al.created_at) BETWEEN ? AND ? AND al.teacher_id = ?
-                GROUP BY al.teacher_id, period_date
-            """, [start_date, end_date, teacher_id])
-        else:
-            cursor.execute("""
-                SELECT 
-                    strftime('%Y-%m-%d', al.created_at) as period_date,
-                    al.teacher_id,
-                    u.name as teacher_name,
-                    u.nip,
-                    COUNT(*) as total,
-                    SUM(CASE WHEN al.status = 'on_time' THEN 1 ELSE 0 END) as on_time,
-                    SUM(CASE WHEN al.status = 'late' THEN 1 ELSE 0 END) as late,
-                    AVG(CASE WHEN al.status = 'late' THEN al.lateness_minutes ELSE NULL END) as avg_late
-                FROM attendance_logs al
-                JOIN users u ON al.teacher_id = u.id
-                WHERE strftime('%Y-%m-%d', al.created_at) BETWEEN ? AND ? AND al.teacher_id = ?
-                GROUP BY al.teacher_id, period_date
-            """, [start_date, end_date, teacher_id])
-    
-    rows = cursor.fetchall()
-    conn.close()
-    
-    # Group by date and teacher
-    history = {}
-    for row in rows:
-        date = row["period_date"]
-        teacher_id_key = row["teacher_id"]
-        
-        if date not in history:
-            history[date] = {"date": date, "teachers": [], "day_total": 0, "day_on_time": 0, "day_late": 0}
-        
-        teacher_record = {
-            "teacher_id": teacher_id_key,
-            "teacher_name": row["teacher_name"],
-            "nip": row["nip"],
-            "total": row["total"] or 0,
-            "on_time": row["on_time"] or 0,
-            "late": row["late"] or 0,
-            "avg_lateness": round(row["avg_late"], 1) if row["avg_late"] else 0,
-        }
-        
-        # Check if teacher already exists for this date
-        existing = next((t for t in history[date]["teachers"] if t["teacher_id"] == teacher_id_key), None)
-        if existing:
-            existing["total"] += teacher_record["total"]
-            existing["on_time"] += teacher_record["on_time"]
-            existing["late"] += teacher_record["late"]
-        else:
-            history[date]["teachers"].append(teacher_record)
-        
-        history[date]["day_total"] += teacher_record["total"]
-        history[date]["day_on_time"] += teacher_record["on_time"]
-        history[date]["day_late"] += teacher_record["late"]
-    
-    # Convert to sorted list
-    history_list = sorted(history.values(), key=lambda x: x["date"], reverse=True)
-    
-    # Calculate overall summary
-    total_all = sum(h["day_total"] for h in history_list)
-    on_time_all = sum(h["day_on_time"] for h in history_list)
-    late_all = sum(h["day_late"] for h in history_list)
-    
-    return {
-        "filter_type": filter_type,
-        "period": {"year": year, "month": month, "day": day, "week": week},
-        "start_date": start_date,
-        "end_date": end_date,
-        "summary": {
-            "total": total_all,
-            "on_time": on_time_all,
-            "late": late_all,
-            "attendance_rate": round(on_time_all / max(total_all, 1) * 100, 2),
-            "unique_teachers": len(set(r["teacher_id"] for r in rows)),
-        },
-        "history": history_list,
-    }
+
+    # Database-agnostic method (works for both SQLite and Supabase)
+    return db.get_attendance_history(
+        filter_type=filter_type,
+        year=year,
+        month=month,
+        day=day,
+        week=week,
+        teacher_id=teacher_id,
+    )

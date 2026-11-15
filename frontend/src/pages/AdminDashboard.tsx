@@ -943,7 +943,25 @@ const AdminDashboard = () => {
           <div className="flex-1 overflow-y-auto bg-gray-50/50 dark:bg-stone-950/50 p-4 lg:p-8 animate-in fade-in duration-500 motion-reduce:animate-none">
             <div className="flex justify-between items-center mb-6 md:mb-8">
               <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
-                {tab === "dashboard" ? "Dashboard" : tab === "guru" ? "Data Guru" : tab === "qr" ? "QR Ruangan" : tab === "izin" ? "Permohonan Izin" : tab === "mapel" ? "Mata Pelajaran" : tab === "kelas" ? "Kelas" : tab === "jurusan" ? "Jurusan" : "Jadwal Kelas"}
+                {tab === "dashboard"
+                  ? "Dashboard"
+                  : tab === "guru"
+                  ? "Data Guru"
+                  : tab === "qr"
+                  ? "QR Ruangan"
+                  : tab === "izin"
+                  ? "Permohonan Izin"
+                  : tab === "mapel"
+                  ? "Mata Pelajaran"
+                  : tab === "kelas"
+                  ? "Kelas"
+                  : tab === "jurusan"
+                  ? "Jurusan"
+                  : tab === "jadwal"
+                  ? "Jadwal Kelas"
+                  : tab === "laporan"
+                  ? "History Absensi"
+                  : "Dashboard"}
               </h2>
               <div className="text-xs lg:text-sm text-gray-600 dark:text-gray-400 flex flex-col items-end gap-1 hidden lg:block">
                 <div>{currentTime.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</div>

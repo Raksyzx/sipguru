@@ -446,6 +446,189 @@ class SupabaseClient:
         stats["total"] = sum(stats.values())
         return stats
     
+
+    @log_query_time
+    def get_attendance_logs_by_period(
+        self,
+        start_date: str,
+        end_date: str,
+        teacher_id: str = None,
+    ) -> List[dict]:
+        """Get attendance logs with teacher/room join for a date range.
+        Returns list of dicts compatible with LocalDBClient format.
+        """
+        import json
+        client = self._get_client()
+
+        query = client.table("attendance_logs").select(
+            "id,teacher_id,room_id,status,lateness_minutes,geolocation,created_at"
+        ).gte("created_at", f"{start_date}T00:00:00").lt("created_at", f"{end_date}T23:59:59.999")
+
+        if teacher_id:
+            query = query.eq("teacher_id", teacher_id)
+
+        query = query.order("created_at", desc=True)
+        result = query.execute()
+
+        if not result.data:
+            return []
+
+        teacher_ids = list(set(log["teacher_id"] for log in result.data))
+        room_ids = list(set(log["room_id"] for log in result.data if log.get("room_id")))
+
+        teachers = {}
+        if teacher_ids:
+            t_result = client.table("users").select("id,name,nip").in_("id", teacher_ids).execute()
+            for t in t_result.data:
+                teachers[t["id"]] = {"name": t.get("name"), "nip": t.get("nip")}
+
+        rooms = {}
+        if room_ids:
+            r_result = client.table("rooms").select("id,name,room_code").in_("id", room_ids).execute()
+            for r in r_result.data:
+                rooms[r["id"]] = {"name": r.get("name"), "room_code": r.get("room_code")}
+
+        reports = []
+        for log in result.data:
+            record = dict(log)
+            t = teachers.get(log["teacher_id"])
+            record["teacher_name"] = t["name"] if t else ""
+            record["nip"] = t["nip"] if t else ""
+            r = rooms.get(log["room_id"]) if log.get("room_id") else None
+            record["room_name"] = r["name"] if r else ""
+            record["room_code"] = r["room_code"] if r else ""
+            if record.get("geolocation"):
+                try:
+                    record["geolocation"] = json.loads(record["geolocation"])
+                except:
+                    record["geolocation"] = None
+            reports.append(record)
+
+        return reports
+
+
+    @log_query_time
+    def get_attendance_history(
+        self,
+        filter_type: str,
+        year: int,
+        month: int,
+        day: int = None,
+        week: int = None,
+        teacher_id: str = None,
+    ) -> dict:
+        """Get attendance history grouped by period with teacher breakdown."""
+        from datetime import datetime
+
+        if filter_type == "day":
+            if day is None: day = datetime.now().day
+            start_date = f"{year}-{month:02d}-{day:02d}"
+            end_date = start_date
+        elif filter_type == "week":
+            if week is None: week = (datetime.now().day - 1) // 7 + 1
+            start_date = f"{year}-{month:02d}-{max(1, (week - 1) * 7 + 1):02d}"
+            end_date = f"{year}-{month:02d}-{min(week * 7, 28):02d}"
+        elif filter_type == "month":
+            start_date = f"{year}-{month:02d}-01"
+            end_date = f"{year + 1}-01-01" if month == 12 else f"{year}-{month + 1:02d}-01"
+        else:
+            start_date = f"{year}-01-01"
+            end_date = f"{year}-12-31"
+
+        logs = self.get_attendance_logs_by_period(start_date, end_date, teacher_id)
+
+        history = {}
+        for log in logs:
+            date = log["created_at"][:10]
+            t_id = log["teacher_id"]
+            if date not in history:
+                history[date] = {"date": date, "teachers": [], "day_total": 0, "day_on_time": 0, "day_late": 0}
+            teacher_record = {
+                "teacher_id": t_id,
+                "teacher_name": log.get("teacher_name", ""),
+                "nip": log.get("nip", ""),
+                "total": 1,
+                "on_time": 1 if log["status"] == "on_time" else 0,
+                "late": 1 if log["status"] == "late" else 0,
+                "avg_lateness": log.get("lateness_minutes", 0) if log["status"] == "late" else 0,
+            }
+            existing = next((t for t in history[date]["teachers"] if t["teacher_id"] == t_id), None)
+            if existing:
+                existing["total"] += teacher_record["total"]
+                existing["on_time"] += teacher_record["on_time"]
+                existing["late"] += teacher_record["late"]
+                if teacher_record["avg_lateness"] > 0:
+                    existing["avg_lateness"] = (existing["avg_lateness"] * (existing["late"] - 1) + teacher_record["avg_lateness"]) / existing["late"]
+            else:
+                history[date]["teachers"].append(teacher_record)
+            history[date]["day_total"] += teacher_record["total"]
+            history[date]["day_on_time"] += teacher_record["on_time"]
+            history[date]["day_late"] += teacher_record["late"]
+
+        history_list = sorted(history.values(), key=lambda x: x["date"], reverse=True)
+        total_all = sum(h["day_total"] for h in history_list)
+        on_time_all = sum(h["day_on_time"] for h in history_list)
+        late_all = sum(h["day_late"] for h in history_list)
+
+        return {
+            "filter_type": filter_type,
+            "period": {"year": year, "month": month, "day": day, "week": week},
+            "start_date": start_date,
+            "end_date": end_date,
+            "summary": {
+                "total": total_all,
+                "on_time": on_time_all,
+                "late": late_all,
+                "attendance_rate": round(on_time_all / max(total_all, 1) * 100, 2),
+                "unique_teachers": len(set(t["teacher_id"] for h in history_list for t in h["teachers"])),
+            },
+            "history": history_list,
+        }
+
+
+    @log_query_time
+    def get_teacher_summary(
+        self,
+        teacher_id: str,
+        year: int = None,
+        month: int = None,
+    ) -> dict:
+        """Get attendance summary for a specific teacher."""
+        from datetime import datetime
+
+        if year is None: year = datetime.now().year
+        if month is None: month = datetime.now().month
+
+        client = self._get_client()
+        t_result = client.table("users").select("id,name,nip,email").eq("id", teacher_id).execute()
+        if not t_result.data:
+            raise Exception("Teacher not found")
+        teacher = t_result.data[0]
+
+        month_str = f"{year}-{month:02d}"
+        start_dt = f"{month_str}-01T00:00:00"
+        end_dt = f"{year + 1}-01-01T00:00:00" if month == 12 else f"{year}-{month + 1:02d}-01T00:00:00"
+
+        stats = {"total": 0, "on_time": 0, "late": 0, "absent": 0, "avg_lateness": 0}
+        for status in ["on_time", "late", "absent", "deferred", "approved"]:
+            cnt_result = client.table("attendance_logs").select("*", count="exact").eq("teacher_id", teacher_id).gte("created_at", start_dt).lt("created_at", end_dt).eq("status", status).execute()
+            cnt = cnt_result.count if hasattr(cnt_result, "count") else 0
+            stats["total"] += cnt
+            if status in stats:
+                stats[status] = cnt
+
+        late_logs = client.table("attendance_logs").select("lateness_minutes").eq("teacher_id", teacher_id).gte("created_at", start_dt).lt("created_at", end_dt).eq("status", "late").execute()
+        if late_logs.data:
+            lates = [log.get("lateness_minutes", 0) or 0 for log in late_logs.data]
+            stats["avg_lateness"] = sum(lates) / len(lates) if lates else 0
+
+        return {
+            "teacher": {"id": teacher["id"], "name": teacher["name"], "nip": teacher["nip"], "email": teacher["email"]},
+            "period": {"year": year, "month": month},
+            "summary": stats,
+            "attendance_rate": round(stats["on_time"] / max(stats["total"], 1) * 100, 2),
+        }
+
     # Leave operations
     @log_query_time
     def create_leave_request(self, teacher_id: str, start_date: str,

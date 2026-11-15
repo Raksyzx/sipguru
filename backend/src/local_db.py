@@ -652,6 +652,202 @@ class LocalDBClient:
         
         return stats
     
+    def get_attendance_logs_by_period(
+        self,
+        start_date: str,
+        end_date: str,
+        teacher_id: str = None,
+    ) -> List[dict]:
+        """Get attendance logs with teacher/room join for a date range."""
+        conn = self._get_connection()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        query = """
+            SELECT 
+                al.id, al.teacher_id, al.room_id, al.status, 
+                al.lateness_minutes, al.geolocation, al.created_at,
+                u.name as teacher_name, u.nip,
+                r.name as room_name, r.room_code
+            FROM attendance_logs al
+            JOIN users u ON al.teacher_id = u.id
+            LEFT JOIN rooms r ON al.room_id = r.id
+            WHERE DATE(al.created_at) >= DATE(?) AND DATE(al.created_at) <= DATE(?)
+        """
+        params = [start_date, end_date]
+        
+        if teacher_id:
+            query += " AND al.teacher_id = ?"
+            params.append(teacher_id)
+        
+        query += " ORDER BY al.created_at DESC"
+        
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        conn.close()
+        
+        reports = []
+        for row in rows:
+            record = dict(row)
+            if record.get("geolocation"):
+                try:
+                    record["geolocation"] = json.loads(record["geolocation"])
+                except:
+                    record["geolocation"] = None
+            reports.append(record)
+        
+        return reports
+    
+    def get_attendance_history(
+        self,
+        filter_type: str,
+        year: int,
+        month: int,
+        day: int = None,
+        week: int = None,
+        teacher_id: str = None,
+    ) -> dict:
+        """Get attendance history grouped by period with teacher breakdown."""
+        from datetime import datetime
+        
+        # Build date range
+        if filter_type == "day":
+            if day is None:
+                day = datetime.now().day
+            start_date = f"{year}-{month:02d}-{day:02d}"
+            end_date = start_date
+        elif filter_type == "week":
+            if week is None:
+                week = (datetime.now().day - 1) // 7 + 1
+            start_date = f"{year}-{month:02d}-{max(1, (week - 1) * 7 + 1):02d}"
+            end_date = f"{year}-{month:02d}-{min(week * 7, 28):02d}"
+        elif filter_type == "month":
+            start_date = f"{year}-{month:02d}-01"
+            if month == 12:
+                end_date = f"{year + 1}-01-01"
+            else:
+                end_date = f"{year}-{month + 1:02d}-01"
+        else:  # year
+            start_date = f"{year}-01-01"
+            end_date = f"{year}-12-31"
+        
+        # Fetch all logs in range
+        logs = self.get_attendance_logs_by_period(start_date, end_date, teacher_id)
+        
+        # Group by date and teacher
+        history = {}
+        for log in logs:
+            date = log["created_at"][:10]
+            t_id = log["teacher_id"]
+            
+            if date not in history:
+                history[date] = {"date": date, "teachers": [], "day_total": 0, "day_on_time": 0, "day_late": 0}
+            
+            teacher_record = {
+                "teacher_id": t_id,
+                "teacher_name": log.get("teacher_name", ""),
+                "nip": log.get("nip", ""),
+                "total": 1,
+                "on_time": 1 if log["status"] == "on_time" else 0,
+                "late": 1 if log["status"] == "late" else 0,
+                "avg_lateness": log.get("lateness_minutes", 0) if log["status"] == "late" else 0,
+            }
+            
+            existing = next((t for t in history[date]["teachers"] if t["teacher_id"] == t_id), None)
+            if existing:
+                existing["total"] += teacher_record["total"]
+                existing["on_time"] += teacher_record["on_time"]
+                existing["late"] += teacher_record["late"]
+                if teacher_record["avg_lateness"] > 0:
+                    existing["avg_lateness"] = (existing["avg_lateness"] * (existing["late"] - 1) + teacher_record["avg_lateness"]) / existing["late"]
+            else:
+                history[date]["teachers"].append(teacher_record)
+            
+            history[date]["day_total"] += teacher_record["total"]
+            history[date]["day_on_time"] += teacher_record["on_time"]
+            history[date]["day_late"] += teacher_record["late"]
+        
+        # Convert to sorted list
+        history_list = sorted(history.values(), key=lambda x: x["date"], reverse=True)
+        
+        total_all = sum(h["day_total"] for h in history_list)
+        on_time_all = sum(h["day_on_time"] for h in history_list)
+        late_all = sum(h["day_late"] for h in history_list)
+        
+        return {
+            "filter_type": filter_type,
+            "period": {"year": year, "month": month, "day": day, "week": week},
+            "start_date": start_date,
+            "end_date": end_date,
+            "summary": {
+                "total": total_all,
+                "on_time": on_time_all,
+                "late": late_all,
+                "attendance_rate": round(on_time_all / max(total_all, 1) * 100, 2),
+                "unique_teachers": len(set(t["teacher_id"] for h in history_list for t in h["teachers"])),
+            },
+            "history": history_list,
+        }
+    
+    def get_teacher_summary(
+        self,
+        teacher_id: str,
+        year: int = None,
+        month: int = None,
+    ) -> dict:
+        """Get attendance summary for a specific teacher."""
+        from datetime import datetime
+        
+        if year is None:
+            year = datetime.now().year
+        if month is None:
+            month = datetime.now().month
+        
+        conn = self._get_connection()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Teacher info
+        cursor.execute("SELECT id, name, nip, email FROM users WHERE id = ?", (teacher_id,))
+        teacher_row = cursor.fetchone()
+        if not teacher_row:
+            conn.close()
+            raise Exception("Teacher not found")
+        teacher = dict(teacher_row)
+        
+        # Monthly stats
+        month_str = f"{year}-{month:02d}"
+        cursor.execute("""
+            SELECT status, COUNT(*) as count, AVG(lateness_minutes) as avg_late
+            FROM attendance_logs
+            WHERE strftime('%Y-%m', created_at) = ? AND teacher_id = ?
+            GROUP BY status
+        """, (month_str, teacher_id))
+        
+        stats = {"total": 0, "on_time": 0, "late": 0, "absent": 0, "avg_lateness": 0}
+        late_total = 0
+        late_count = 0
+        
+        for row in cursor.fetchall():
+            stats["total"] += row["count"]
+            if row["status"] in stats:
+                stats[row["status"]] = row["count"]
+            if row["status"] == "late":
+                late_total += row["avg_late"] or 0
+                late_count += row["count"]
+        
+        conn.close()
+        
+        if late_count > 0:
+            stats["avg_lateness"] = late_total / late_count
+        
+        return {
+            "teacher": {"id": teacher["id"], "name": teacher["name"], "nip": teacher["nip"], "email": teacher["email"]},
+            "period": {"year": year, "month": month},
+            "summary": stats,
+            "attendance_rate": round(stats["on_time"] / max(stats["total"], 1) * 100, 2),
+        }
+    
     # Leave operations
     def create_leave_request(self, teacher_id: str, start_date: str,
                             end_date: str, reason: str, schedule_id: str = None) -> str:
