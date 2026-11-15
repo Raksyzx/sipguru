@@ -31,6 +31,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include routers FIRST so they take priority
+app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(teacher.router, prefix="/api/teacher", tags=["Teacher"])
+app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
+app.include_router(qr.router, prefix="/api/qr", tags=["QR Token"])
+app.include_router(attendance.router, prefix="/api/attendance", tags=["Attendance"])
+app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
+app.include_router(telegram.router, prefix="/api/telegram", tags=["Telegram Notifications"])
+app.include_router(devices.router, prefix="/api/devices", tags=["ESP32 Devices"])
+
 # Serve frontend static files (for production)
 frontend_dist = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
 if os.path.exists(frontend_dist):
@@ -38,7 +48,7 @@ if os.path.exists(frontend_dist):
     
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
-        # If it's an API route, let it 404 to be handled by routers
+        # If it's an API route, let it 404 (but routers should have matched first)
         if full_path.startswith("api/"):
             from fastapi import HTTPException
             raise HTTPException(status_code=404)
@@ -58,14 +68,4 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
-
-# Include routers
-app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
-app.include_router(teacher.router, prefix="/api/teacher", tags=["Teacher"])
-app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
-app.include_router(qr.router, prefix="/api/qr", tags=["QR Token"])
-app.include_router(attendance.router, prefix="/api/attendance", tags=["Attendance"])
-app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
-app.include_router(telegram.router, prefix="/api/telegram", tags=["Telegram Notifications"])
-app.include_router(devices.router, prefix="/api/devices", tags=["ESP32 Devices"])
 
