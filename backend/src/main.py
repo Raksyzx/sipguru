@@ -41,31 +41,42 @@ app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(telegram.router, prefix="/api/telegram", tags=["Telegram Notifications"])
 app.include_router(devices.router, prefix="/api/devices", tags=["ESP32 Devices"])
 
+# The /health endpoint MUST be registered BEFORE the SPA catch-all route
+# below. Otherwise "/{full_path:path}" matches "health" first and returns the
+# frontend HTML instead of JSON, which breaks uptime monitors and platform
+# (Railway/Vercel) health checks.
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}
+
+
 # Serve frontend static files (for production)
 frontend_dist = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
 if os.path.exists(frontend_dist):
     app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="assets")
-    
+
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
-        # If it's an API route, let it 404 (but routers should have matched first)
+        from fastapi import HTTPException
+
+        # Unmatched API routes must return a JSON 404, never the SPA HTML.
         if full_path.startswith("api/"):
-            from fastapi import HTTPException
             raise HTTPException(status_code=404)
-        # Serve index.html for all other routes (SPA)
+        # Defensive guard so this catch-all can never shadow /health again.
+        if full_path == "health":
+            raise HTTPException(status_code=404)
+        # Serve index.html for every other path (SPA client-side routing).
         index_file = os.path.join(frontend_dist, "index.html")
         if os.path.exists(index_file):
             return FileResponse(index_file)
-        from fastapi import HTTPException
         raise HTTPException(status_code=404)
 
+
+# Registered after the SPA catch-all on purpose: when a frontend build exists,
+# "/" serves the SPA (production). With no build present, "/" returns API info.
 @app.get("/")
 async def root():
     from src.config import is_development
     db_type = "SQLite" if is_development() else "Supabase"
     return {"message": "SIPGURU API is running", "version": "1.0.0", "database": db_type}
-
-@app.get("/health")
-async def health():
-    return {"status": "healthy"}
 
