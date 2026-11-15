@@ -44,3 +44,5 @@ temp/
 
 # Railway
 .railway
+backend/src/assets/
+backend/src/index.html
