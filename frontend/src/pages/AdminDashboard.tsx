@@ -1,4 +1,5 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
+import axios from "axios";
 import {
   LayoutDashboard,
   Users,
@@ -33,6 +34,39 @@ import { LogoutConfirmModal } from "../components/LogoutConfirmModal";
 import { ToastContainer, useToast } from "../components/Toast";
 import { Modal } from "../components/Modal";
 import api from "../lib/api";
+import {
+  buildHistoryQuery,
+  changeHistoryJurusan,
+  createHistoryFilters,
+  getHistoryMonthDays,
+  normalizeHistoryCalendar,
+} from "../lib/attendanceHistory";
+import type {
+  AttendanceHistoryFilters,
+  AttendanceSessionsResponse,
+  HistoryExportFormat,
+  HistoryFilterType,
+} from "../lib/attendanceHistory";
+
+const historySelectClass = "min-h-[44px] w-full min-w-0 px-3 py-2 text-sm rounded-lg border border-gray-500 dark:border-gray-400 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 dark:focus-visible:outline-emerald-400";
+const historyExportClass = "min-h-[44px] flex items-center justify-center gap-2 px-4 py-2 bg-emerald-700 text-white rounded-lg text-sm font-medium hover:bg-emerald-800 active:bg-emerald-900 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 dark:focus-visible:outline-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed";
+
+async function historyErrorMessage(cause: unknown, fallback: string): Promise<string> {
+  if (axios.isAxiosError(cause)) {
+    let data: unknown = cause.response?.data;
+    if (data instanceof Blob) {
+      try {
+        data = JSON.parse(await data.text());
+      } catch {
+        return fallback;
+      }
+    }
+    if (data && typeof data === "object" && "detail" in data && typeof data.detail === "string") {
+      return `${fallback} ${data.detail}`;
+    }
+  }
+  return fallback;
+}
 
 // Jurusan dihapus — belum ada endpoint backend, tab dinonaktifkan sementara
 
@@ -221,79 +255,103 @@ const AdminDashboard = () => {
   const [addTeacherLoading, setAddTeacherLoading] = useState(false);
 
   // History Absensi State
-  const [historyFilterType, setHistoryFilterType] = useState<"day" | "week" | "month" | "year">("month");
-  const [historyYear, setHistoryYear] = useState(new Date().getFullYear());
-  const [historyMonth, setHistoryMonth] = useState(new Date().getMonth() + 1);
-  const [historyDay, setHistoryDay] = useState(new Date().getDate());
-  const [historyWeek, setHistoryWeek] = useState(1);
-  const [historyTeacherId, setHistoryTeacherId] = useState<string | null>(null);
-  const [historyData, setHistoryData] = useState<any>(null);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [exportingHistory, setExportingHistory] = useState<string | null>(null);
+  const [historyFilters, setHistoryFilters] = useState<AttendanceHistoryFilters>(() => createHistoryFilters());
+  const [historyRetry, setHistoryRetry] = useState(0);
+  const [historyResult, setHistoryResult] = useState<{
+    query: string;
+    retry: number;
+    status: "loading" | "success" | "error";
+    data: AttendanceSessionsResponse | null;
+    error: string;
+  }>({ query: "", retry: 0, status: "loading", data: null, error: "" });
+  const [exportingHistory, setExportingHistory] = useState<HistoryExportFormat | null>(null);
+  const [historyExportError, setHistoryExportError] = useState<{ query: string; message: string } | null>(null);
+  const historyExportRequest = useRef<AbortController | null>(null);
+  const historyQuery = useMemo(() => buildHistoryQuery(historyFilters), [historyFilters]);
+  const historyLoading = historyResult.query !== historyQuery || historyResult.retry !== historyRetry || historyResult.status === "loading";
+  const historyError = !historyLoading && historyResult.status === "error" ? historyResult.error : "";
+  const historyData = !historyLoading && !historyError ? historyResult.data : null;
+  const historyMonthDays = getHistoryMonthDays(historyFilters.year, historyFilters.month);
+  const historyGrades = grades.filter((grade) => !historyFilters.jurusanId || grade.jurusan_id === historyFilters.jurusanId);
+  const historySubjects = subjects.filter((subject) => !historyFilters.jurusanId || subject.jurusan_id === historyFilters.jurusanId);
+  const historyYears = Array.from({ length: Math.max(4, currentTime.getFullYear() - 2024 + 2) }, (_, index) => 2024 + index);
 
-  useEffect(() => {
-    loadHistory();
-  }, [historyFilterType, historyYear, historyMonth, historyDay, historyWeek, historyTeacherId]);
-
-  const loadHistory = async () => {
-    setHistoryLoading(true);
-    try {
-      const params = new URLSearchParams({
-        filter_type: historyFilterType,
-        year: historyYear.toString(),
-        month: historyMonth.toString(),
-      });
-      if (historyFilterType === "day") {
-        params.append("day", historyDay.toString());
-      } else if (historyFilterType === "week") {
-        params.append("week", historyWeek.toString());
-      }
-      if (historyTeacherId) {
-        params.append("teacher_id", historyTeacherId);
-      }
-      const res = await api.get(`/reports/attendance/history?${params.toString()}`);
-      setHistoryData(res.data);
-    } catch (err) {
-      console.error("Failed to load history:", err);
-    } finally {
-      setHistoryLoading(false);
-    }
+  const updateHistoryFilters = (changes: Partial<AttendanceHistoryFilters>) => {
+    setHistoryFilters((previous) => normalizeHistoryCalendar({ ...previous, ...changes }));
   };
 
-  const exportHistory = async (format: "csv" | "excel" | "pdf") => {
+  useEffect(() => {
+    if (tab !== "laporan") return;
+    const controller = new AbortController();
+    setHistoryResult({ query: historyQuery, retry: historyRetry, status: "loading", data: null, error: "" });
+
+    const loadHistory = async () => {
+      try {
+        const response = await api.get<AttendanceSessionsResponse>(`/reports/attendance/sessions?${historyQuery}`, {
+          signal: controller.signal,
+        });
+        if (!controller.signal.aborted) {
+          setHistoryResult({ query: historyQuery, retry: historyRetry, status: "success", data: response.data, error: "" });
+        }
+      } catch (cause: unknown) {
+        if (controller.signal.aborted) return;
+        const message = await historyErrorMessage(cause, "Gagal memuat history absensi. Periksa koneksi lalu coba lagi.");
+        if (!controller.signal.aborted) {
+          setHistoryResult({ query: historyQuery, retry: historyRetry, status: "error", data: null, error: message });
+        }
+      }
+    };
+
+    void loadHistory();
+    return () => controller.abort();
+  }, [tab, historyQuery, historyRetry]);
+
+  useEffect(() => {
+    setExportingHistory(null);
+    setHistoryExportError(null);
+    return () => {
+      historyExportRequest.current?.abort();
+      historyExportRequest.current = null;
+    };
+  }, [tab, historyQuery]);
+
+  const exportHistory = async (format: HistoryExportFormat) => {
+    if (historyLoading || historyError || !historyData || historyExportRequest.current) return;
+    const controller = new AbortController();
+    historyExportRequest.current = controller;
     setExportingHistory(format);
+    setHistoryExportError(null);
+    let url: string | null = null;
+    let link: HTMLAnchorElement | null = null;
     try {
-      const params = new URLSearchParams({
-        filter_type: historyFilterType,
-        year: historyYear.toString(),
-        month: historyMonth.toString(),
-      });
-      if (historyFilterType === "day") {
-        params.append("day", historyDay.toString());
-      } else if (historyFilterType === "week") {
-        params.append("week", historyWeek.toString());
-      }
-      if (historyTeacherId) {
-        params.append("teacher_id", historyTeacherId);
-      }
-
-      const response = await api.get(`/reports/attendance/${format}?${params.toString()}`, {
+      const response = await api.get<Blob>(`/reports/attendance/${format}?${historyQuery}`, {
         responseType: "blob",
+        signal: controller.signal,
       });
-
-      const blob = new Blob([response.data], {
-        type: format === "csv" ? "text/csv" : format === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
+      if (controller.signal.aborted) return;
+      url = window.URL.createObjectURL(response.data);
+      link = document.createElement("a");
       link.href = url;
-      link.download = `history_absensi_${historyYear}-${historyMonth}.${format}`;
+      const extension = format === "excel" ? "xlsx" : format;
+      const period = historyFilters.filterType === "year" ? `${historyFilters.year}`
+        : `${historyFilters.year}-${String(historyFilters.month).padStart(2, "0")}${historyFilters.filterType === "day" ? `-${String(historyFilters.day).padStart(2, "0")}` : historyFilters.filterType === "week" ? `_minggu-${historyFilters.week}` : ""}`;
+      link.download = `history_absensi_${period}.${extension}`;
+      document.body.appendChild(link);
       link.click();
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error("Export failed:", err);
+    } catch (cause: unknown) {
+      if (controller.signal.aborted) return;
+      const message = await historyErrorMessage(cause, "Gagal mengekspor history absensi. Silakan coba lagi.");
+      if (!controller.signal.aborted) {
+        setHistoryExportError({ query: historyQuery, message });
+        error(message);
+      }
     } finally {
-      setExportingHistory(null);
+      link?.remove();
+      if (url) window.URL.revokeObjectURL(url);
+      if (historyExportRequest.current === controller) {
+        historyExportRequest.current = null;
+        setExportingHistory(null);
+      }
     }
   };
 
@@ -1931,108 +1989,164 @@ const AdminDashboard = () => {
             {tab === "laporan" && (
               <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none">
                 {/* Filter Controls */}
-                <div className="glass-card-light p-6">
+                <div className="glass-card-light p-4 sm:p-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <Filter className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                    <Filter aria-hidden="true" className="w-5 h-5 text-emerald-700 dark:text-emerald-400" />
                     <h3 className="font-semibold text-gray-900 dark:text-white">Filter History</h3>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                    {/* Filter Type */}
-                    <select
-                      value={historyFilterType}
-                      onChange={(e) => setHistoryFilterType(e.target.value as "day" | "week" | "month" | "year")}
-                      className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                    >
-                      <option value="day">Harian</option>
-                      <option value="week">Mingguan</option>
-                      <option value="month">Bulanan</option>
-                      <option value="year">Tahunan</option>
-                    </select>
-                    {/* Year */}
-                    <select
-                      value={historyYear}
-                      onChange={(e) => setHistoryYear(parseInt(e.target.value))}
-                      className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                    >
-                      {[2024, 2025, 2026, 2027].map((y) => (
-                        <option key={y} value={y}>{y}</option>
-                      ))}
-                    </select>
-                    {/* Month */}
-                    {(historyFilterType === "day" || historyFilterType === "week" || historyFilterType === "month") && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                    <label className="min-w-0 space-y-1.5" htmlFor="history-period">
+                      <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">Periode</span>
                       <select
-                        value={historyMonth}
-                        onChange={(e) => setHistoryMonth(parseInt(e.target.value))}
-                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                        id="history-period"
+                        value={historyFilters.filterType}
+                        onChange={(e) => updateHistoryFilters({ filterType: e.target.value as HistoryFilterType })}
+                        className={historySelectClass}
                       >
-                        {["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"].map((m, i) => (
-                          <option key={i + 1} value={i + 1}>{m}</option>
-                        ))}
+                        <option value="day">Harian</option>
+                        <option value="week">Mingguan</option>
+                        <option value="month">Bulanan</option>
+                        <option value="year">Tahunan</option>
                       </select>
-                    )}
-                    {/* Day */}
-                    {historyFilterType === "day" && (
+                    </label>
+                    <label className="min-w-0 space-y-1.5" htmlFor="history-year">
+                      <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tahun</span>
                       <select
-                        value={historyDay}
-                        onChange={(e) => setHistoryDay(parseInt(e.target.value))}
-                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                        id="history-year"
+                        value={historyFilters.year}
+                        onChange={(e) => updateHistoryFilters({ year: Number(e.target.value) })}
+                        className={historySelectClass}
                       >
-                        {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-                          <option key={d} value={d}>{d}</option>
-                        ))}
+                        {historyYears.map((year) => <option key={year} value={year}>{year}</option>)}
                       </select>
+                    </label>
+                    {historyFilters.filterType !== "year" && (
+                      <label className="min-w-0 space-y-1.5" htmlFor="history-month">
+                        <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">Bulan</span>
+                        <select
+                          id="history-month"
+                          value={historyFilters.month}
+                          onChange={(e) => updateHistoryFilters({ month: Number(e.target.value) })}
+                          className={historySelectClass}
+                        >
+                          {["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"].map((month, index) => (
+                            <option key={index + 1} value={index + 1}>{month}</option>
+                          ))}
+                        </select>
+                      </label>
                     )}
-                    {/* Week */}
-                    {historyFilterType === "week" && (
+                    {historyFilters.filterType === "day" && (
+                      <label className="min-w-0 space-y-1.5" htmlFor="history-day">
+                        <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tanggal</span>
+                        <select
+                          id="history-day"
+                          value={historyFilters.day}
+                          onChange={(e) => updateHistoryFilters({ day: Number(e.target.value) })}
+                          className={historySelectClass}
+                        >
+                          {Array.from({ length: historyMonthDays }, (_, index) => index + 1).map((day) => (
+                            <option key={day} value={day}>{day}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                    {historyFilters.filterType === "week" && (
+                      <label className="min-w-0 space-y-1.5" htmlFor="history-week">
+                        <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">Minggu dalam bulan</span>
+                        <select
+                          id="history-week"
+                          value={historyFilters.week}
+                          onChange={(e) => updateHistoryFilters({ week: Number(e.target.value) })}
+                          className={historySelectClass}
+                        >
+                          {Array.from({ length: Math.ceil(historyMonthDays / 7) }, (_, index) => index + 1).map((week) => (
+                            <option key={week} value={week}>Minggu ke-{week} ({(week - 1) * 7 + 1}–{Math.min(week * 7, historyMonthDays)})</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                    <label className="min-w-0 space-y-1.5" htmlFor="history-teacher">
+                      <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">Guru</span>
                       <select
-                        value={historyWeek}
-                        onChange={(e) => setHistoryWeek(parseInt(e.target.value))}
-                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                        id="history-teacher"
+                        value={historyFilters.teacherId}
+                        onChange={(e) => updateHistoryFilters({ teacherId: e.target.value })}
+                        className={historySelectClass}
                       >
-                        {[1, 2, 3, 4].map((w) => (
-                          <option key={w} value={w}>Minggu ke-{w}</option>
-                        ))}
+                        <option value="">Semua Guru</option>
+                        {teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.name}</option>)}
                       </select>
-                    )}
-                    {/* Teacher Filter */}
-                    <select
-                      value={historyTeacherId || ""}
-                      onChange={(e) => setHistoryTeacherId(e.target.value || null)}
-                      className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                    >
-                      <option value="">Semua Guru</option>
-                      {teachers.map((t) => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </select>
+                    </label>
+                    <label className="min-w-0 space-y-1.5" htmlFor="history-jurusan">
+                      <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">Jurusan</span>
+                      <select
+                        id="history-jurusan"
+                        value={historyFilters.jurusanId}
+                        onChange={(e) => {
+                          const jurusanId = e.target.value;
+                          setHistoryFilters((previous) => changeHistoryJurusan(previous, jurusanId, grades, subjects));
+                        }}
+                        className={historySelectClass}
+                      >
+                        <option value="">Semua Jurusan</option>
+                        {jurusanList.map((jurusan) => <option key={jurusan.id} value={jurusan.id}>{jurusan.name}</option>)}
+                      </select>
+                    </label>
+                    <label className="min-w-0 space-y-1.5" htmlFor="history-grade">
+                      <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">Kelas</span>
+                      <select
+                        id="history-grade"
+                        value={historyFilters.gradeId}
+                        onChange={(e) => updateHistoryFilters({ gradeId: e.target.value })}
+                        className={historySelectClass}
+                      >
+                        <option value="">Semua Kelas</option>
+                        {historyGrades.map((grade) => <option key={grade.id} value={grade.id}>{grade.name}</option>)}
+                      </select>
+                    </label>
+                    <label className="min-w-0 space-y-1.5" htmlFor="history-subject">
+                      <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">Mata Pelajaran</span>
+                      <select
+                        id="history-subject"
+                        value={historyFilters.subjectId}
+                        onChange={(e) => updateHistoryFilters({ subjectId: e.target.value })}
+                        className={historySelectClass}
+                      >
+                        <option value="">Semua Mata Pelajaran</option>
+                        {historySubjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+                      </select>
+                    </label>
                   </div>
-                  {/* Export Buttons */}
-                  <div className="flex gap-2 mt-4">
+                  <div className="flex flex-wrap gap-2 mt-4">
                     <button
                       onClick={() => exportHistory("csv")}
-                      disabled={exportingHistory !== null}
-                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                      disabled={exportingHistory !== null || historyLoading || !!historyError || !historyData}
+                      className={historyExportClass}
                     >
-                      <FileOutput className="w-4 h-4" />
+                      {exportingHistory === "csv" ? <Loader2 aria-hidden="true" className="w-4 h-4 animate-spin motion-reduce:animate-none" /> : <FileOutput aria-hidden="true" className="w-4 h-4" />}
                       CSV
                     </button>
                     <button
                       onClick={() => exportHistory("excel")}
-                      disabled={exportingHistory !== null}
-                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                      disabled={exportingHistory !== null || historyLoading || !!historyError || !historyData}
+                      className={historyExportClass}
                     >
-                      <FileSpreadsheet className="w-4 h-4" />
+                      {exportingHistory === "excel" ? <Loader2 aria-hidden="true" className="w-4 h-4 animate-spin motion-reduce:animate-none" /> : <FileSpreadsheet aria-hidden="true" className="w-4 h-4" />}
                       Excel
                     </button>
                     <button
                       onClick={() => exportHistory("pdf")}
-                      disabled={exportingHistory !== null}
-                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                      disabled={exportingHistory !== null || historyLoading || !!historyError || !historyData}
+                      className={historyExportClass}
                     >
-                      <FileText className="w-4 h-4" />
+                      {exportingHistory === "pdf" ? <Loader2 aria-hidden="true" className="w-4 h-4 animate-spin motion-reduce:animate-none" /> : <FileText aria-hidden="true" className="w-4 h-4" />}
                       PDF
                     </button>
                   </div>
+                  {exportingHistory && <p role="status" className="mt-3 text-sm text-gray-700 dark:text-gray-300">Menyiapkan file {exportingHistory === "excel" ? "Excel" : exportingHistory.toUpperCase()}...</p>}
+                  {historyExportError?.query === historyQuery && (
+                    <p role="alert" className="mt-3 text-sm text-red-700 dark:text-red-300">{historyExportError.message}</p>
+                  )}
                 </div>
 
                 {/* Summary Stats */}
@@ -2055,65 +2169,76 @@ const AdminDashboard = () => {
                   </div>
                 )}
 
-                {/* History Table */}
-                <div className="glass-card-light overflow-hidden">
-                  <div className="p-6 border-b border-gray-100 dark:border-gray-800">
-                    <h3 className="font-semibold text-gray-900 dark:text-white">Detail Absensi per Tanggal</h3>
+                                <div className="glass-card-light min-w-0">
+                  <div className="p-4 sm:p-6 border-b border-gray-100 dark:border-gray-800">
+                    <h3 className="font-semibold text-gray-900 dark:text-white">Detail per Absensi</h3>
+                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">Setiap baris adalah satu presensi. Jam jadwal dan waktu scan ditampilkan dalam WIB.</p>
                   </div>
                   {historyLoading ? (
-                    <div className="p-8 text-center">
-                      <Loader2 className="w-8 h-8 animate-spin mx-auto text-emerald-600" />
-                      <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Memuat data...</p>
+                    <div role="status" className="p-8 text-center">
+                      <Loader2 aria-hidden="true" className="w-8 h-8 animate-spin motion-reduce:animate-none mx-auto text-emerald-700 dark:text-emerald-400" />
+                      <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">Memuat detail sesi absensi...</p>
                     </div>
-                  ) : !historyData?.history?.length ? (
-                    <div className="p-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                      Tidak ada data absensi untuk periode yang dipilih.
+                  ) : historyError ? (
+                    <div className="p-6 sm:p-8 text-center">
+                      <p role="alert" className="text-sm text-red-700 dark:text-red-300">{historyError}</p>
+                      <button onClick={() => setHistoryRetry((previous) => previous + 1)} className={`${historyExportClass} mx-auto mt-4`}>Coba lagi</button>
+                    </div>
+                  ) : !historyData?.sessions.length ? (
+                    <div role="status" className="p-8 text-center text-sm text-gray-600 dark:text-gray-300">
+                      Tidak ada data sesi absensi untuk periode dan kategori yang dipilih.
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
+                    <div className="overflow-x-auto rounded-b-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-700 dark:focus-visible:outline-emerald-400" role="region" aria-label="Tabel detail sesi absensi" tabIndex={0}>
+                      <table className="w-full min-w-[1200px]">
+                        <caption className="sr-only">Detail sesi absensi per guru dengan waktu, mapel, kelas, dan jurusan.</caption>
                         <thead className="bg-gray-50 dark:bg-white/5">
                           <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Tanggal</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Guru</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">NIP</th>
-                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
-                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Tepat Waktu</th>
-                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Terlambat</th>
-                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Rata-rata Telat</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-300 uppercase">Tanggal</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-300 uppercase">Waktu Scan</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-300 uppercase">Jadwal</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-300 uppercase">Guru</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-300 uppercase">NIP</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-300 uppercase">Jurusan</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-300 uppercase">Kelas</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-300 uppercase">Mata Pelajaran</th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-300 uppercase">Ruangan</th>
+                            <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-600 dark:text-gray-300 uppercase">Status</th>
+                            <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-600 dark:text-gray-300 uppercase">Keterlambatan</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                          {historyData.history.map((day: any) =>
-                            day.teachers.map((teacher: any, idx: number) => (
-                              <tr key={`${day.date}-${teacher.teacher_id}`} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                                {idx === 0 && (
-                                  <td
-                                    rowSpan={day.teachers.length}
-                                    className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white align-top"
-                                  >
-                                    {new Date(day.date).toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short" })}
-                                  </td>
-                                )}
-                                <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{teacher.teacher_name}</td>
-                                <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{teacher.nip}</td>
-                                <td className="px-4 py-3 text-sm text-center text-gray-900 dark:text-white">{teacher.total}</td>
-                                <td className="px-4 py-3 text-sm text-center">
+                          {historyData.sessions.map((session, idx) => (
+                            <tr key={`${session.date}-${session.teacher_id}-${session.subject_id}-${idx}`} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                              <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
+                                {new Date(`${session.date}T00:00:00`).toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 font-mono">{session.time}</td>
+                              <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-200 font-medium">
+                                {session.start_time && session.end_time ? `${session.start_time}–${session.end_time}` : "-"}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{session.teacher_name}</td>
+                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{session.nip || "-"}</td>
+                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{session.jurusan_name || jurusanList.find((j) => j.id === session.jurusan_id)?.name || "-"}</td>
+                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{session.grade_name || grades.find((g) => g.id === session.grade_id)?.name || "-"}</td>
+                              <td className="px-4 py-3 text-sm text-gray-900 dark:text-white font-medium">{session.subject_name || subjects.find((s) => s.id === session.subject_id)?.name || "-"}</td>
+                              <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{session.room_name || "-"}</td>
+                              <td className="px-4 py-3 text-center">
+                                {session.status === "on_time" ? (
                                   <span className="px-2 py-1 text-xs rounded-full bg-green-100 dark:bg-green-950/30 text-green-700 dark:text-green-300">
-                                    {teacher.on_time}
+                                    Tepat Waktu
                                   </span>
-                                </td>
-                                <td className="px-4 py-3 text-sm text-center">
+                                ) : (
                                   <span className="px-2 py-1 text-xs rounded-full bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300">
-                                    {teacher.late}
+                                    Terlambat
                                   </span>
-                                </td>
-                                <td className="px-4 py-3 text-sm text-center text-gray-600 dark:text-gray-400">
-                                  {teacher.avg_lateness > 0 ? `${teacher.avg_lateness} mnt` : "-"}
-                                </td>
-                              </tr>
-                            ))
-                          )}
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-center text-gray-600 dark:text-gray-400">
+                                {session.lateness_minutes > 0 ? `${session.lateness_minutes} mnt` : "-"}
+                              </td>
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>
@@ -2123,7 +2248,7 @@ const AdminDashboard = () => {
                 {/* Link to full report page */}
                 <div className="glass-card-light p-6">
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                    Butuh laporan lengkap dengan detail per sesi absensi?
+                    Buka laporan untuk melihat ringkasan tambahan.
                   </p>
                   <a
                     href="/admin/reports"

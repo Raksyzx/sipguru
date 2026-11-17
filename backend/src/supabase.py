@@ -1,4 +1,5 @@
 from src.config import settings
+from src.attendance_history import build_history, enrich_record, filter_categories, history_dates, period_bounds
 from supabase import create_client, Client
 from typing import Optional, Dict, Any, List
 from datetime import date, time
@@ -330,7 +331,8 @@ class SupabaseClient:
     def create_attendance_log(self, teacher_id: str, room_id: str,
                              status: str, geolocation: str = None,
                              qr_token: str = None, device_fingerprint: str = None,
-                             admin_remarks: str = None) -> str:
+                             admin_remarks: str = None,
+                             attendance_context: Optional[dict] = None) -> str:
         """Create new attendance log entry"""
         client = self._get_client()
         
@@ -361,7 +363,8 @@ class SupabaseClient:
             "geolocation": geo_point,
             "qr_token": qr_hash,
             "device_fingerprint": device_fingerprint,
-            "admin_remarks": admin_remarks
+            "admin_remarks": admin_remarks,
+            "attendance_context": attendance_context,
         }).execute()
         return result.data[0]["id"]
     
@@ -449,156 +452,58 @@ class SupabaseClient:
 
     @log_query_time
     def get_attendance_logs_by_period(
-        self,
-        start_date: str,
-        end_date: str,
-        teacher_id: str = None,
+        self, start_date: str, end_date: str, teacher_id: Optional[str] = None,
+        jurusan_id: Optional[str] = None, grade_id: Optional[str] = None,
+        subject_id: Optional[str] = None,
     ) -> List[dict]:
-        """Get attendance logs with teacher/room join for a date range.
-        Returns list of dicts compatible with LocalDBClient format.
-        """
-        import json
         client = self._get_client()
+        start, end = period_bounds(start_date, end_date)
+        logs = []
+        offset, page_size = 0, 500
+        while True:
+            # '*' tolerates production schemas without lateness_minutes.
+            query = client.table("attendance_logs").select("*").gte("created_at", start).lt("created_at", end)
+            if teacher_id:
+                query = query.eq("teacher_id", teacher_id)
+            for field, value in (("jurusan_id", jurusan_id), ("grade_id", grade_id), ("subject_id", subject_id)):
+                if value:
+                    query = query.eq(f"attendance_context->>{field}", value)
+            page = query.order("created_at", desc=True).order("id").range(offset, offset + page_size - 1).execute().data or []
+            logs.extend(page)
+            if not page:
+                break
+            offset += len(page)
 
-        # Select without lateness_minutes initially (fallback if column missing)
-        query = client.table("attendance_logs").select(
-            "id,teacher_id,room_id,status,geolocation,created_at"
-        ).gte("created_at", f"{start_date}T00:00:00").lt("created_at", f"{end_date}T23:59:59.999")
+        def related(table, columns, ids):
+            rows = {}
+            ids = sorted({value for value in ids if value})
+            for offset in range(0, len(ids), 100):
+                result = client.table(table).select(columns).in_("id", ids[offset:offset + 100]).execute()
+                rows.update({item["id"]: item for item in result.data or []})
+            return rows
 
-        if teacher_id:
-            query = query.eq("teacher_id", teacher_id)
-
-        query = query.order("created_at", desc=True)
-        result = query.execute()
-
-        if not result.data:
-            return []
-
-        # Try to get lateness_minutes if column exists
-        lateness_map = {}
-        try:
-            lat_query = client.table("attendance_logs").select(
-                "id,lateness_minutes"
-            ).in_("id", [log["id"] for log in result.data]).execute()
-            if lat_query.data:
-                lateness_map = {log["id"]: log.get("lateness_minutes", 0) for log in lat_query.data}
-        except Exception:
-            # Column doesn't exist yet - use 0 as fallback
-            pass
-
-        teacher_ids = list(set(log["teacher_id"] for log in result.data))
-        room_ids = list(set(log["room_id"] for log in result.data if log.get("room_id")))
-
-        teachers = {}
-        if teacher_ids:
-            t_result = client.table("users").select("id,name,nip").in_("id", teacher_ids).execute()
-            for t in t_result.data:
-                teachers[t["id"]] = {"name": t.get("name"), "nip": t.get("nip")}
-
-        rooms = {}
-        if room_ids:
-            r_result = client.table("rooms").select("id,name,room_code").in_("id", room_ids).execute()
-            for r in r_result.data:
-                rooms[r["id"]] = {"name": r.get("name"), "room_code": r.get("room_code")}
-
-        reports = []
-        for log in result.data:
-            record = dict(log)
-            t = teachers.get(log["teacher_id"])
-            record["teacher_name"] = t["name"] if t else ""
-            record["nip"] = t["nip"] if t else ""
-            r = rooms.get(log["room_id"]) if log.get("room_id") else None
-            record["room_name"] = r["name"] if r else ""
-            record["room_code"] = r["room_code"] if r else ""
-            # Add lateness_minutes with fallback
-            record["lateness_minutes"] = lateness_map.get(log["id"], 0)
-            if record.get("geolocation"):
-                try:
-                    record["geolocation"] = json.loads(record["geolocation"])
-                except:
-                    record["geolocation"] = None
-            reports.append(record)
-
-        return reports
-
+        teachers = related("users", "id,name,nip", [log["teacher_id"] for log in logs])
+        rooms = related("rooms", "id,name,room_code", [log.get("room_id") for log in logs])
+        records = []
+        for log in logs:
+            record = enrich_record(dict(log))
+            teacher = teachers.get(log["teacher_id"], {})
+            room = rooms.get(log.get("room_id"), {})
+            record.update(teacher_name=teacher.get("name", ""), nip=teacher.get("nip", ""),
+                          room_name=room.get("name", ""), room_code=room.get("room_code", ""))
+            records.append(record)
+        return filter_categories(records, jurusan_id, grade_id, subject_id)
 
     @log_query_time
     def get_attendance_history(
-        self,
-        filter_type: str,
-        year: int,
-        month: int,
-        day: int = None,
-        week: int = None,
-        teacher_id: str = None,
+        self, filter_type: str, year: int, month: int,
+        day: Optional[int] = None, week: Optional[int] = None,
+        teacher_id: Optional[str] = None, jurusan_id: Optional[str] = None,
+        grade_id: Optional[str] = None, subject_id: Optional[str] = None,
     ) -> dict:
-        """Get attendance history grouped by period with teacher breakdown."""
-        from datetime import datetime
-
-        if filter_type == "day":
-            if day is None: day = datetime.now().day
-            start_date = f"{year}-{month:02d}-{day:02d}"
-            end_date = start_date
-        elif filter_type == "week":
-            if week is None: week = (datetime.now().day - 1) // 7 + 1
-            start_date = f"{year}-{month:02d}-{max(1, (week - 1) * 7 + 1):02d}"
-            end_date = f"{year}-{month:02d}-{min(week * 7, 28):02d}"
-        elif filter_type == "month":
-            start_date = f"{year}-{month:02d}-01"
-            end_date = f"{year + 1}-01-01" if month == 12 else f"{year}-{month + 1:02d}-01"
-        else:
-            start_date = f"{year}-01-01"
-            end_date = f"{year}-12-31"
-
-        logs = self.get_attendance_logs_by_period(start_date, end_date, teacher_id)
-
-        history = {}
-        for log in logs:
-            date = log["created_at"][:10]
-            t_id = log["teacher_id"]
-            if date not in history:
-                history[date] = {"date": date, "teachers": [], "day_total": 0, "day_on_time": 0, "day_late": 0}
-            teacher_record = {
-                "teacher_id": t_id,
-                "teacher_name": log.get("teacher_name", ""),
-                "nip": log.get("nip", ""),
-                "total": 1,
-                "on_time": 1 if log["status"] == "on_time" else 0,
-                "late": 1 if log["status"] == "late" else 0,
-                "avg_lateness": log.get("lateness_minutes", 0) if log["status"] == "late" else 0,
-            }
-            existing = next((t for t in history[date]["teachers"] if t["teacher_id"] == t_id), None)
-            if existing:
-                existing["total"] += teacher_record["total"]
-                existing["on_time"] += teacher_record["on_time"]
-                existing["late"] += teacher_record["late"]
-                if teacher_record["avg_lateness"] > 0:
-                    existing["avg_lateness"] = (existing["avg_lateness"] * (existing["late"] - 1) + teacher_record["avg_lateness"]) / existing["late"]
-            else:
-                history[date]["teachers"].append(teacher_record)
-            history[date]["day_total"] += teacher_record["total"]
-            history[date]["day_on_time"] += teacher_record["on_time"]
-            history[date]["day_late"] += teacher_record["late"]
-
-        history_list = sorted(history.values(), key=lambda x: x["date"], reverse=True)
-        total_all = sum(h["day_total"] for h in history_list)
-        on_time_all = sum(h["day_on_time"] for h in history_list)
-        late_all = sum(h["day_late"] for h in history_list)
-
-        return {
-            "filter_type": filter_type,
-            "period": {"year": year, "month": month, "day": day, "week": week},
-            "start_date": start_date,
-            "end_date": end_date,
-            "summary": {
-                "total": total_all,
-                "on_time": on_time_all,
-                "late": late_all,
-                "attendance_rate": round(on_time_all / max(total_all, 1) * 100, 2),
-                "unique_teachers": len(set(t["teacher_id"] for h in history_list for t in h["teachers"])),
-            },
-            "history": history_list,
-        }
+        start, end = history_dates(filter_type, year, month, day, week)
+        records = self.get_attendance_logs_by_period(start, end, teacher_id, jurusan_id, grade_id, subject_id)
+        return build_history(records, filter_type, year, month, day, week)
 
 
     @log_query_time

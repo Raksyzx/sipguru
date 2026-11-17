@@ -1,402 +1,222 @@
-"""Report generation endpoints for SIPGURU - daily/weekly/monthly with PDF/Excel export.
+"""Attendance history and exports share the same validated filters and WIB dates."""
 
-Database-agnostic: uses get_db() interface (LocalDBClient or SupabaseClient)
-instead of raw SQLite queries. Works for both local dev and Supabase production.
-"""
+import csv
+import io
+from datetime import datetime
+from typing import Literal, Optional
+from xml.sax.saxutils import escape
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from datetime import datetime, timedelta
-from typing import Optional
-import io
-import json
 
+from src.attendance_history import WIB, attendance_time, build_history, build_sessions, history_dates, summarize
 from src.database import get_db
-from src.deps import get_current_user, require_admin
+from src.deps import get_current_user
 
 router = APIRouter()
 db = get_db()
 
 
-def _get_date_range(period: str, year: int, month: int, week: int = None):
-    """Calculate date range based on period type."""
-    if period == "daily":
-        try:
-            date = datetime(year, month, 1)
-        except ValueError:
-            date = datetime.now()
-        start = date.replace(day=1).strftime("%Y-%m-%d")
-        end = date.strftime("%Y-%m-%d")
-        return start, end
-    elif period == "weekly":
-        if week is None:
-            week = (datetime.now().day - 1) // 7 + 1
-        start_date = datetime(year, month, 1) + timedelta(weeks=week - 1)
-        end_date = start_date + timedelta(days=6)
-        if end_date.month != month:
-            end_date = datetime(year, month + 1, 1) - timedelta(days=1)
-        return start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
-    elif period == "monthly":
-        try:
-            start = datetime(year, month, 1).strftime("%Y-%m-%d")
-            if month == 12:
-                end = datetime(year + 1, 1, 1) - timedelta(days=1)
-            else:
-                end = datetime(year, month + 1, 1) - timedelta(days=1)
-            return start, end.strftime("%Y-%m-%d")
-        except ValueError:
-            now = datetime.now()
-            return now.replace(day=1).strftime("%Y-%m-%d"), now.strftime("%Y-%m-%d")
-    else:
-        now = datetime.now()
-        return now.replace(day=1).strftime("%Y-%m-%d"), now.strftime("%Y-%m-%d")
+class ReportFilters:
+    def __init__(
+        self,
+        period: Literal["daily", "weekly", "monthly"] = Query("daily"),
+        filter_type: Optional[Literal["day", "week", "month", "year"]] = Query(None),
+        year: Optional[int] = Query(None, ge=1900, le=9998),
+        month: Optional[int] = Query(None, ge=1, le=12),
+        day: Optional[int] = Query(None, ge=1, le=31),
+        week: Optional[int] = Query(None, ge=1, le=5),
+        teacher_id: Optional[str] = Query(None, min_length=1, max_length=128),
+        jurusan_id: Optional[str] = Query(None, min_length=1, max_length=128),
+        grade_id: Optional[str] = Query(None, min_length=1, max_length=128),
+        subject_id: Optional[str] = Query(None, min_length=1, max_length=128),
+    ):
+        now = datetime.now(WIB)
+        self.period = period
+        self.filter_type = filter_type
+        self.year = year if year is not None else now.year
+        self.month = month if month is not None else now.month
+        self.day = day
+        self.week = week
+        self.teacher_id = teacher_id
+        self.jurusan_id = jurusan_id
+        self.grade_id = grade_id
+        self.subject_id = subject_id
+
+
+def _teacher_scope(auth_user, teacher_id):
+    if auth_user.get("role") == "admin":
+        return teacher_id
+    if teacher_id and teacher_id != auth_user["user_id"]:
+        raise HTTPException(status_code=403, detail="Anda hanya dapat membaca laporan sendiri")
+    return auth_user["user_id"]
+
+
+def _load_report(filters, auth_user, history=False):
+    teacher_id = _teacher_scope(auth_user, filters.teacher_id)
+    kind = filters.filter_type or ("month" if history else {
+        "daily": "day", "weekly": "week", "monthly": "month",
+    }[filters.period])
+    try:
+        start, end = history_dates(kind, filters.year, filters.month, filters.day, filters.week)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail="Tanggal atau minggu tidak valid untuk bulan yang dipilih") from error
+    records = db.get_attendance_logs_by_period(
+        start, end, teacher_id, filters.jurusan_id, filters.grade_id, filters.subject_id,
+    )
+    return {
+        "period": kind, "filter_type": kind, "year": filters.year, "month": filters.month,
+        "day": filters.day, "week": filters.week, "start_date": start, "end_date": end,
+        "summary": summarize(records), "records": records,
+    }
 
 
 @router.get("/attendance")
 async def get_attendance_report(
-    period: str = Query("daily", enum=["daily", "weekly", "monthly"]),
-    year: int = Query(None),
-    month: int = Query(None),
-    week: int = Query(None),
-    teacher_id: Optional[str] = Query(None),
-    auth_user: dict = Depends(get_current_user),
+    filters: ReportFilters = Depends(), auth_user: dict = Depends(get_current_user),
 ):
-    """Get attendance report for specified period with optional teacher filter."""
-    if year is None:
-        year = datetime.now().year
-    if month is None:
-        month = datetime.now().month
-
-    start_date, end_date = _get_date_range(period, year, month, week)
-
-    # Use database-agnostic method (works for both SQLite and Supabase)
-    reports = db.get_attendance_logs_by_period(start_date, end_date, teacher_id)
-
-    # Calculate summary stats
-    total = len(reports)
-    on_time = sum(1 for r in reports if r["status"] == "on_time")
-    late = sum(1 for r in reports if r["status"] == "late")
-    avg_lateness = sum(r.get("lateness_minutes") or 0 for r in reports if r["status"] == "late") / max(late, 1)
-
-    return {
-        "period": period,
-        "year": year,
-        "month": month,
-        "week": week,
-        "start_date": start_date,
-        "end_date": end_date,
-        "summary": {
-            "total": total,
-            "on_time": on_time,
-            "late": late,
-            "attendance_rate": round(on_time / max(total, 1) * 100, 2),
-            "avg_lateness_minutes": round(avg_lateness, 1)
-        },
-        "records": reports
-    }
-
-
-@router.get("/attendance/csv")
-async def export_attendance_csv(
-    period: str = Query("daily", enum=["daily", "weekly", "monthly"]),
-    year: int = Query(None),
-    month: int = Query(None),
-    week: int = Query(None),
-    teacher_id: Optional[str] = Query(None),
-    auth_user: dict = Depends(get_current_user),
-):
-    """Export attendance report as CSV."""
-    report = await get_attendance_report(
-        period=period, year=year, month=month, week=week,
-        teacher_id=teacher_id, auth_user=auth_user
-    )
-
-    output = io.StringIO()
-    output.write("Tanggal,Waktu,NIP,Nama Guru,Ruangan,Kode Ruangan,Status,Keterlambatan (menit)\n")
-
-    for record in report["records"]:
-        created = record.get("created_at", "")
-        date = created[:10] if created else ""
-        time = created[11:16] if len(created) > 11 else ""
-        output.write(
-            f"{date},{time},{record.get('nip','')},{record.get('teacher_name','')},"
-            f"{record.get('room_name','')},{record.get('room_code','')},"
-            f"{record.get('status','')},{record.get('lateness_minutes') or ''}\n"
-        )
-
-    output.write(f"\nRingkasan:\n")
-    output.write(f"Periode,{report['period']}\n")
-    output.write(f"Total,{report['summary']['total']}\n")
-    output.write(f"Tepat Waktu,{report['summary']['on_time']}\n")
-    output.write(f"Terlambat,{report['summary']['late']}\n")
-    output.write(f"Rate Kehadiran,{report['summary']['attendance_rate']}%\n")
-    output.write(f"Rata-rata Keterlambatan,{report['summary']['avg_lateness_minutes']} menit\n")
-
-    csv_content = output.getvalue()
-    output.close()
-
-    filename = f"laporan_absensi_{report['start_date']}_to_{report['end_date']}.csv"
-
-    return StreamingResponse(
-        io.BytesIO(csv_content.encode('utf-8')),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
-    )
-
-
-@router.get("/attendance/excel")
-async def export_attendance_excel(
-    period: str = Query("daily", enum=["daily", "weekly", "monthly"]),
-    year: int = Query(None),
-    month: int = Query(None),
-    week: int = Query(None),
-    teacher_id: Optional[str] = Query(None),
-    auth_user: dict = Depends(get_current_user),
-):
-    """Export attendance report as Excel (.xlsx)."""
-    try:
-        from openpyxl import Workbook
-        from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
-    except ImportError:
-        raise HTTPException(status_code=500, detail="openpyxl not installed. Run: pip install openpyxl")
-
-    report = await get_attendance_report(
-        period=period, year=year, month=month, week=week,
-        teacher_id=teacher_id, auth_user=auth_user
-    )
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Absensi"
-
-    header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill(start_color="064e3b", end_color="064e3b", fill_type="solid")
-    header_alignment = Alignment(horizontal="center", vertical="center")
-    thin_border = Border(
-        left=Side(style="thin"), right=Side(style="thin"),
-        top=Side(style="thin"), bottom=Side(style="thin")
-    )
-
-    headers = ["Tanggal", "Waktu", "NIP", "Nama Guru", "Ruangan", "Kode", "Status", "Keterlambatan (menit)"]
-    for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = header_alignment
-        cell.border = thin_border
-
-    for row_idx, record in enumerate(report["records"], 2):
-        created = record.get("created_at", "")
-        date = created[:10] if created else ""
-        time = created[11:16] if len(created) > 11 else ""
-
-        ws.cell(row=row_idx, column=1, value=date).border = thin_border
-        ws.cell(row=row_idx, column=2, value=time).border = thin_border
-        ws.cell(row=row_idx, column=3, value=record.get("nip", "")).border = thin_border
-        ws.cell(row=row_idx, column=4, value=record.get("teacher_name", "")).border = thin_border
-        ws.cell(row=row_idx, column=5, value=record.get("room_name", "")).border = thin_border
-        ws.cell(row=row_idx, column=6, value=record.get("room_code", "")).border = thin_border
-        ws.cell(row=row_idx, column=7, value=record.get("status", "")).border = thin_border
-        ws.cell(row=row_idx, column=8, value=record.get("lateness_minutes")).border = thin_border
-
-    summary_row = len(report["records"]) + 3
-    ws.cell(row=summary_row, column=1, value="RINGKASAN").font = Font(bold=True)
-
-    summary_data = [
-        ("Periode:", report["period"]),
-        ("Tanggal:", f"{report['start_date']} - {report['end_date']}"),
-        ("Total Absensi:", report["summary"]["total"]),
-        ("Tepat Waktu:", report["summary"]["on_time"]),
-        ("Terlambat:", report["summary"]["late"]),
-        ("Rate Kehadiran:", f"{report['summary']['attendance_rate']}%"),
-        ("Rata-rata Keterlambatan:", f"{report['summary']['avg_lateness_minutes']} menit"),
-    ]
-
-    for i, (label, value) in enumerate(summary_data, 0):
-        ws.cell(row=summary_row + i + 1, column=1, value=label).font = Font(bold=True)
-        ws.cell(row=summary_row + i + 1, column=2, value=value)
-
-    ws.column_dimensions['A'].width = 12
-    ws.column_dimensions['B'].width = 10
-    ws.column_dimensions['C'].width = 15
-    ws.column_dimensions['D'].width = 25
-    ws.column_dimensions['E'].width = 20
-    ws.column_dimensions['F'].width = 12
-    ws.column_dimensions['G'].width = 15
-    ws.column_dimensions['H'].width = 18
-
-    output = io.BytesIO()
-    wb.save(output)
-    output.seek(0)
-
-    filename = f"laporan_absensi_{report['start_date']}_to_{report['end_date']}.xlsx"
-
-    return StreamingResponse(
-        output,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
-    )
-
-
-@router.get("/attendance/pdf")
-async def export_attendance_pdf(
-    period: str = Query("daily", enum=["daily", "weekly", "monthly"]),
-    year: int = Query(None),
-    month: int = Query(None),
-    week: int = Query(None),
-    teacher_id: Optional[str] = Query(None),
-    auth_user: dict = Depends(get_current_user),
-):
-    """Export attendance report as PDF."""
-    try:
-        from reportlab.lib import colors
-        from reportlab.lib.pagesizes import A4, letter
-        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib.units import inch
-        from reportlab.lib.enums import TA_CENTER, TA_LEFT
-    except ImportError:
-        raise HTTPException(status_code=500, detail="reportlab not installed. Run: pip install reportlab")
-
-    report = await get_attendance_report(
-        period=period, year=year, month=month, week=week,
-        teacher_id=teacher_id, auth_user=auth_user
-    )
-
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=0.5*inch, leftMargin=0.5*inch, topMargin=0.5*inch, bottomMargin=0.5*inch)
-
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
-        fontSize=18,
-        textColor=colors.HexColor('#064e3b'),
-        spaceAfter=12,
-        alignment=TA_CENTER
-    )
-
-    elements = []
-
-    elements.append(Paragraph("SIPGURU - Laporan Absensi Guru", title_style))
-    elements.append(Spacer(1, 0.2*inch))
-
-    period_text = f"Periode: {report['period'].capitalize()} ({report['start_date']} s/d {report['end_date']})"
-    elements.append(Paragraph(period_text, styles['Normal']))
-    elements.append(Spacer(1, 0.3*inch))
-
-    summary_data = [
-        ["Total Absensi", str(report["summary"]["total"])],
-        ["Tepat Waktu", str(report["summary"]["on_time"])],
-        ["Terlambat", str(report["summary"]["late"])],
-        ["Rate Kehadiran", f"{report['summary']['attendance_rate']}%"],
-        ["Rata-rata Keterlambatan", f"{report['summary']['avg_lateness_minutes']} menit"],
-    ]
-
-    summary_table = Table(summary_data, colWidths=[2.5*inch, 2*inch])
-    summary_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#064e3b')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f0fdf4')),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#064e3b')),
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 1), (-1, -1), 10),
-    ]))
-    elements.append(summary_table)
-    elements.append(Spacer(1, 0.4*inch))
-
-    elements.append(Paragraph("Detail Absensi", styles['Heading2']))
-    elements.append(Spacer(1, 0.2*inch))
-
-    table_data = [["Tanggal", "Waktu", "NIP", "Nama", "Ruangan", "Status", "Telat (mnt)"]]
-
-    for record in report["records"]:
-        created = record.get("created_at", "")
-        date = created[:10] if created else ""
-        time = created[11:16] if len(created) > 11 else ""
-        table_data.append([
-            date,
-            time,
-            record.get("nip", "")[:10],
-            (record.get("teacher_name", "") or "")[:20],
-            (record.get("room_name", "") or "")[:15],
-            record.get("status", ""),
-            str(record.get("lateness_minutes") or ""),
-        ])
-
-    detail_table = Table(table_data, colWidths=[0.9*inch, 0.7*inch, 1*inch, 1.5*inch, 1.2*inch, 0.9*inch, 0.8*inch])
-    detail_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#064e3b')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 1), (-1, -1), 8),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f9fafb')]),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
-    elements.append(detail_table)
-
-    elements.append(Spacer(1, 0.5*inch))
-    footer = Paragraph(
-        f"<i>Dicetak pada: {datetime.now().strftime('%d/%m/%Y %H:%M')} | SIPGURU System</i>",
-        ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.grey)
-    )
-    elements.append(footer)
-
-    doc.build(elements)
-    buffer.seek(0)
-
-    filename = f"laporan_absensi_{report['start_date']}_to_{report['end_date']}.pdf"
-
-    return StreamingResponse(
-        buffer,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
-    )
-
-
-@router.get("/teacher/{teacher_id}/summary")
-async def get_teacher_summary(
-    teacher_id: str,
-    month: int = Query(None),
-    year: int = Query(None),
-    auth_user: dict = Depends(get_current_user),
-):
-    """Get attendance summary for a specific teacher."""
-    # Database-agnostic method (works for both SQLite and Supabase)
-    return db.get_teacher_summary(teacher_id, year, month)
+    return _load_report(filters, auth_user)
 
 
 @router.get("/attendance/history")
 async def get_attendance_history(
-    filter_type: str = Query("month", enum=["day", "week", "month", "year"]),
-    year: int = Query(None),
-    month: int = Query(None),
-    day: int = Query(None),
-    week: int = Query(None),
-    teacher_id: Optional[str] = Query(None),
+    filters: ReportFilters = Depends(), auth_user: dict = Depends(get_current_user),
+):
+    report = _load_report(filters, auth_user, history=True)
+    return build_history(
+        report["records"], report["filter_type"], filters.year, filters.month, filters.day, filters.week,
+    )
+
+
+@router.get("/attendance/sessions")
+async def get_attendance_sessions(
+    filters: ReportFilters = Depends(), auth_user: dict = Depends(get_current_user),
+):
+    """Return flat list of attendance sessions (one row per absensi) with schedule details."""
+    report = _load_report(filters, auth_user, history=True)
+    return {"sessions": build_sessions(report["records"]), "summary": report["summary"]}
+
+
+HEADERS = ["Tanggal", "Waktu (WIB)", "NIP", "Nama Guru", "Jurusan", "Kelas", "Mata Pelajaran", "Ruangan", "Status", "Keterlambatan (menit)"]
+
+
+def _export_rows(report):
+    for record in report["records"]:
+        created = attendance_time(record["created_at"])
+        yield [
+            created.date().isoformat(), created.strftime("%H:%M"), record.get("nip") or "",
+            record.get("teacher_name") or "", record.get("jurusan_name") or "-",
+            record.get("grade_name") or "-", record.get("subject_name") or "-",
+            record.get("room_name") or "", record["status"], record.get("lateness_minutes") or 0,
+        ]
+
+
+def _download(data, media_type, report, extension):
+    filename = f"history_absensi_{report['start_date']}_to_{report['end_date']}.{extension}"
+    return StreamingResponse(
+        io.BytesIO(data), media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _csv_value(value):
+    if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@", "\t", "\r")):
+        return "'" + value
+    return value
+
+
+@router.get("/attendance/csv")
+async def export_attendance_csv(
+    filters: ReportFilters = Depends(), auth_user: dict = Depends(get_current_user),
+):
+    report = _load_report(filters, auth_user)
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(HEADERS)
+    for row in _export_rows(report):
+        writer.writerow([_csv_value(value) for value in row])
+    return _download(output.getvalue().encode("utf-8-sig"), "text/csv", report, "csv")
+
+
+@router.get("/attendance/excel")
+async def export_attendance_excel(
+    filters: ReportFilters = Depends(), auth_user: dict = Depends(get_current_user),
+):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    report = _load_report(filters, auth_user)
+    workbook = Workbook()
+    sheet = workbook.active
+    assert sheet is not None
+    sheet.title = "History Absensi"
+    sheet.append(HEADERS)
+    for row in _export_rows(report):
+        sheet.append(row)
+        for cell in sheet[sheet.max_row]:
+            if isinstance(cell.value, str):
+                cell.data_type = "s"
+    for cell in sheet[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="064E3B")
+    for index, width in enumerate([14, 14, 20, 28, 28, 22, 32, 24, 16, 24], 1):
+        sheet.column_dimensions[get_column_letter(index)].width = width
+    sheet.freeze_panes = "A2"
+    sheet.auto_filter.ref = sheet.dimensions
+    summary = workbook.create_sheet("Ringkasan")
+    summary.append(["Periode", f"{report['start_date']} s/d {report['end_date']}"])
+    for label, field in [("Total Absensi", "total"), ("Tepat Waktu", "on_time"), ("Terlambat", "late"), ("Rate Tepat Waktu (%)", "attendance_rate")]:
+        summary.append([label, report["summary"][field]])
+    summary.column_dimensions["A"].width = 26
+    summary.column_dimensions["B"].width = 30
+    output = io.BytesIO()
+    workbook.save(output)
+    return _download(output.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", report, "xlsx")
+
+
+@router.get("/attendance/pdf")
+async def export_attendance_pdf(
+    filters: ReportFilters = Depends(), auth_user: dict = Depends(get_current_user),
+):
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.platypus import LongTable, Paragraph, SimpleDocTemplate, Spacer, TableStyle
+
+    report = _load_report(filters, auth_user)
+    output = io.BytesIO()
+    document = SimpleDocTemplate(output, pagesize=landscape(A4), leftMargin=24, rightMargin=24, topMargin=24, bottomMargin=24)
+    styles = getSampleStyleSheet()
+    body = ParagraphStyle("HistoryCell", fontSize=7, leading=9, wordWrap="CJK")
+    header = ParagraphStyle("HistoryHeader", parent=body, textColor=colors.white)
+    elements = [
+        Paragraph("SIPGURU - History Absensi", styles["Title"]),
+        Paragraph(f"Periode: {report['start_date']} s/d {report['end_date']} (WIB)", styles["Normal"]),
+        Paragraph(f"Total: {report['summary']['total']} | Tepat waktu: {report['summary']['on_time']} | Terlambat: {report['summary']['late']}", styles["Normal"]),
+        Spacer(1, 12),
+    ]
+    rows = [[Paragraph(escape(value), header) for value in HEADERS]]
+    rows.extend([[Paragraph(escape(str(value)), body) for value in row] for row in _export_rows(report)])
+    widths = [58, 42, 68, 102, 98, 75, 112, 93, 62, 35]
+    table = LongTable(rows, colWidths=widths, repeatRows=1)
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#064e3b")),
+        ("GRID", (0, 0), (-1, -1), .4, colors.HexColor("#d1d5db")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f0fdf4")]),
+    ]))
+    elements.append(table)
+    document.build(elements)
+    return _download(output.getvalue(), "application/pdf", report, "pdf")
+
+
+@router.get("/teacher/{teacher_id}/summary")
+async def get_teacher_summary(
+    teacher_id: str, month: Optional[int] = Query(None, ge=1, le=12),
+    year: Optional[int] = Query(None, ge=1900, le=9998),
     auth_user: dict = Depends(get_current_user),
 ):
-    """Get attendance history grouped by period with teacher breakdown."""
-    if year is None:
-        year = datetime.now().year
-    if month is None:
-        month = datetime.now().month
-
-    # Database-agnostic method (works for both SQLite and Supabase)
-    return db.get_attendance_history(
-        filter_type=filter_type,
-        year=year,
-        month=month,
-        day=day,
-        week=week,
-        teacher_id=teacher_id,
-    )
+    _teacher_scope(auth_user, teacher_id)
+    now = datetime.now(WIB)
+    return db.get_teacher_summary(teacher_id, year or now.year, month or now.month)

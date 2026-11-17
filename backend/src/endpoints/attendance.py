@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from src.auth import verify_hmac_token
+from src.attendance_history import session_context
 from src.config import settings
 from src.deps import get_current_user
 from src.database import get_db
@@ -139,12 +140,7 @@ async def submit_attendance(
     token_type = "entry"  # Default to entry
     
     # Layer 1: QR token
-    # DEBUG: Show secret being used (first 8 chars)
-    secret_used = settings.JWT_SECRET[:8] + "..." if settings.JWT_SECRET else "NONE"
-    print(f"[ATTENDANCE DEBUG] JWT_SECRET used: {secret_used}")
-    print(f"[ATTENDANCE DEBUG] qr_token: {data.qr_token}")
     token_data = verify_hmac_token(data.qr_token, settings.JWT_SECRET)
-    print(f"[ATTENDANCE DEBUG] token_data={token_data}")
     if not token_data:
         reasons.append("QR token tidak valid atau kedaluwarsa")
     elif token_data.get("room_id") != data.room_id:
@@ -201,6 +197,7 @@ async def submit_attendance(
     status = "late" if sched_info.get("is_late") else "on_time"
     lateness = sched_info.get("lateness_minutes", 0) if status == "late" else None
 
+    context = session_context(db, sched_info["schedule_id"], token_type, lateness)
     log_id = db.create_attendance_log(
         teacher_id=teacher_id,
         room_id=data.room_id,
@@ -208,6 +205,7 @@ async def submit_attendance(
         geolocation=json.dumps(data.geolocation.model_dump()),
         qr_token=data.qr_token,
         device_fingerprint=data.device_fingerprint,
+        attendance_context=context,
     )
 
     # Update QR token state to scanned

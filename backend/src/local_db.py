@@ -9,6 +9,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
+from src.attendance_history import build_history, enrich_record, filter_categories, history_dates, period_bounds
 
 DB_PATH = Path("/home/raksyz/sipguru/backend/src/app.db")
 
@@ -236,6 +237,10 @@ class LocalDBClient:
             )
         """)
         
+        columns = {row[1] for row in cursor.execute("PRAGMA table_info(attendance_logs)")}
+        if "attendance_context" not in columns:
+            cursor.execute("ALTER TABLE attendance_logs ADD COLUMN attendance_context TEXT")
+
         # Create indexes
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_nip ON users(nip)")
@@ -564,17 +569,18 @@ class LocalDBClient:
                              status: str, geolocation: str = None,
                              qr_token: str = None, device_fingerprint: str = None,
                              lateness_minutes: int = None,
-                             admin_remarks: str = None) -> str:
+                             admin_remarks: str = None,
+                             attendance_context: Optional[dict] = None) -> str:
         """Create attendance log"""
         log_id = self._generate_id()
         conn = self._get_connection()
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO attendance_logs 
-            (id, teacher_id, room_id, status, geolocation, qr_token, device_fingerprint, lateness_minutes, admin_remarks)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (log_id, teacher_id, room_id, status, geolocation, qr_token, device_fingerprint, 
-              lateness_minutes, admin_remarks))
+            (id, teacher_id, room_id, status, geolocation, qr_token, device_fingerprint, lateness_minutes, admin_remarks, attendance_context)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (log_id, teacher_id, room_id, status, geolocation, qr_token, device_fingerprint,
+              lateness_minutes, admin_remarks, json.dumps(attendance_context) if attendance_context else None))
         conn.commit()
         conn.close()
         return log_id
@@ -653,141 +659,41 @@ class LocalDBClient:
         return stats
     
     def get_attendance_logs_by_period(
-        self,
-        start_date: str,
-        end_date: str,
-        teacher_id: str = None,
+        self, start_date: str, end_date: str, teacher_id: Optional[str] = None,
+        jurusan_id: Optional[str] = None, grade_id: Optional[str] = None,
+        subject_id: Optional[str] = None,
     ) -> List[dict]:
-        """Get attendance logs with teacher/room join for a date range."""
-        conn = self._get_connection()
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
+        start, end = period_bounds(start_date, end_date)
         query = """
-            SELECT 
-                al.id, al.teacher_id, al.room_id, al.status, 
-                al.lateness_minutes, al.geolocation, al.created_at,
-                u.name as teacher_name, u.nip,
-                r.name as room_name, r.room_code
+            SELECT al.*, u.name AS teacher_name, u.nip,
+                   r.name AS room_name, r.room_code
             FROM attendance_logs al
-            JOIN users u ON al.teacher_id = u.id
+            LEFT JOIN users u ON al.teacher_id = u.id
             LEFT JOIN rooms r ON al.room_id = r.id
-            WHERE DATE(al.created_at) >= DATE(?) AND DATE(al.created_at) <= DATE(?)
+            WHERE julianday(al.created_at) >= julianday(?)
+              AND julianday(al.created_at) < julianday(?)
         """
-        params = [start_date, end_date]
-        
+        params = [start, end]
         if teacher_id:
             query += " AND al.teacher_id = ?"
             params.append(teacher_id)
-        
-        query += " ORDER BY al.created_at DESC"
-        
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
-        conn.close()
-        
-        reports = []
-        for row in rows:
-            record = dict(row)
-            if record.get("geolocation"):
-                try:
-                    record["geolocation"] = json.loads(record["geolocation"])
-                except:
-                    record["geolocation"] = None
-            reports.append(record)
-        
-        return reports
-    
+        query += " ORDER BY julianday(al.created_at) DESC, al.id"
+        conn = self._get_connection()
+        try:
+            records = [enrich_record(dict(row)) for row in conn.execute(query, params).fetchall()]
+        finally:
+            conn.close()
+        return filter_categories(records, jurusan_id, grade_id, subject_id)
+
     def get_attendance_history(
-        self,
-        filter_type: str,
-        year: int,
-        month: int,
-        day: int = None,
-        week: int = None,
-        teacher_id: str = None,
+        self, filter_type: str, year: int, month: int,
+        day: Optional[int] = None, week: Optional[int] = None,
+        teacher_id: Optional[str] = None, jurusan_id: Optional[str] = None,
+        grade_id: Optional[str] = None, subject_id: Optional[str] = None,
     ) -> dict:
-        """Get attendance history grouped by period with teacher breakdown."""
-        from datetime import datetime
-        
-        # Build date range
-        if filter_type == "day":
-            if day is None:
-                day = datetime.now().day
-            start_date = f"{year}-{month:02d}-{day:02d}"
-            end_date = start_date
-        elif filter_type == "week":
-            if week is None:
-                week = (datetime.now().day - 1) // 7 + 1
-            start_date = f"{year}-{month:02d}-{max(1, (week - 1) * 7 + 1):02d}"
-            end_date = f"{year}-{month:02d}-{min(week * 7, 28):02d}"
-        elif filter_type == "month":
-            start_date = f"{year}-{month:02d}-01"
-            if month == 12:
-                end_date = f"{year + 1}-01-01"
-            else:
-                end_date = f"{year}-{month + 1:02d}-01"
-        else:  # year
-            start_date = f"{year}-01-01"
-            end_date = f"{year}-12-31"
-        
-        # Fetch all logs in range
-        logs = self.get_attendance_logs_by_period(start_date, end_date, teacher_id)
-        
-        # Group by date and teacher
-        history = {}
-        for log in logs:
-            date = log["created_at"][:10]
-            t_id = log["teacher_id"]
-            
-            if date not in history:
-                history[date] = {"date": date, "teachers": [], "day_total": 0, "day_on_time": 0, "day_late": 0}
-            
-            teacher_record = {
-                "teacher_id": t_id,
-                "teacher_name": log.get("teacher_name", ""),
-                "nip": log.get("nip", ""),
-                "total": 1,
-                "on_time": 1 if log["status"] == "on_time" else 0,
-                "late": 1 if log["status"] == "late" else 0,
-                "avg_lateness": log.get("lateness_minutes", 0) if log["status"] == "late" else 0,
-            }
-            
-            existing = next((t for t in history[date]["teachers"] if t["teacher_id"] == t_id), None)
-            if existing:
-                existing["total"] += teacher_record["total"]
-                existing["on_time"] += teacher_record["on_time"]
-                existing["late"] += teacher_record["late"]
-                if teacher_record["avg_lateness"] > 0:
-                    existing["avg_lateness"] = (existing["avg_lateness"] * (existing["late"] - 1) + teacher_record["avg_lateness"]) / existing["late"]
-            else:
-                history[date]["teachers"].append(teacher_record)
-            
-            history[date]["day_total"] += teacher_record["total"]
-            history[date]["day_on_time"] += teacher_record["on_time"]
-            history[date]["day_late"] += teacher_record["late"]
-        
-        # Convert to sorted list
-        history_list = sorted(history.values(), key=lambda x: x["date"], reverse=True)
-        
-        total_all = sum(h["day_total"] for h in history_list)
-        on_time_all = sum(h["day_on_time"] for h in history_list)
-        late_all = sum(h["day_late"] for h in history_list)
-        
-        return {
-            "filter_type": filter_type,
-            "period": {"year": year, "month": month, "day": day, "week": week},
-            "start_date": start_date,
-            "end_date": end_date,
-            "summary": {
-                "total": total_all,
-                "on_time": on_time_all,
-                "late": late_all,
-                "attendance_rate": round(on_time_all / max(total_all, 1) * 100, 2),
-                "unique_teachers": len(set(t["teacher_id"] for h in history_list for t in h["teachers"])),
-            },
-            "history": history_list,
-        }
+        start, end = history_dates(filter_type, year, month, day, week)
+        records = self.get_attendance_logs_by_period(start, end, teacher_id, jurusan_id, grade_id, subject_id)
+        return build_history(records, filter_type, year, month, day, week)
     
     def get_teacher_summary(
         self,

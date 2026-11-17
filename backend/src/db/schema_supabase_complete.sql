@@ -124,6 +124,7 @@ CREATE TABLE IF NOT EXISTS attendance_logs (
     qr_token TEXT,
     device_fingerprint TEXT,
     lateness_minutes INTEGER DEFAULT 0,
+    attendance_context JSONB,
     admin_remarks TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
