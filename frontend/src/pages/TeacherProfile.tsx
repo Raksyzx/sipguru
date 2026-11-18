@@ -175,7 +175,7 @@ const TeacherProfile = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-stone-50 dark:from-stone-950 dark:to-emerald-950/20 pt-6 pb-6 md:pb-8 px-4 md:pl-24">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-stone-50 dark:from-stone-950 dark:to-emerald-950/20 pt-6 pb-6 md:pb-8 px-4 md:pl-24 lg:pl-64">
       <ToastContainer toasts={toasts} remove={removeToast} position="top-center" />
       <div className="max-w-lg md:max-w-4xl lg:max-w-5xl mx-auto space-y-4 teacher-page-content">
         {/* Header */}
