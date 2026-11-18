@@ -6,6 +6,7 @@ from src.deps import get_current_user as verify_jwt
 from src.supabase import get_day_name_indonesian
 import datetime
 import asyncio
+import json
 
 router = APIRouter()
 db = get_db()
@@ -100,7 +101,7 @@ async def get_attendance_history(
         target_month
     )
     
-    # Enrich with room names
+    # Enrich with room names and session context data
     rooms = await _get_cached_rooms()
     room_map = {r["id"]: r["name"] for r in rooms}
     
@@ -109,13 +110,35 @@ async def get_attendance_history(
         enriched = dict(h)
         enriched["room_name"] = room_map.get(h.get("room_id"), "Unknown")
         
+        # Extract session data from attendance_context (JSON string or dict)
+        context = h.get("attendance_context")
+        if isinstance(context, str):
+            try:
+                context = json.loads(context)
+            except (json.JSONDecodeError, ValueError):
+                context = None
+        if isinstance(context, dict):
+            enriched["subject_name"] = context.get("subject_name", "")
+            enriched["grade_name"] = context.get("grade_name", "")
+            enriched["jurusan_name"] = context.get("jurusan_name", "")
+        else:
+            enriched["subject_name"] = ""
+            enriched["grade_name"] = ""
+            enriched["jurusan_name"] = ""
+        
         # Parse created_at for day name
         created_at = h.get("created_at", "") or ""
         if created_at:
             try:
                 dt = datetime.datetime.fromisoformat(created_at.replace("Z", "+00:00"))
                 dt_wib = dt.astimezone(datetime.timezone(datetime.timedelta(hours=7)))
-                enriched["day_name"] = get_day_name_indonesian(dt_wib.strftime("%A"))
+                day_name_en = dt_wib.strftime("%A")
+                day_name_map = {
+                    "Monday": "Senin", "Tuesday": "Selasa", "Wednesday": "Rabu",
+                    "Thursday": "Kamis", "Friday": "Jumat", "Saturday": "Sabtu", "Sunday": "Minggu"
+                }
+                day_name_id = day_name_map.get(day_name_en, day_name_en)
+                enriched["day_name"] = day_name_id
                 enriched["date_str"] = dt_wib.strftime("%Y-%m-%d")
                 enriched["time_str"] = dt_wib.strftime("%H:%M")
             except:
@@ -132,7 +155,9 @@ async def get_attendance_history(
             search_lower = search.lower()
             match = (
                 search_lower in enriched.get("room_name", "").lower() or
-                search_lower in enriched.get("day_name", "").lower()
+                search_lower in enriched.get("day_name", "").lower() or
+                search_lower in enriched.get("subject_name", "").lower() or
+                search_lower in enriched.get("grade_name", "").lower()
             )
             if not match:
                 continue
