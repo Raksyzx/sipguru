@@ -193,6 +193,7 @@ const AdminDashboard = () => {
   const [copied, setCopied] = useState(false);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [qrPanel, setQrPanel] = useState<"qr" | "rooms">("qr");
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
 
@@ -1283,24 +1284,46 @@ const AdminDashboard = () => {
 
             {tab === "qr" && (
               <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none">
-                <div className="glass-card-light p-6">
-                  <div className="flex items-center justify-between mb-4">
+                <div role="group" aria-label="Bagian QR Ruangan" className="grid grid-cols-2 gap-3">
+                  <button
+                    id="qr-room-tab-qr"
+                    type="button"
+                    aria-pressed={qrPanel === "qr"}
+                    onClick={() => setQrPanel("qr")}
+                    className={`flex min-h-12 items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${qrPanel === "qr" ? "border-emerald-600 bg-emerald-600 text-white" : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-stone-900 dark:text-gray-300 dark:hover:bg-white/5"}`}
+                  >
+                    <QrCode className="h-4 w-4 shrink-0" />
+                    <span>QR Ruangan</span>
+                  </button>
+                  <button
+                    id="qr-room-tab-rooms"
+                    type="button"
+                    aria-pressed={qrPanel === "rooms"}
+                    onClick={() => setQrPanel("rooms")}
+                    className={`flex min-h-12 items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${qrPanel === "rooms" ? "border-emerald-600 bg-emerald-600 text-white" : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-stone-900 dark:text-gray-300 dark:hover:bg-white/5"}`}
+                  >
+                    <MapPin className="h-4 w-4 shrink-0" />
+                    <span>Daftar Ruangan</span>
+                  </button>
+                </div>
+
+                {qrPanel === "qr" && (
+                  <div id="qr-room-panel-qr" className="glass-card-light p-4 sm:p-6">
+                  <div className="mb-4">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Generate QR Absensi</h3>
-                    <button
-                      onClick={() => setAddRoomModal({ open: true, name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                    >
-                      <QrCode className="w-4 h-4 inline mr-1" />
-                      Tambah Ruangan
-                    </button>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      Pilih jadwal kelas untuk generate token QR. Token berlaku 30 detik.
+                    </p>
                   </div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                    Pilih jadwal kelas untuk generate token QR. Token berlaku 30 detik.
-                  </p>
                   <div className="grid gap-3 max-h-96 overflow-y-auto">
+                    {gradeSchedules.length === 0 && (
+                      <p className="rounded-xl bg-gray-50 p-4 text-sm text-gray-600 dark:bg-white/5 dark:text-gray-400">
+                        Belum ada jadwal kelas. Tambahkan jadwal terlebih dahulu di tab Jadwal Kelas.
+                      </p>
+                    )}
                     {gradeSchedules.map((s) => (
-                      <div key={s.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-white/5 rounded-xl">
-                        <div>
+                      <div key={s.id} className="flex flex-col gap-3 rounded-xl bg-gray-50 p-3 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
                           <p className="font-medium text-gray-900 dark:text-white">
                             {s.grade_name} - {s.subject_name} - {s.teacher_name}
                           </p>
@@ -1352,12 +1375,24 @@ const AdminDashboard = () => {
                     )}
                   </div>
                 </div>
+                )}
 
                 {/* Room List with Geofence Customization */}
-                <div className="glass-card-light overflow-hidden mt-6">
-                  <div className="p-6 border-b border-gray-100 dark:border-gray-800">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Daftar Ruangan</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Kustomisasi radius geofence per ruangan</p>
+                {qrPanel === "rooms" && (
+                  <div id="qr-room-panel-rooms" className="glass-card-light overflow-hidden">
+                  <div className="flex flex-col gap-3 border-b border-gray-100 p-4 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Daftar Ruangan</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Kustomisasi radius geofence per ruangan</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAddRoomModal({ open: true, name: "", room_code: "", geofence_radius: 150, geolocation: "" })}
+                      className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-stone-900 sm:w-auto"
+                    >
+                      <MapPin className="h-4 w-4 shrink-0" />
+                      Tambah Ruangan
+                    </button>
                   </div>
                   <div className="divide-y divide-gray-100 dark:divide-gray-800">
                     {rooms.length === 0 && (
@@ -1365,12 +1400,12 @@ const AdminDashboard = () => {
                     )}
                     {rooms.map((r) => (
                       <div key={r.id} className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                        <div className="flex items-center justify-between mb-3">
-                          <div>
-                            <p className="font-medium text-gray-900 dark:text-white">{r.name}</p>
+                        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="break-words font-medium text-gray-900 dark:text-white">{r.name}</p>
                             <p className="text-sm text-gray-600 dark:text-gray-400">Kode: {r.room_code}</p>
                           </div>
-                          <div className="flex items-center gap-3">
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                             <span className="px-3 py-1 text-xs font-medium bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 rounded-full">
                               Radius: {r.geofence_radius || 150}m
                             </span>
@@ -1396,6 +1431,7 @@ const AdminDashboard = () => {
                     ))}
                   </div>
                 </div>
+                )}
 
                 {/* Add Room Modal */}
                 <Modal

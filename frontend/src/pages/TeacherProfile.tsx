@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, User, Mail, Hash, Lock, Save, LogOut, Camera } from "lucide-react";
+import { ArrowLeft, User, Mail, Hash, Lock, Save, LogOut, Camera, ChevronDown, ChevronUp } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useAuthStore } from "../stores";
 import { LogoutConfirmModal } from "../components/LogoutConfirmModal";
@@ -34,6 +34,7 @@ const TeacherProfile = () => {
     confirm: "",
   });
 
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
@@ -146,6 +147,7 @@ const TeacherProfile = () => {
 
       success("Password berhasil diubah");
       setPasswords({ current: "", new: "", confirm: "" });
+      setShowPasswordForm(false);
     } catch (err: any) {
       error(err.response?.data?.detail || "Gagal mengubah password");
     } finally {
@@ -323,12 +325,28 @@ const TeacherProfile = () => {
 
         {/* Change Password Card */}
         <div className="glass-card p-5">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Lock className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-            Ubah Password
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+            <button
+              type="button"
+              onClick={() => setShowPasswordForm(!showPasswordForm)}
+              className={`flex min-h-11 w-full items-center justify-between rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${showPasswordForm ? "mb-4" : ""}`}
+              aria-expanded={showPasswordForm}
+              aria-controls="password-form-section"
+            >
+              <span className="flex items-center gap-2">
+                <Lock className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                Ubah Password
+              </span>
+              {showPasswordForm ? (
+                <ChevronUp className="w-5 h-5 text-gray-500" aria-hidden="true" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-gray-500" aria-hidden="true" />
+              )}
+            </button>
           </h3>
 
-          <form onSubmit={handleChangePassword} className="space-y-4">
+          <div id="password-form-section" hidden={!showPasswordForm}>
+            <form onSubmit={handleChangePassword} className="space-y-4" aria-label="Form ubah password">
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                 Password Saat Ini
@@ -389,7 +407,8 @@ const TeacherProfile = () => {
               <Lock className="w-4 h-4" />
               {changingPassword ? "Mengubah..." : "Ubah Password"}
             </button>
-          </form>
+            </form>
+          </div>
         </div>
 
         {/* Logout Button */}
