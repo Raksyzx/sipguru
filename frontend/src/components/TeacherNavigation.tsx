@@ -14,9 +14,9 @@ const TeacherNavigation = () => {
   return (
     <nav
       aria-label="Navigasi guru"
-      className="md:hidden fixed bottom-0 left-0 right-0 z-[100] border-t border-white/45 bg-white/35 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur-2xl backdrop-saturate-150 dark:border-white/10 dark:bg-stone-950/35 dark:shadow-[0_-8px_30px_rgba(0,0,0,0.28)]"
+      className="fixed bottom-0 left-0 right-0 z-[100] border-t border-white/45 bg-white/35 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur-2xl backdrop-saturate-150 dark:border-white/10 dark:bg-stone-950/35 dark:shadow-[0_-8px_30px_rgba(0,0,0,0.28)] md:bottom-4 md:left-4 md:right-auto md:w-20 md:rounded-3xl md:border md:shadow-[0_8px_30px_rgba(15,23,42,0.12)] md:backdrop-blur-xl"
     >
-      <div className="mx-auto flex max-w-md items-center justify-around gap-1 px-2 py-2">
+      <div className="mx-auto flex max-w-md items-center justify-around gap-1 px-2 py-2 md:flex-col md:gap-2 md:p-3 md:max-w-none">
         <NavLink to="/teacher/dashboard" className={navClass}>
           {() => (
             <>
