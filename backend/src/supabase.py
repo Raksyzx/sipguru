@@ -432,7 +432,7 @@ class SupabaseClient:
         end_date = f"{end_year}-{end_month:02d}-01T00:00:00"
 
         result = client.table("attendance_logs").select(
-            "id,teacher_id,room_id,status,geolocation,created_at"
+            "id,teacher_id,room_id,status,geolocation,created_at,attendance_context"
         ).eq("teacher_id", teacher_id).gte("created_at", start_date).lt("created_at", end_date).execute()
         return result.data
 
