@@ -24,6 +24,7 @@ import {
   FileSpreadsheet,
   FileText,
   Loader2,
+  ChevronDown,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useAuth } from "../hooks/useAuth";
@@ -163,13 +164,13 @@ interface ResetPasswordModal {
 const AdminDashboard = () => {
   const { user } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
-  
+
   // Realtime clock update
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
-  
+
   const [tab, setTab] = useState<Tab>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("sipguru-active-tab");
@@ -211,6 +212,52 @@ const AdminDashboard = () => {
     end_time: "12:00",
     room_id: "",
   });
+
+  // Modal states
+  const [showAddGradeModal, setShowAddGradeModal] = useState(false);
+  const [gradeJurusanFilter, setGradeJurusanFilter] = useState("");
+  const [showAddSubjectModal, setShowAddSubjectModal] = useState(false);
+  const [subjectJurusanFilter, setSubjectJurusanFilter] = useState("");
+  const [subjectSearch, setSubjectSearch] = useState("");
+  const [showAddJurusanModal, setShowAddJurusanModal] = useState(false);
+  const [showAddScheduleModal, setShowAddScheduleModal] = useState(false);
+  const [scheduleFilters, setScheduleFilters] = useState({ search: "", gradeId: "", jurusanId: "", dayOfWeek: "" });
+  const [showAddTeacherModal, setShowAddTeacherModal] = useState(false);
+  const [teacherSearch, setTeacherSearch] = useState("");
+  const filteredTeachers = useMemo(() => {
+    const query = teacherSearch.trim().toLocaleLowerCase();
+    if (!query) return teachers;
+
+    return teachers.filter((teacher) =>
+      [teacher.name, teacher.nip, teacher.email, teacher.phone]
+        .some((value) => value?.toLocaleLowerCase().includes(query))
+    );
+  }, [teachers, teacherSearch]);
+  const filteredSubjects = useMemo(() => {
+    const query = subjectSearch.trim().toLocaleLowerCase();
+    const selectedJurusanName = jurusanList
+      .find((jurusan) => jurusan.id === subjectJurusanFilter)
+      ?.name.trim().toLocaleLowerCase();
+    const scheduleMatchesJurusan = (schedule: GradeSchedule) => {
+      const gradeJurusanId = grades.find((grade) => grade.id === schedule.grade_id)?.jurusan_id;
+      if (gradeJurusanId) return gradeJurusanId === subjectJurusanFilter;
+
+      return Boolean(
+        selectedJurusanName &&
+        schedule.jurusan_name?.trim().toLocaleLowerCase() === selectedJurusanName
+      );
+    };
+
+    return subjects.filter((subject) => {
+      const matchesJurusan = !subjectJurusanFilter ||
+        subject.jurusan_id === subjectJurusanFilter ||
+        gradeSchedules.some((schedule) => schedule.subject_id === subject.id && scheduleMatchesJurusan(schedule));
+      const matchesSearch = !query || [subject.name, subject.code, subject.description]
+        .some((value) => value?.toLocaleLowerCase().includes(query));
+
+      return matchesJurusan && matchesSearch;
+    });
+  }, [subjectJurusanFilter, subjectSearch, subjects, jurusanList, gradeSchedules, grades]);
 
   // Add Room Modal State
   const [addRoomModal, setAddRoomModal] = useState({ open: false, name: "", room_code: "", geofence_radius: 150, geolocation: "" });
@@ -658,7 +705,7 @@ const AdminDashboard = () => {
   const deleteSchedule = async (id: string) => {
     console.log('[DELETE SCHEDULE] ID:', id);
     const schedule = gradeSchedules.find(s => s.id === id);
-    const name = schedule 
+    const name = schedule
       ? `${schedule.grade_name || 'Kelas'} - ${schedule.subject_name || 'Mapel'} (${schedule.day_of_week} ${schedule.start_time}-${schedule.end_time})`
       : 'Jadwal';
     showDeleteConfirm(id, name, 'schedule');
@@ -667,7 +714,7 @@ const AdminDashboard = () => {
   const addSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSchedule.grade_id || !newSchedule.subject_id || !newSchedule.teacher_id) return;
-    
+
     // Validate: Mapel dan Kelas harus satu jurusan
     const grade = grades.find(g => g.id === newSchedule.grade_id);
     const subject = subjects.find(s => s.id === newSchedule.subject_id);
@@ -675,7 +722,7 @@ const AdminDashboard = () => {
       showToast("Mapel dan kelas harus satu jurusan!", 'error');
       return;
     }
-    
+
     try {
       console.log('[ADD SCHEDULE] Payload:', newSchedule);
       await api.post("/admin/grade-schedules", newSchedule);
@@ -730,7 +777,7 @@ const AdminDashboard = () => {
         email: editTeacherModal.teacherEmail,
         nip: editTeacherModal.teacherNip,
       };
-      
+
       // Only include password if changed
       if (editTeacherModal.newPassword && editTeacherModal.newPassword.length >= 6) {
         if (editTeacherModal.newPassword !== editTeacherModal.confirmNewPassword) {
@@ -740,7 +787,7 @@ const AdminDashboard = () => {
         }
         updateData.password = editTeacherModal.newPassword;
       }
-      
+
       await api.put(`/admin/teachers/${editTeacherModal.teacherId}`, updateData);
       showToast(`${editTeacherModal.teacherName} berhasil diperbarui!`, 'success');
       setEditTeacherModal({ open: false, teacherId: "", teacherName: "", teacherEmail: "", teacherNip: "", newPassword: "", confirmNewPassword: "" });
@@ -785,6 +832,7 @@ const AdminDashboard = () => {
       });
       showToast(`Guru ${newTeacherForm.name} berhasil ditambahkan`, 'success');
       setNewTeacherForm({ name: "", nip: "", email: "", phone: "", password: "", confirmPassword: "" });
+      setShowAddTeacherModal(false);
       // Reload teachers
       const res = await api.get("/admin/teachers");
       setTeachers(res.data?.teachers || []);
@@ -973,24 +1021,24 @@ const AdminDashboard = () => {
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden lg:overflow-y-auto">
           {/* Mobile Top Bar with Burger Menu */}
-          <header className="lg:hidden bg-white dark:bg-stone-900 border-b border-gray-200 dark:border-stone-800 p-4 sticky top-0 z-30 shadow-sm">
-            <div className="flex items-center justify-between">
+          <header className="lg:hidden bg-white dark:bg-stone-900 border-b border-gray-200 dark:border-stone-800 p-3 sm:p-4 sticky top-0 z-30 shadow-sm">
+            <div className="flex items-center justify-between gap-2 sm:gap-3">
               <button
                 onClick={() => setMobileSidebarOpen(true)}
-                className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
+                className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors shrink-0"
                 aria-label="Buka menu"
                 aria-expanded={mobileSidebarOpen}
               >
-                <Menu className="w-6 h-6" />
+                <Menu className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
-              <h1 className="flex-1 text-center text-xl font-bold bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">
+              <h1 className="text-base sm:text-xl font-bold bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent truncate">
                 SIPGURU
               </h1>
-              <div className="w-10 sm:block text-right hidden">
-                <div className="text-xs text-gray-600 dark:text-gray-400">
+              <div className="text-right shrink-0">
+                <div className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400">
                   {currentTime.toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
                 </div>
-                <div className="text-xs font-mono text-gray-500 dark:text-gray-500">
+                <div className="text-[10px] sm:text-xs font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
                   {currentTime.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                 </div>
               </div>
@@ -1090,84 +1138,60 @@ const AdminDashboard = () => {
 
             {tab === "guru" && (
               <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none">
-                {/* Add Teacher Form */}
-                <div className="glass-card-light p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tambah Guru</h3>
-                  <form onSubmit={handleAddTeacher} className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <input
-                        type="text"
-                        placeholder="Nama Lengkap"
-                        value={newTeacherForm.name}
-                        onChange={(e) => setNewTeacherForm({ ...newTeacherForm, name: e.target.value })}
-                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                      />
-                      <input
-                        type="text"
-                        placeholder="NIP"
-                        value={newTeacherForm.nip}
-                        onChange={(e) => setNewTeacherForm({ ...newTeacherForm, nip: e.target.value })}
-                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                      />
-                    </div>
-                    <input
-                      type="email"
-                      placeholder="Email (untuk login)"
-                      value={newTeacherForm.email}
-                      onChange={(e) => setNewTeacherForm({ ...newTeacherForm, email: e.target.value })}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Telepon (opsional)"
-                      value={newTeacherForm.phone}
-                      onChange={(e) => setNewTeacherForm({ ...newTeacherForm, phone: e.target.value })}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                    />
-                    <div className="grid grid-cols-2 gap-3">
-                      <input
-                        type="password"
-                        placeholder="Password (min. 6 karakter)"
-                        value={newTeacherForm.password}
-                        onChange={(e) => setNewTeacherForm({ ...newTeacherForm, password: e.target.value })}
-                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                      />
-                      <input
-                        type="password"
-                        placeholder="Konfirmasi Password"
-                        value={newTeacherForm.confirmPassword}
-                        onChange={(e) => setNewTeacherForm({ ...newTeacherForm, confirmPassword: e.target.value })}
-                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={addTeacherLoading}
-                      className="btn-primary w-full py-2 text-sm disabled:opacity-50"
-                    >
-                      {addTeacherLoading ? (
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 inline" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                      ) : (
-                        "Tambah Guru"
-                      )}
-                    </button>
-                  </form>
+                {/* Tombol Tambah Guru */}
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddTeacherModal(true)}
+                    className="btn-primary flex items-center gap-2 px-4 py-2.5 text-sm font-medium"
+                  >
+                    <Users className="w-4 h-4" />
+                    Tambah Guru
+                  </button>
                 </div>
-                {/* Teachers List */}
+
+                {/* Search Bar */}
+                <div className="glass-card-light p-3 sm:p-4">
+                  <div className="relative">
+                    <label htmlFor="teacher-search" className="sr-only">Cari guru</label>
+                    <input
+                      id="teacher-search"
+                      type="search"
+                      value={teacherSearch}
+                      onChange={(e) => setTeacherSearch(e.target.value)}
+                      placeholder="Cari nama, NIP, atau email guru..."
+                      className="w-full min-h-[44px] px-4 pl-10 pr-10 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 dark:focus-visible:outline-emerald-400"
+                    />
+                    <svg className="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    {teacherSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setTeacherSearch("")}
+                        aria-label="Hapus pencarian"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-500 hover:text-gray-800 dark:hover:text-white rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-700"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Daftar Guru */}
                 <div className="glass-card-light overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
                   <div className="p-6 border-b border-gray-100 dark:border-gray-800">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Daftar Guru</h3>
                   </div>
                   <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {teachers.length === 0 && (
+                    {filteredTeachers.length === 0 && (
                       <p className="p-4 text-sm text-gray-500 dark:text-gray-400">
-                        {loading ? "Memuat..." : "Belum ada data guru."}
+                        {teacherSearch.trim()
+                          ? "Tidak ada guru yang sesuai pencarian."
+                          : (loading ? "Memuat..." : "Belum ada data guru.")}
                       </p>
                     )}
-                    {teachers.map((t) => (
+                    {filteredTeachers.map((t) => (
                       <div key={t.id} className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-4">
@@ -1365,7 +1389,7 @@ const AdminDashboard = () => {
                         max="1000"
                       />
                     </div>
-                    
+
                     {/* Geolocation with Map Picker */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
@@ -1460,7 +1484,7 @@ const AdminDashboard = () => {
                         max="1000"
                       />
                     </div>
-                    
+
                     {/* Geolocation with Map Picker */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
@@ -1562,63 +1586,106 @@ const AdminDashboard = () => {
 
             {tab === "mapel" && (
               <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none">
-                <div className="glass-card-light p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tambah Mata Pelajaran</h3>
-                  <form onSubmit={addSubject} className="space-y-3">
-                    <div className="space-y-3">
-                      <select
-                        value={newSubject.jurusan_id}
-                        onChange={(e) => setNewSubject({ ...newSubject, jurusan_id: e.target.value })}
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                      >
-                        <option value="">Pilih Jurusan*</option>
-                        {jurusanList.map((j) => (
-                          <option key={j.id} value={j.id}>{j.name} ({j.code})</option>
-                        ))}
-                      </select>
-                      <div className="grid grid-cols-2 gap-3">
-                        <input
-                          type="text"
-                          placeholder="Nama Mapel"
-                          value={newSubject.name}
-                          onChange={(e) => setNewSubject({ ...newSubject, name: e.target.value })}
-                          className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Kode Mapel"
-                          value={newSubject.code}
-                          onChange={(e) => setNewSubject({ ...newSubject, code: e.target.value })}
-                          className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                        />
-                      </div>
-                      <input
-                        type="text"
-                        placeholder="Deskripsi (opsional)"
-                        value={newSubject.description}
-                        onChange={(e) => setNewSubject({ ...newSubject, description: e.target.value })}
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                      />
-                    </div>
-                    <button type="submit" className="btn-primary w-full py-2 text-sm">
-                      Tambah Mata Pelajaran
-                    </button>
-                  </form>
+                {/* Tombol Tambah Mata Pelajaran */}
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddSubjectModal(true)}
+                    className="btn-primary flex items-center gap-2 px-4 py-2.5 text-sm font-medium"
+                  >
+                    <BookOpen className="w-4 h-4" />
+                    Tambah Mata Pelajaran
+                  </button>
                 </div>
+
+                {/* Search & Filter */}
+                <div className="glass-card-light p-3 sm:p-4">
+                  <div className="space-y-3">
+                    <div className="relative">
+                      <label htmlFor="subject-search" className="sr-only">Cari mata pelajaran</label>
+                      <input
+                        id="subject-search"
+                        type="search"
+                        value={subjectSearch}
+                        onChange={(e) => setSubjectSearch(e.target.value)}
+                        placeholder="Cari nama, kode, atau deskripsi mapel..."
+                        className="w-full min-h-[44px] px-4 pl-10 pr-10 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 dark:focus-visible:outline-emerald-400"
+                      />
+                      <svg className="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      {subjectSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setSubjectSearch("")}
+                          aria-label="Hapus pencarian"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-500 hover:text-gray-800 dark:hover:text-white rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-700"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <label htmlFor="subject-jurusan-filter" className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                        Filter Jurusan
+                      </label>
+                      <div className="relative flex-1 min-w-0">
+                        <select
+                          id="subject-jurusan-filter"
+                          value={subjectJurusanFilter}
+                          onChange={(e) => setSubjectJurusanFilter(e.target.value)}
+                          className="w-full min-h-[44px] px-3 py-2 pr-8 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 dark:focus-visible:outline-emerald-400 appearance-none"
+                        >
+                          <option value="">Semua Jurusan</option>
+                          {jurusanList.map((j) => (
+                            <option key={j.id} value={j.id}>{j.name} ({j.code})</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-4 h-4 text-gray-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      </div>
+                      {(subjectJurusanFilter || subjectSearch) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSubjectJurusanFilter("");
+                            setSubjectSearch("");
+                          }}
+                          className="w-full sm:w-auto min-h-[44px] px-3 text-sm text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30 rounded-lg transition-colors flex items-center justify-center gap-1.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-700"
+                          aria-label="Reset pencarian dan filter"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          <span>Reset</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Daftar Mata Pelajaran */}
                 <div className="glass-card-light overflow-hidden">
                   <div className="p-6 border-b border-gray-100 dark:border-gray-800">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Daftar Mata Pelajaran</h3>
                   </div>
                   <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {subjects.length === 0 && (
-                      <p className="p-4 text-sm text-gray-500 dark:text-gray-400">Belum ada mata pelajaran.</p>
+                    {filteredSubjects.length === 0 && (
+                      <p className="p-4 text-sm text-gray-500 dark:text-gray-400">
+                        {subjectJurusanFilter ? "Tidak ada mata pelajaran yang sesuai filter." : "Belum ada mata pelajaran."}
+                      </p>
                     )}
-                    {subjects.map((s) => {
-                      // Find related grade schedules to show class and teacher info
-                      const relatedSchedules = gradeSchedules.filter(gs => gs.subject_id === s.id);
+                    {filteredSubjects.map((s) => {
+                      // Keep class and teacher details scoped to the selected major.
+                      const subjectSchedules = gradeSchedules.filter((gs) => gs.subject_id === s.id);
+                      const relatedSchedules = subjectJurusanFilter
+                        ? subjectSchedules.filter((schedule) => {
+                            const gradeJurusanId = grades.find((grade) => grade.id === schedule.grade_id)?.jurusan_id;
+                            return gradeJurusanId
+                              ? gradeJurusanId === subjectJurusanFilter
+                              : Boolean(schedule.jurusan_name && schedule.jurusan_name === jurusanList.find((j) => j.id === subjectJurusanFilter)?.name);
+                          })
+                        : subjectSchedules;
                       const uniqueClasses = Array.from(new Set(relatedSchedules.map(gs => gs.grade_name))).filter(Boolean);
                       const uniqueTeachers = Array.from(new Set(relatedSchedules.map(gs => gs.teacher_name))).filter(Boolean);
-                      
+
                       return (
                         <div key={s.id} className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
                           <div className="flex items-center justify-between mb-2">
@@ -1635,7 +1702,7 @@ const AdminDashboard = () => {
                               Hapus
                             </button>
                           </div>
-                          
+
                           {/* Enhanced info display */}
                           <div className="mt-3 space-y-2">
                             {s.jurusan_id && (
@@ -1672,59 +1739,78 @@ const AdminDashboard = () => {
 
             {tab === "kelas" && (
               <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none">
-                <div className="glass-card-light p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tambah Kelas</h3>
-                  <form onSubmit={addGrade} className="space-y-3">
-                    <div className="space-y-3">
-                      <select
-                        value={newGrade.jurusan_id}
-                        onChange={(e) => setNewGrade({ ...newGrade, jurusan_id: e.target.value })}
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                      >
-                        <option value="">Pilih Jurusan*</option>
-                        {jurusanList.map((j) => (
-                          <option key={j.id} value={j.id}>{j.name} ({j.code})</option>
-                        ))}
-                      </select>
-                      <input
-                        type="text"
-                        placeholder="Nama Kelas (e.g., 10A)"
-                        value={newGrade.name}
-                        onChange={(e) => setNewGrade({ ...newGrade, name: e.target.value })}
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                      />
-                      <input
-                        type="number"
-                        placeholder="Tingkat (e.g., 10)"
-                        value={newGrade.grade_level}
-                        onChange={(e) => setNewGrade({ ...newGrade, grade_level: parseInt(e.target.value) || 1 })}
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                      />
-                    </div>
-                    <button type="submit" className="btn-primary w-full py-2 text-sm">
-                      Tambah Kelas
-                    </button>
-                  </form>
+                {/* Tombol Tambah Kelas */}
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddGradeModal(true)}
+                    className="btn-primary flex items-center gap-2 px-4 py-2.5 text-sm font-medium"
+                  >
+                    <GraduationCap className="w-4 h-4" />
+                    Tambah Kelas
+                  </button>
                 </div>
+
+                {/* Filter Jurusan */}
+                {jurusanList.length > 0 && (
+                  <div className="glass-card-light p-3 sm:p-4">
+                    <div className="space-y-2.5">
+                      <div className="flex items-center gap-2">
+                        <label htmlFor="grade-jurusan-filter" className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                          Filter:
+                        </label>
+                        <div className="relative flex-1">
+                          <select
+                            id="grade-jurusan-filter"
+                            value={gradeJurusanFilter}
+                            onChange={(e) => setGradeJurusanFilter(e.target.value)}
+                            className="w-full min-h-[40px] px-3 py-2 pr-8 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none appearance-none"
+                          >
+                            <option value="">Semua Jurusan</option>
+                            {jurusanList.map((j) => (
+                              <option key={j.id} value={j.id}>{j.name} ({j.code})</option>
+                            ))}
+                          </select>
+                          <ChevronDown className="w-4 h-4 text-gray-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        </div>
+                      </div>
+                      {gradeJurusanFilter && (
+                        <button
+                          type="button"
+                          onClick={() => setGradeJurusanFilter("")}
+                          className="w-full min-h-[38px] px-3 text-sm text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                          aria-label="Hapus filter"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          <span>Reset Filter</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Daftar Kelas */}
                 <div className="glass-card-light overflow-hidden">
                   <div className="p-6 border-b border-gray-100 dark:border-gray-800">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Daftar Kelas</h3>
                   </div>
                   <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {grades.length === 0 && (
-                      <p className="p-4 text-sm text-gray-500 dark:text-gray-400">Belum ada kelas.</p>
+                    {grades.filter((g) => !gradeJurusanFilter || g.jurusan_id === gradeJurusanFilter).length === 0 && (
+                      <p className="p-4 text-sm text-gray-500 dark:text-gray-400">
+                        {gradeJurusanFilter ? "Tidak ada kelas untuk jurusan yang dipilih." : "Belum ada kelas."}
+                      </p>
                     )}
-                    {grades.map((g) => {
+                    {grades.filter((g) => !gradeJurusanFilter || g.jurusan_id === gradeJurusanFilter).map((g) => {
                       // Get jurusan name from multiple sources
-                      const jurusanName = g.jurusan_name || 
-                                         (g.jurusan_id ? jurusanList.find(j => j.id === g.jurusan_id)?.name : null) || 
+                      const jurusanName = g.jurusan_name ||
+                                         (g.jurusan_id ? jurusanList.find(j => j.id === g.jurusan_id)?.name : null) ||
                                          'N/A';
-                      
+
                       // Get related schedules info
                       const relatedSchedules = gradeSchedules.filter(gs => gs.grade_id === g.id);
                       const uniqueSubjects = Array.from(new Set(relatedSchedules.map(gs => gs.subject_name))).filter(Boolean);
                       const uniqueTeachers = Array.from(new Set(relatedSchedules.map(gs => gs.teacher_name))).filter(Boolean);
-                      
+
                       return (
                         <div key={g.id} className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
                           <div className="flex items-center justify-between mb-2">
@@ -1741,7 +1827,7 @@ const AdminDashboard = () => {
                               Hapus
                             </button>
                           </div>
-                          
+
                           {/* Enhanced info display */}
                           <div className="mt-2 space-y-2">
                             <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
@@ -1776,37 +1862,19 @@ const AdminDashboard = () => {
 
             {tab === "jurusan" && (
               <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none">
-                <div className="glass-card-light p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tambah Jurusan</h3>
-                  <form onSubmit={addJurusan} className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <input
-                        type="text"
-                        placeholder="Nama Jurusan"
-                        value={newJurusan.name}
-                        onChange={(e) => setNewJurusan({ ...newJurusan, name: e.target.value })}
-                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Kode Jurusan"
-                        value={newJurusan.code}
-                        onChange={(e) => setNewJurusan({ ...newJurusan, code: e.target.value })}
-                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                      />
-                    </div>
-                    <input
-                      type="text"
-                      placeholder="Deskripsi (opsional)"
-                      value={newJurusan.description}
-                      onChange={(e) => setNewJurusan({ ...newJurusan, description: e.target.value })}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                    />
-                    <button type="submit" className="btn-primary w-full py-2 text-sm">
-                      Tambah Jurusan
-                    </button>
-                  </form>
+                {/* Tombol Tambah Jurusan */}
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddJurusanModal(true)}
+                    className="btn-primary flex items-center gap-2 px-4 py-2.5 text-sm font-medium"
+                  >
+                    <Briefcase className="w-4 h-4" />
+                    Tambah Jurusan
+                  </button>
                 </div>
+
+                {/* Daftar Jurusan */}
                 <div className="glass-card-light overflow-hidden">
                   <div className="p-6 border-b border-gray-100 dark:border-gray-800">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Daftar Jurusan</h3>
@@ -1875,94 +1943,141 @@ const AdminDashboard = () => {
 
             {tab === "jadwal" && (
               <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500 motion-reduce:animate-none">
-                <div className="glass-card-light p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Tambah Jadwal Kelas</h3>
-                  <form onSubmit={addSchedule} className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <select
-                        value={newSchedule.grade_id}
-                        onChange={(e) => setNewSchedule({ ...newSchedule, grade_id: e.target.value })}
-                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                      >
-                        <option value="">Pilih Kelas</option>
-                        {grades.map((g) => (
-                          <option key={g.id} value={g.id}>{g.name}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={newSchedule.subject_id}
-                        onChange={(e) => setNewSchedule({ ...newSchedule, subject_id: e.target.value })}
-                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                      >
-                        <option value="">Pilih Mapel</option>
-                        {subjects.map((s) => (
-                          <option key={s.id} value={s.id}>{s.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <select
-                      value={newSchedule.teacher_id}
-                      onChange={(e) => setNewSchedule({ ...newSchedule, teacher_id: e.target.value })}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                    >
-                      <option value="">Pilih Guru</option>
-                      {teachers.map((t) => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </select>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
-                      <select
-                        value={newSchedule.day_of_week}
-                        onChange={(e) => setNewSchedule({ ...newSchedule, day_of_week: e.target.value })}
-                        className="px-2 md:px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                      >
-                        <option value="Senin">Senin</option>
-                        <option value="Selasa">Selasa</option>
-                        <option value="Rabu">Rabu</option>
-                        <option value="Kamis">Kamis</option>
-                        <option value="Jumat">Jumat</option>
-                        <option value="Sabtu">Sabtu</option>
-                        <option value="Minggu">Minggu</option>
-                      </select>
-                      <input
-                        type="time"
-                        value={newSchedule.start_time}
-                        onChange={(e) => setNewSchedule({ ...newSchedule, start_time: e.target.value })}
-                        className="px-2 md:px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                        placeholder="Mulai"
-                      />
-                      <input
-                        type="time"
-                        value={newSchedule.end_time}
-                        onChange={(e) => setNewSchedule({ ...newSchedule, end_time: e.target.value })}
-                        className="px-2 md:px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none md:col-span-1"
-                        placeholder="Selesai"
-                      />
-                    </div>
-                    <select
-                      value={newSchedule.room_id}
-                      onChange={(e) => setNewSchedule({ ...newSchedule, room_id: e.target.value })}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                    >
-                      <option value="">Pilih Ruangan (opsional)</option>
-                      {rooms.map((r) => (
-                        <option key={r.id} value={r.id}>{r.name}</option>
-                      ))}
-                    </select>
-                    <button type="submit" className="btn-primary w-full py-2 text-sm">
-                      Tambah Jadwal
-                    </button>
-                  </form>
+                {/* Tombol Tambah Jadwal */}
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddScheduleModal(true)}
+                    className="btn-primary flex items-center gap-2 px-4 py-2.5 text-sm font-medium"
+                  >
+                    <CalendarDays className="w-4 h-4" />
+                    Tambah Jadwal
+                  </button>
                 </div>
+                {/* Search & Filter */}
+                <div className="glass-card-light p-3 sm:p-4">
+                  <div className="space-y-3">
+                    {/* Search Bar */}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Cari kelas, mapel, atau guru..."
+                        value={scheduleFilters.search}
+                        onChange={(e) => setScheduleFilters({ ...scheduleFilters, search: e.target.value })}
+                        className="w-full min-h-[40px] px-4 py-2 pl-10 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                      />
+                      <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
+                    {/* Filter Dropdowns */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div className="relative">
+                        <label htmlFor="schedule-jurusan-filter" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          Jurusan
+                        </label>
+                        <select
+                          id="schedule-jurusan-filter"
+                          value={scheduleFilters.jurusanId}
+                          onChange={(e) => setScheduleFilters({ ...scheduleFilters, jurusanId: e.target.value })}
+                          className="w-full min-h-[40px] px-3 py-2 pr-8 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none appearance-none"
+                        >
+                          <option value="">Semua Jurusan</option>
+                          {jurusanList.map((j) => (
+                            <option key={j.id} value={j.id}>{j.name} ({j.code})</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-4 h-4 text-gray-500 absolute right-2.5 top-[2.15rem] -translate-y-1/2 pointer-events-none" />
+                      </div>
+                      <div className="relative">
+                        <label htmlFor="schedule-grade-filter" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          Kelas
+                        </label>
+                        <select
+                          id="schedule-grade-filter"
+                          value={scheduleFilters.gradeId}
+                          onChange={(e) => setScheduleFilters({ ...scheduleFilters, gradeId: e.target.value })}
+                          className="w-full min-h-[40px] px-3 py-2 pr-8 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none appearance-none"
+                        >
+                          <option value="">Semua Kelas</option>
+                          {grades.filter((g) => !scheduleFilters.jurusanId || g.jurusan_id === scheduleFilters.jurusanId).map((g) => (
+                            <option key={g.id} value={g.id}>{g.name}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-4 h-4 text-gray-500 absolute right-2.5 top-[2.15rem] -translate-y-1/2 pointer-events-none" />
+                      </div>
+                      <div className="relative">
+                        <label htmlFor="schedule-day-filter" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          Hari
+                        </label>
+                        <select
+                          id="schedule-day-filter"
+                          value={scheduleFilters.dayOfWeek}
+                          onChange={(e) => setScheduleFilters({ ...scheduleFilters, dayOfWeek: e.target.value })}
+                          className="w-full min-h-[40px] px-3 py-2 pr-8 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none appearance-none"
+                        >
+                          <option value="">Semua Hari</option>
+                          <option value="Senin">Senin</option>
+                          <option value="Selasa">Selasa</option>
+                          <option value="Rabu">Rabu</option>
+                          <option value="Kamis">Kamis</option>
+                          <option value="Jumat">Jumat</option>
+                          <option value="Sabtu">Sabtu</option>
+                          <option value="Minggu">Minggu</option>
+                        </select>
+                        <ChevronDown className="w-4 h-4 text-gray-500 absolute right-2.5 top-[2.15rem] -translate-y-1/2 pointer-events-none" />
+                      </div>
+                    </div>
+                    {/* Reset Button */}
+                    {(scheduleFilters.search || scheduleFilters.jurusanId || scheduleFilters.gradeId || scheduleFilters.dayOfWeek) && (
+                      <button
+                        type="button"
+                        onClick={() => setScheduleFilters({ search: "", gradeId: "", jurusanId: "", dayOfWeek: "" })}
+                        className="w-full sm:w-auto min-h-[38px] px-3 text-sm text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                        aria-label="Hapus filter"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Reset Filter</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {/* Daftar Jadwal Kelas */}
                 <div className="glass-card-light overflow-hidden">
                   <div className="p-6 border-b border-gray-100 dark:border-gray-800">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Daftar Jadwal Kelas</h3>
                   </div>
                   <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {gradeSchedules.length === 0 && (
-                      <p className="p-4 text-sm text-gray-500 dark:text-gray-400">Belum ada jadwal kelas.</p>
+                    {gradeSchedules.filter((s) => {
+                      const query = scheduleFilters.search.toLowerCase();
+                      const matchesSearch = !query ||
+                        (s.grade_name && s.grade_name.toLowerCase().includes(query)) ||
+                        (s.subject_name && s.subject_name.toLowerCase().includes(query)) ||
+                        (s.teacher_name && s.teacher_name.toLowerCase().includes(query));
+                      const gradeJurusanId = grades.find((g) => g.id === s.grade_id)?.jurusan_id;
+                      const matchesJurusan = !scheduleFilters.jurusanId || gradeJurusanId === scheduleFilters.jurusanId;
+                      const matchesGrade = !scheduleFilters.gradeId || s.grade_id === scheduleFilters.gradeId;
+                      const matchesDay = !scheduleFilters.dayOfWeek || (s.day_of_week || "").trim().toLowerCase() === scheduleFilters.dayOfWeek.trim().toLowerCase();
+                      return matchesSearch && matchesJurusan && matchesGrade && matchesDay;
+                    }).length === 0 && (
+                      <p className="p-4 text-sm text-gray-500 dark:text-gray-400">
+                        {scheduleFilters.search || scheduleFilters.jurusanId || scheduleFilters.gradeId || scheduleFilters.dayOfWeek
+                          ? "Tidak ada jadwal yang sesuai filter."
+                          : "Belum ada jadwal kelas."}
+                      </p>
                     )}
-                    {gradeSchedules.map((s) => (
+                    {gradeSchedules.filter((s) => {
+                      const query = scheduleFilters.search.toLowerCase();
+                      const matchesSearch = !query ||
+                        (s.grade_name && s.grade_name.toLowerCase().includes(query)) ||
+                        (s.subject_name && s.subject_name.toLowerCase().includes(query)) ||
+                        (s.teacher_name && s.teacher_name.toLowerCase().includes(query));
+                      const gradeJurusanId = grades.find((g) => g.id === s.grade_id)?.jurusan_id;
+                      const matchesJurusan = !scheduleFilters.jurusanId || gradeJurusanId === scheduleFilters.jurusanId;
+                      const matchesGrade = !scheduleFilters.gradeId || s.grade_id === scheduleFilters.gradeId;
+                      const matchesDay = !scheduleFilters.dayOfWeek || (s.day_of_week || "").trim().toLowerCase() === scheduleFilters.dayOfWeek.trim().toLowerCase();
+                      return matchesSearch && matchesJurusan && matchesGrade && matchesDay;
+                    }).map((s) => (
                       <div key={s.id} className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
                         <div className="flex items-center justify-between mb-2">
                           <p className="font-medium text-gray-900 dark:text-white">
@@ -2455,6 +2570,315 @@ const AdminDashboard = () => {
                 </div>
               )}
 
+              {/* Tambah Guru Modal */}
+              <Modal
+                isOpen={showAddTeacherModal}
+                onClose={() => setShowAddTeacherModal(false)}
+                title="Tambah Guru"
+                size="lg"
+              >
+                <form onSubmit={handleAddTeacher} className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input type="text" placeholder="Nama Lengkap*" value={newTeacherForm.name}
+                      onChange={(e) => setNewTeacherForm({ ...newTeacherForm, name: e.target.value })}
+                      className="w-full min-h-[44px] px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-700" required />
+                    <input type="text" placeholder="NIP*" value={newTeacherForm.nip}
+                      onChange={(e) => setNewTeacherForm({ ...newTeacherForm, nip: e.target.value })}
+                      className="w-full min-h-[44px] px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-700" required />
+                  </div>
+                  <input type="email" placeholder="Email (untuk login)*" value={newTeacherForm.email}
+                    onChange={(e) => setNewTeacherForm({ ...newTeacherForm, email: e.target.value })}
+                    className="w-full min-h-[44px] px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-700" required />
+                  <input type="tel" placeholder="Telepon (opsional)" value={newTeacherForm.phone}
+                    onChange={(e) => setNewTeacherForm({ ...newTeacherForm, phone: e.target.value })}
+                    className="w-full min-h-[44px] px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-700" />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input type="password" placeholder="Password (min. 6 karakter)*" value={newTeacherForm.password}
+                      onChange={(e) => setNewTeacherForm({ ...newTeacherForm, password: e.target.value })}
+                      className="w-full min-h-[44px] px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-700" required />
+                    <input type="password" placeholder="Konfirmasi Password*" value={newTeacherForm.confirmPassword}
+                      onChange={(e) => setNewTeacherForm({ ...newTeacherForm, confirmPassword: e.target.value })}
+                      className="w-full min-h-[44px] px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-700" required />
+                  </div>
+                  <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2">
+                    <button type="button" onClick={() => setShowAddTeacherModal(false)}
+                      className="flex-1 min-h-[44px] px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-stone-800 rounded-lg hover:bg-gray-200 dark:hover:bg-stone-700">Batal</button>
+                    <button type="submit" disabled={addTeacherLoading}
+                      className="flex-1 min-h-[44px] btn-primary py-2 text-sm disabled:opacity-50">
+                      {addTeacherLoading ? "Menyimpan..." : "Tambah Guru"}
+                    </button>
+                  </div>
+                </form>
+              </Modal>
+
+              {/* Tambah Kelas Modal */}
+              <Modal
+                isOpen={showAddGradeModal}
+                onClose={() => setShowAddGradeModal(false)}
+                title="Tambah Kelas"
+                size="md"
+              >
+                <form onSubmit={(e) => { e.preventDefault(); addGrade(e); setShowAddGradeModal(false); }} className="space-y-3">
+                  <div className="space-y-3">
+                    <select
+                      value={newGrade.jurusan_id}
+                      onChange={(e) => setNewGrade({ ...newGrade, jurusan_id: e.target.value })}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                      required
+                    >
+                      <option value="">Pilih Jurusan*</option>
+                      {jurusanList.map((j) => (
+                        <option key={j.id} value={j.id}>{j.name} ({j.code})</option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="Nama Kelas (e.g., 10A)"
+                      value={newGrade.name}
+                      onChange={(e) => setNewGrade({ ...newGrade, name: e.target.value })}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                      required
+                    />
+                    <input
+                      type="number"
+                      placeholder="Tingkat (e.g., 10)"
+                      value={newGrade.grade_level}
+                      onChange={(e) => setNewGrade({ ...newGrade, grade_level: parseInt(e.target.value) || 1 })}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                      min="1"
+                      max="6"
+                      required
+                    />
+                  </div>
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddGradeModal(false)}
+                      className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-stone-800 rounded-lg hover:bg-gray-200 dark:hover:bg-stone-700 transition-colors"
+                    >
+                      Batal
+                    </button>
+                    <button type="submit" className="flex-1 btn-primary py-2 text-sm">
+                      Tambah Kelas
+                    </button>
+                  </div>
+                </form>
+              </Modal>
+
+              {/* Tambah Mata Pelajaran Modal */}
+              <Modal
+                isOpen={showAddSubjectModal}
+                onClose={() => setShowAddSubjectModal(false)}
+                title="Tambah Mata Pelajaran"
+                size="md"
+              >
+                <form onSubmit={(e) => { e.preventDefault(); addSubject(e); setShowAddSubjectModal(false); }} className="space-y-3">
+                  <div className="space-y-3">
+                    <select
+                      value={newSubject.jurusan_id}
+                      onChange={(e) => setNewSubject({ ...newSubject, jurusan_id: e.target.value })}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                      required
+                    >
+                      <option value="">Pilih Jurusan*</option>
+                      {jurusanList.map((j) => (
+                        <option key={j.id} value={j.id}>{j.name} ({j.code})</option>
+                      ))}
+                    </select>
+                    <div className="grid grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        placeholder="Nama Mapel"
+                        value={newSubject.name}
+                        onChange={(e) => setNewSubject({ ...newSubject, name: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                        required
+                      />
+                      <input
+                        type="text"
+                        placeholder="Kode Mapel"
+                        value={newSubject.code}
+                        onChange={(e) => setNewSubject({ ...newSubject, code: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                        required
+                      />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Deskripsi (opsional)"
+                      value={newSubject.description}
+                      onChange={(e) => setNewSubject({ ...newSubject, description: e.target.value })}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                  </div>
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddSubjectModal(false)}
+                      className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-stone-800 rounded-lg hover:bg-gray-200 dark:hover:bg-stone-700 transition-colors"
+                    >
+                      Batal
+                    </button>
+                    <button type="submit" className="flex-1 btn-primary py-2 text-sm">
+                      Tambah Mata Pelajaran
+                    </button>
+                  </div>
+                </form>
+              </Modal>
+
+              {/* Tambah Jurusan Modal */}
+              <Modal
+                isOpen={showAddJurusanModal}
+                onClose={() => setShowAddJurusanModal(false)}
+                title="Tambah Jurusan"
+                size="md"
+              >
+                <form onSubmit={(e) => { e.preventDefault(); addJurusan(e); setShowAddJurusanModal(false); }} className="space-y-3">
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        placeholder="Nama Jurusan"
+                        value={newJurusan.name}
+                        onChange={(e) => setNewJurusan({ ...newJurusan, name: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                        required
+                      />
+                      <input
+                        type="text"
+                        placeholder="Kode Jurusan"
+                        value={newJurusan.code}
+                        onChange={(e) => setNewJurusan({ ...newJurusan, code: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                        required
+                      />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Deskripsi (opsional)"
+                      value={newJurusan.description}
+                      onChange={(e) => setNewJurusan({ ...newJurusan, description: e.target.value })}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                    />
+                  </div>
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddJurusanModal(false)}
+                      className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-stone-800 rounded-lg hover:bg-gray-200 dark:hover:bg-stone-700 transition-colors"
+                    >
+                      Batal
+                    </button>
+                    <button type="submit" className="flex-1 btn-primary py-2 text-sm">
+                      Tambah Jurusan
+                    </button>
+                  </div>
+                </form>
+              </Modal>
+
+              {/* Tambah Jadwal Modal */}
+              <Modal
+                isOpen={showAddScheduleModal}
+                onClose={() => setShowAddScheduleModal(false)}
+                title="Tambah Jadwal Kelas"
+                size="lg"
+              >
+                <form onSubmit={(e) => { e.preventDefault(); addSchedule(e); setShowAddScheduleModal(false); }} className="space-y-3">
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <select
+                        value={newSchedule.grade_id}
+                        onChange={(e) => setNewSchedule({ ...newSchedule, grade_id: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                        required
+                      >
+                        <option value="">Pilih Kelas</option>
+                        {grades.map((g) => (
+                          <option key={g.id} value={g.id}>{g.name}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={newSchedule.subject_id}
+                        onChange={(e) => setNewSchedule({ ...newSchedule, subject_id: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                        required
+                      >
+                        <option value="">Pilih Mapel</option>
+                        {subjects.map((s) => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <select
+                      value={newSchedule.teacher_id}
+                      onChange={(e) => setNewSchedule({ ...newSchedule, teacher_id: e.target.value })}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                      required
+                    >
+                      <option value="">Pilih Guru</option>
+                      {teachers.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <select
+                        value={newSchedule.day_of_week}
+                        onChange={(e) => setNewSchedule({ ...newSchedule, day_of_week: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                        required
+                      >
+                        <option value="">Hari</option>
+                        <option value="Senin">Senin</option>
+                        <option value="Selasa">Selasa</option>
+                        <option value="Rabu">Rabu</option>
+                        <option value="Kamis">Kamis</option>
+                        <option value="Jumat">Jumat</option>
+                        <option value="Sabtu">Sabtu</option>
+                        <option value="Minggu">Minggu</option>
+                      </select>
+                      <input
+                        type="time"
+                        value={newSchedule.start_time}
+                        onChange={(e) => setNewSchedule({ ...newSchedule, start_time: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                        placeholder="Waktu Mulai"
+                        required
+                      />
+                      <input
+                        type="time"
+                        value={newSchedule.end_time}
+                        onChange={(e) => setNewSchedule({ ...newSchedule, end_time: e.target.value })}
+                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                        placeholder="Waktu Selesai"
+                        required
+                      />
+                    </div>
+                    <select
+                      value={newSchedule.room_id}
+                      onChange={(e) => setNewSchedule({ ...newSchedule, room_id: e.target.value })}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-stone-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                    >
+                      <option value="">Pilih Ruangan (opsional)</option>
+                      {rooms.map((r) => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddScheduleModal(false)}
+                      className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-stone-800 rounded-lg hover:bg-gray-200 dark:hover:bg-stone-700 transition-colors"
+                    >
+                      Batal
+                    </button>
+                    <button type="submit" className="flex-1 btn-primary py-2 text-sm">
+                      Tambah Jadwal
+                    </button>
+                  </div>
+                </form>
+              </Modal>
+
               {/* Animated Edit Confirmation Modal */}
               {confirmEdit && (
                 <div
@@ -2521,15 +2945,15 @@ const AdminDashboard = () => {
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">QR Token Generated</h3>
                       <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{qrRoom}</p>
                     </div>
-                    
+
                     <div className="bg-white dark:bg-stone-800 rounded-xl p-6 mb-4 flex items-center justify-center">
                       <QRCodeSVG value={qrToken} size={180} level="M" includeMargin={true} />
                     </div>
-                    
+
                     <div className="bg-gray-50 dark:bg-white/10 rounded-xl p-3 mb-4 text-center">
                       <p className="text-xs font-mono break-all text-gray-700 dark:text-gray-300">{qrToken}</p>
                     </div>
-                    
+
                     <div className="flex gap-3">
                       <button
                         onClick={copyToken}

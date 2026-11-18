@@ -3,6 +3,7 @@ from src.database import get_db
 
 from fastapi import APIRouter, HTTPException, Request, Depends
 from src.deps import get_current_user, require_admin
+from src.supabase import normalize_day_name
 
 router = APIRouter()
 db = get_db()
@@ -31,7 +32,7 @@ async def get_monthly_stats(
         month = 10
     if year is None:
         year = 2026
-    
+
     stats = db.get_monthly_attendance_stats(year, month)
     return {"year": year, "month": month, "stats": stats}
 
@@ -57,12 +58,12 @@ async def create_teacher(
         raise HTTPException(status_code=400, detail="NIP wajib diisi")
     if db.is_nip_taken(data["nip"]):
         raise HTTPException(status_code=400, detail="NIP already exists")
-    
+
     # Hash password
     from passlib.context import CryptContext
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     password_hash = pwd_context.hash(data.get("password", "password123"))
-    
+
     user_id = db.create_user(
         email=data["email"],
         name=data["name"],
@@ -72,7 +73,7 @@ async def create_teacher(
         school_id=data.get("school_id"),
         password_hash=password_hash
     )
-    
+
     return {"message": "Teacher created", "user_id": user_id}
 
 @router.put("/teachers/{teacher_id}")
@@ -88,26 +89,26 @@ async def update_teacher(
         raise HTTPException(status_code=404, detail="Teacher not found")
     if teacher.get("role") != "teacher":
         raise HTTPException(status_code=400, detail="Not a teacher account")
-    
+
     # Validate uniqueness excluding self
     if "email" in data and db.is_email_taken(data["email"], exclude_id=teacher_id):
         raise HTTPException(status_code=400, detail="Email already exists")
     if "nip" in data and db.is_nip_taken(data["nip"], exclude_id=teacher_id):
         raise HTTPException(status_code=400, detail="NIP already exists")
-    
+
     # Separate password from other fields
     allowed_fields = ["email", "name", "nip", "phone", "school_id"]
     update_data = {k: v for k, v in data.items() if k in allowed_fields}
-    
+
     # Handle password update
     if "password" in data and data["password"]:
         from passlib.context import CryptContext
         pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         update_data["password_hash"] = pwd_context.hash(data["password"])
-    
+
     if not update_data:
         raise HTTPException(status_code=400, detail="No valid fields to update")
-    
+
     success = db.update_user(teacher_id, **update_data)
     if not success:
         raise HTTPException(status_code=404, detail="Teacher not found")
@@ -135,28 +136,28 @@ async def reset_teacher_password(
     """Reset teacher password (admin only)"""
     teacher_id = data.get("teacher_id")
     new_password = data.get("new_password")
-    
+
     if not teacher_id or not new_password:
         raise HTTPException(status_code=400, detail="teacher_id dan new_password wajib diisi")
-    
+
     if len(new_password) < 6:
         raise HTTPException(status_code=400, detail="Password minimal 6 karakter")
-    
+
     teacher = db.get_user(teacher_id)
     if not teacher:
         raise HTTPException(status_code=404, detail="Teacher not found")
-    
+
     if teacher.get("role") != "teacher":
         raise HTTPException(status_code=400, detail="Bukan akun guru")
-    
+
     from passlib.context import CryptContext
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     hashed_password = pwd_context.hash(new_password)
-    
+
     success = db.update_user(teacher_id, password_hash=hashed_password)
     if not success:
         raise HTTPException(status_code=404, detail="Teacher not found")
-    
+
     return {"message": "Password guru berhasil direset"}
 
 @router.get("/rooms")
@@ -192,7 +193,7 @@ async def update_room(
     room = db.get_room(room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
-    
+
     success = db.update_room(
         room_id=room_id,
         name=data.get("name"),
@@ -220,7 +221,7 @@ async def delete_room(
         # Check for foreign key constraint error
         if "foreign key constraint" in error_msg.lower() or "23503" in error_msg:
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail="Ruangan tidak dapat dihapus karena masih digunakan dalam jadwal kelas. Hapus jadwal yang menggunakan ruangan ini terlebih dahulu."
             )
         raise e
@@ -254,7 +255,7 @@ async def approve_leave(
         status="approved" if approve else "rejected",
         approved_by=auth_user["user_id"]
     )
-    
+
     return {"message": f"Leave {'approved' if approve else 'rejected'}"}
 
 # ============ Subject (Mata Pelajaran) CRUD ============
@@ -309,14 +310,14 @@ async def update_subject(
     """Update subject"""
     allowed_fields = ["name", "code", "description", "school_id"]
     update_data = {k: v for k, v in data.items() if k in allowed_fields}
-    
+
     if not update_data:
         raise HTTPException(status_code=400, detail="No valid fields to update")
-    
+
     success = db.update_subject(subject_id, **update_data)
     if not success:
         raise HTTPException(status_code=404, detail="Subject not found")
-    
+
     return {"message": "Subject updated"}
 
 @router.delete("/subjects/{subject_id}")
@@ -376,14 +377,14 @@ async def update_grade(
     """Update grade"""
     allowed_fields = ["name", "grade_level", "school_id"]
     update_data = {k: v for k, v in data.items() if k in allowed_fields}
-    
+
     if not update_data:
         raise HTTPException(status_code=400, detail="No valid fields to update")
-    
+
     success = db.update_grade(grade_id, **update_data)
     if not success:
         raise HTTPException(status_code=404, detail="Grade not found")
-    
+
     return {"message": "Grade updated"}
 
 @router.delete("/grades/{grade_id}")
@@ -514,11 +515,15 @@ async def create_grade_schedule(
         raise HTTPException(status_code=400, detail="Mapel dan kelas beda jurusan")
     if data.get("room_id") and not db.get_room(data["room_id"]):
         raise HTTPException(status_code=400, detail="Ruangan tidak ditemukan")
+    # Normalisasi nama hari ke Bahasa Indonesia sebelum simpan
+    day_of_week = normalize_day_name(data.get("day_of_week", ""))
+    if not day_of_week or day_of_week not in ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]:
+        raise HTTPException(status_code=400, detail=f"Nama hari tidak valid: {data.get('day_of_week')}. Gunakan: Senin, Selasa, Rabu, Kamis, Jumat, Sabtu, Minggu")
     schedule_id = db.create_grade_schedule(
         grade_id=data["grade_id"],
         subject_id=data["subject_id"],
         teacher_id=data["teacher_id"],
-        day_of_week=data["day_of_week"],
+        day_of_week=day_of_week,
         start_time=data["start_time"],
         end_time=data["end_time"],
         room_id=data.get("room_id")
@@ -534,14 +539,21 @@ async def update_grade_schedule(
     """Update grade schedule"""
     allowed_fields = ["grade_id", "subject_id", "teacher_id", "day_of_week", "start_time", "end_time", "room_id", "is_active"]
     update_data = {k: v for k, v in data.items() if k in allowed_fields}
-    
+
+    # Normalisasi day_of_week jika ada di update_data
+    if "day_of_week" in update_data:
+        normalized_day = normalize_day_name(update_data["day_of_week"])
+        if not normalized_day or normalized_day not in ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]:
+            raise HTTPException(status_code=400, detail=f"Nama hari tidak valid: {update_data['day_of_week']}. Gunakan: Senin, Selasa, Rabu, Kamis, Jumat, Sabtu, Minggu")
+        update_data["day_of_week"] = normalized_day
+
     if not update_data:
         raise HTTPException(status_code=400, detail="No valid fields to update")
-    
+
     success = db.update_grade_schedule(schedule_id, **update_data)
     if not success:
         raise HTTPException(status_code=404, detail="Grade schedule not found")
-    
+
     return {"message": "Grade schedule updated"}
 
 @router.delete("/grade-schedules/{schedule_id}")

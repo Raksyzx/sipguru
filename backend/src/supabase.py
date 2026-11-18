@@ -31,7 +31,7 @@ RETRY_MAX_DELAY = 10  # Maximum delay between retries
 CONNECTION_POOL_SIZE = 10
 CONNECTION_POOL_TTL = 60  # seconds
 
-# Day name mapping: English -> Indonesian
+# Day name mapping: English -> Indonesian (for backward compatibility only)
 DAY_NAME_MAP = {
     "Monday": "Senin",
     "Tuesday": "Selasa",
@@ -42,9 +42,56 @@ DAY_NAME_MAP = {
     "Sunday": "Minggu",
 }
 
+# Indonesian day names (canonical values for database)
+INDONESIAN_DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
+
 def get_day_name_indonesian(day_name_en: str) -> str:
     """Convert English day name to Indonesian."""
     return DAY_NAME_MAP.get(day_name_en, day_name_en)
+
+def normalize_day_name(day_name: str) -> str:
+    """
+    Normalize any day name variant to canonical Indonesian form.
+    Handles: English, Indonesian, case variations, whitespace.
+    Returns canonical Indonesian day name or original if not recognized.
+    """
+    if not day_name:
+        return day_name
+
+    normalized = day_name.strip().lower()
+
+    # English to Indonesian
+    en_to_id = {
+        "monday": "Senin",
+        "tuesday": "Selasa",
+        "wednesday": "Rabu",
+        "thursday": "Kamis",
+        "friday": "Jumat",
+        "saturday": "Sabtu",
+        "sunday": "Minggu",
+    }
+
+    # Indonesian variants (case-insensitive)
+    id_variants = {
+        "senin": "Senin",
+        "selasa": "Selasa",
+        "rabu": "Rabu",
+        "kamis": "Kamis",
+        "jumat": "Jumat",
+        "sabtu": "Sabtu",
+        "minggu": "Minggu",
+    }
+
+    # Try English first
+    if normalized in en_to_id:
+        return en_to_id[normalized]
+
+    # Try Indonesian
+    if normalized in id_variants:
+        return id_variants[normalized]
+
+    # Return original if not recognized
+    return day_name
 
 
 def log_query_time(func):
@@ -89,19 +136,19 @@ class SupabaseClient:
         self.key = settings.SUPABASE_SERVICE_ROLE_KEY
         self.client = None
         self._http_client = None
-    
+
     def _get_http_client(self):
         """Get or create HTTP client with connection pooling."""
         if self._http_client is None:
             self._http_client = create_http_client_with_pool()
         return self._http_client
-    
+
     def _get_client(self) -> Client:
         """Get or create Supabase client."""
         if self.client is None:
             self.client = create_client(self.url, self.key)
         return self.client
-    
+
     def close(self):
         """Close HTTP client connection pool."""
         if self._http_client:
@@ -109,13 +156,13 @@ class SupabaseClient:
             self._http_client = None
         if self.client:
             self.client = None
-    
+
     def __enter__(self):
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
-    
+
     # Retry decorator for network operations
     def _retry_on_network_error(self, func):
         """Apply retry logic to network operations."""
@@ -129,7 +176,7 @@ class SupabaseClient:
         def wrapper(*args, **kwargs):
             return func(*args, **kwargs)
         return wrapper
-    
+
     # User operations
     @log_query_time
     def verify_credentials(self, email: str, password: str) -> Optional[dict]:
@@ -138,7 +185,7 @@ class SupabaseClient:
         result = client.table("users").select("id,email,role,password_hash").eq("email", email).execute()
         if not result.data:
             return None
-        
+
         user = result.data[0]
         # Verify password using bcrypt (stored in password_hash column)
         import bcrypt
@@ -146,29 +193,29 @@ class SupabaseClient:
             return None
         if not bcrypt.checkpw(password.encode(), user["password_hash"].encode()):
             return None
-        
+
         return {
             "id": user["id"],
             "email": user["email"],
             "role": user.get("role", "teacher")
         }
-    
+
     @log_query_time
     def get_user(self, user_id: str) -> Optional[dict]:
         """Get user by ID"""
         client = self._get_client()
         result = client.table("users").select("id,email,name,role,nip,phone,avatar_url,school_id").eq("id", user_id).execute()
         return result.data[0] if result.data else None
-    
+
     @log_query_time
     def get_user_by_email(self, email: str) -> Optional[dict]:
         """Get user by email"""
         client = self._get_client()
         result = client.table("users").select("id,email,name,role,nip,phone,school_id").eq("email", email).execute()
         return result.data[0] if result.data else None
-    
+
     @log_query_time
-    def create_user(self, email: str, name: str, nip: str, 
+    def create_user(self, email: str, name: str, nip: str,
                     role: str = "teacher", phone: str = None,
                     school_id: str = None, password_hash: str = None) -> str:
         """Create new teacher user"""
@@ -187,21 +234,21 @@ class SupabaseClient:
         if not result.data:
             raise Exception(f"Failed to create user: {result}")
         return result.data[0]["id"]
-    
+
     @log_query_time
     def update_user(self, user_id: str, **fields) -> bool:
         """Update user"""
         client = self._get_client()
         result = client.table("users").update(fields).eq("id", user_id).execute()
         return bool(result.data)
-    
+
     @log_query_time
     def delete_user(self, user_id: str) -> bool:
         """Delete user"""
         client = self._get_client()
         result = client.table("users").delete().eq("id", user_id).execute()
         return bool(result.data)
-    
+
     # School operations
     @log_query_time
     def get_all_schools(self) -> List[dict]:
@@ -209,7 +256,7 @@ class SupabaseClient:
         client = self._get_client()
         result = client.table("schools").select("id,name,address,phone").execute()
         return result.data
-    
+
     # Room operations
     @log_query_time
     def get_room(self, room_id: str) -> Optional[dict]:
@@ -217,21 +264,21 @@ class SupabaseClient:
         client = self._get_client()
         result = client.table("rooms").select("id,name,room_code,school_id,geofence_radius,geolocation").eq("id", room_id).execute()
         return result.data[0] if result.data else None
-    
+
     @log_query_time
     def get_room_by_code(self, room_code: str) -> Optional[dict]:
         """Get room by code (for IoT devices)"""
         client = self._get_client()
         result = client.table("rooms").select("id,name,room_code,school_id,geofence_radius,geolocation").eq("room_code", room_code).execute()
         return result.data[0] if result.data else None
-    
+
     @log_query_time
     def get_all_rooms(self) -> List[dict]:
         """Get all rooms"""
         client = self._get_client()
         result = client.table("rooms").select("id,name,room_code,school_id,geofence_radius,geolocation").execute()
         return result.data
-    
+
     @log_query_time
     def create_room(self, school_id: str, name: str, room_code: str,
                    geofence_radius: int = 150, geolocation: str = None) -> str:
@@ -245,7 +292,7 @@ class SupabaseClient:
             "geolocation": geolocation
         }).execute()
         return result.data[0]["id"]
-    
+
     @log_query_time
     def update_room(self, room_id: str, name: str = None, room_code: str = None,
                    geofence_radius: int = None, geolocation: str = None) -> bool:
@@ -262,18 +309,18 @@ class SupabaseClient:
             fields["geolocation"] = geolocation
         result = client.table("rooms").update(fields).eq("id", room_id).execute()
         return bool(result.data)
-    
+
     @log_query_time
     def delete_room(self, room_id: str) -> bool:
         """Delete room"""
         client = self._get_client()
         result = client.table("rooms").delete().eq("id", room_id).execute()
         return bool(result.data)
-    
+
     # Schedule operations
     @log_query_time
-    def get_schedule_by_teacher_and_day(self, teacher_id: str, 
-                                        day_of_week: str, 
+    def get_schedule_by_teacher_and_day(self, teacher_id: str,
+                                        day_of_week: str,
                                         room_id: str = None) -> Optional[dict]:
         """Get teacher's schedule for specific day and optionally room"""
         client = self._get_client()
@@ -282,22 +329,22 @@ class SupabaseClient:
             query = query.eq("room_id", room_id)
         result = query.execute()
         return result.data[0] if result.data else None
-    
+
     @log_query_time
-    def get_schedules_by_teacher_and_day(self, teacher_id: str, 
+    def get_schedules_by_teacher_and_day(self, teacher_id: str,
                                          day_of_week: str) -> List[dict]:
         """Get all schedules for teacher on specific day"""
         client = self._get_client()
         result = client.table("schedules").select("id,teacher_id,room_id,day_of_week,start_time,end_time").eq("teacher_id", teacher_id).eq("day_of_week", day_of_week).execute()
         return result.data
-    
+
     @log_query_time
     def get_all_schedules(self) -> List[dict]:
         """Get all schedules"""
         client = self._get_client()
         result = client.table("schedules").select("id,teacher_id,room_id,day_of_week,start_time,end_time").execute()
         return result.data
-    
+
     @log_query_time
     def create_schedule(self, teacher_id: str, room_id: str,
                        day_of_week: str, start_time: str, end_time: str) -> str:
@@ -311,21 +358,21 @@ class SupabaseClient:
             "end_time": end_time
         }).execute()
         return result.data[0]["id"]
-    
+
     @log_query_time
     def update_schedule(self, schedule_id: str, **fields) -> bool:
         """Update schedule"""
         client = self._get_client()
         result = client.table("schedules").update(fields).eq("id", schedule_id).execute()
         return bool(result.data)
-    
+
     @log_query_time
     def delete_schedule(self, schedule_id: str) -> bool:
         """Delete schedule"""
         client = self._get_client()
         result = client.table("schedules").delete().eq("id", schedule_id).execute()
         return bool(result.data)
-    
+
     # Attendance operations
     @log_query_time
     def create_attendance_log(self, teacher_id: str, room_id: str,
@@ -335,7 +382,7 @@ class SupabaseClient:
                              attendance_context: Optional[dict] = None) -> str:
         """Create new attendance log entry"""
         client = self._get_client()
-        
+
         # Convert JSON geolocation to Postgres POINT format: "(lat,lon)"
         geo_point = None
         if geolocation:
@@ -349,13 +396,13 @@ class SupabaseClient:
             except (json.JSONDecodeError, KeyError, TypeError):
                 logger.warning(f"Invalid geolocation format: {geolocation}")
                 geo_point = None
-        
+
         # Hash long QR tokens to fit VARCHAR(255) - store first 64 chars of SHA256
         qr_hash = None
         if qr_token:
             import hashlib
             qr_hash = hashlib.sha256(qr_token.encode()).hexdigest()
-        
+
         result = client.table("attendance_logs").insert({
             "teacher_id": teacher_id,
             "room_id": room_id,
@@ -367,7 +414,7 @@ class SupabaseClient:
             "attendance_context": attendance_context,
         }).execute()
         return result.data[0]["id"]
-    
+
     @log_query_time
     def get_attendance_by_teacher_and_month(self, teacher_id: str,
                                             year: int, month: int) -> List[dict]:
@@ -383,36 +430,36 @@ class SupabaseClient:
             end_year = year
             end_month = month + 1
         end_date = f"{end_year}-{end_month:02d}-01T00:00:00"
-        
+
         result = client.table("attendance_logs").select(
             "id,teacher_id,room_id,status,geolocation,created_at"
         ).eq("teacher_id", teacher_id).gte("created_at", start_date).lt("created_at", end_date).execute()
         return result.data
-    
+
     @log_query_time
     def get_daily_attendance_stats(self, date_str: str) -> dict:
         """Get attendance statistics for specific date"""
         client = self._get_client()
         start_datetime = f"{date_str}T00:00:00"
         end_datetime = f"{date_str}T23:59:59.999"
-        
+
         # Use COUNT queries for efficiency instead of fetching all rows
         stats = {"total": 0, "on_time": 0, "late": 0, "absent": 0, "deferred": 0, "approved": 0}
-        
+
         for status in ["on_time", "late", "absent", "deferred", "approved"]:
             count_result = client.table("attendance_logs").select("*", count="exact").gte(
                 "created_at", start_datetime
             ).lt("created_at", end_datetime).eq("status", status).execute()
             stats[status] = count_result.count if hasattr(count_result, 'count') else 0
-        
+
         stats["total"] = sum(stats.values())
         return stats
-    
+
     @log_query_time
     def get_monthly_attendance_stats(self, year: int, month: int) -> dict:
         """Get attendance statistics for specific month using COUNT query"""
         client = self._get_client()
-        
+
         start_date = f"{year}-{month:02d}-01T00:00:00"
         if month == 12:
             end_year = year + 1
@@ -421,13 +468,13 @@ class SupabaseClient:
             end_year = year
             end_month = month + 1
         end_date = f"{end_year}-{end_month:02d}-01T00:00:00"
-        
+
         # Try RPC function first
         result = client.rpc("get_attendance_stats", {
             "target_month": start_date,
             "target_end": end_date
         }).execute()
-        
+
         if result.data and len(result.data) > 0:
             stats = result.data[0]
             return {
@@ -438,7 +485,7 @@ class SupabaseClient:
                 "deferred": stats.get("deferred_count", 0),
                 "approved": stats.get("approved_count", 0)
             }
-        
+
         # Fallback: manual count if RPC function not available
         stats = {"total": 0, "on_time": 0, "late": 0, "absent": 0, "deferred": 0, "approved": 0}
         for status in ["on_time", "late", "absent", "deferred", "approved"]:
@@ -448,7 +495,7 @@ class SupabaseClient:
             stats[status] = count_result.count if hasattr(count_result, 'count') else 0
         stats["total"] = sum(stats.values())
         return stats
-    
+
 
     @log_query_time
     def get_attendance_logs_by_period(
@@ -562,7 +609,7 @@ class SupabaseClient:
             "reason": reason
         }).execute()
         return result.data[0]["id"]
-    
+
     @log_query_time
     def get_leaves_by_teacher(self, teacher_id: str,
                              status: str = None) -> List[dict]:
@@ -573,7 +620,7 @@ class SupabaseClient:
             query = query.eq("status", status)
         result = query.execute()
         return result.data
-    
+
     @log_query_time
     def get_all_leaves(self, status: str = None) -> List[dict]:
         """Get all leave requests"""
@@ -583,7 +630,7 @@ class SupabaseClient:
             query = query.eq("status", status)
         result = query.execute()
         return result.data
-    
+
     @log_query_time
     def update_leave_status(self, leave_id: str, status: str,
                             approved_by: str = None) -> bool:
@@ -596,10 +643,10 @@ class SupabaseClient:
             update_data
         ).eq("id", leave_id).execute()
         return bool(result.data)
-    
+
     # Device binding operations
     @log_query_time
-    def get_device_binding(self, user_id: str, 
+    def get_device_binding(self, user_id: str,
                            device_fingerprint: str) -> Optional[dict]:
         """Get device binding record"""
         client = self._get_client()
@@ -607,14 +654,14 @@ class SupabaseClient:
             "user_id", user_id
         ).eq("device_fingerprint", device_fingerprint).eq("is_active", True).execute()
         return result.data[0] if result.data else None
-    
+
     @log_query_time
     def create_device_binding(self, user_id: str,
                              device_fingerprint: str) -> str:
         """Create or update device binding"""
         client = self._get_client()
         existing = self.get_device_binding(user_id, device_fingerprint)
-        
+
         if existing:
             result = client.table("device_bindings").update({
                 "is_active": True,
@@ -628,7 +675,7 @@ class SupabaseClient:
                 "is_active": True
             }).execute()
             return result.data[0]["id"]
-    
+
     @log_query_time
     def get_pending_unbind_binding(self, user_id: str) -> Optional[dict]:
         """Get pending unbind device binding"""
@@ -637,9 +684,9 @@ class SupabaseClient:
             "user_id", user_id
         ).not_.is_("unbind_code_hash", "null").eq("is_active", True).execute()
         return result.data[0] if result.data else None
-    
+
     @log_query_time
-    def update_unbind_request(self, binding_id: str, 
+    def update_unbind_request(self, binding_id: str,
                              unbind_code_hash: str) -> bool:
         """Update device binding with unbind code hash"""
         client = self._get_client()
@@ -648,7 +695,7 @@ class SupabaseClient:
             "unbind_request_at": "now()"
         }).eq("id", binding_id).execute()
         return bool(result.data)
-    
+
     @log_query_time
     def unlink_device(self, binding_id: str) -> bool:
         """Unlink device (set is_active to False)"""
@@ -657,7 +704,7 @@ class SupabaseClient:
             "is_active": False
         }).eq("id", binding_id).execute()
         return bool(result.data)
-    
+
     # Audit log operations
     @log_query_time
     def create_audit_log(self, user_id: str, action: str,
@@ -676,7 +723,7 @@ class SupabaseClient:
             "user_agent": user_agent
         }).execute()
         return result.data[0]["id"]
-    
+
     # Teacher operations
     @log_query_time
     def get_all_teachers(self) -> List[dict]:
@@ -684,7 +731,7 @@ class SupabaseClient:
         client = self._get_client()
         result = client.table("users").select("id,email,name,role,nip,phone,school_id").eq("role", "teacher").execute()
         return result.data
-    
+
     @log_query_time
     def is_email_taken(self, email: str, exclude_id: str = None) -> bool:
         """Check if email already exists"""
@@ -694,7 +741,7 @@ class SupabaseClient:
             query = query.neq("id", exclude_id)
         result = query.execute()
         return result.count > 0 if hasattr(result, 'count') else len(result.data) > 0
-    
+
     @log_query_time
     def is_nip_taken(self, nip: str, exclude_id: str = None) -> bool:
         """Check if NIP already exists"""
@@ -704,7 +751,7 @@ class SupabaseClient:
             query = query.neq("id", exclude_id)
         result = query.execute()
         return result.count > 0 if hasattr(result, 'count') else len(result.data) > 0
-    
+
     # Jurusan operations
     @log_query_time
     def get_all_jurusan(self, school_id: str = None) -> List[dict]:
@@ -715,14 +762,14 @@ class SupabaseClient:
             query = query.eq("school_id", school_id)
         result = query.execute()
         return result.data
-    
+
     @log_query_time
     def get_jurusan(self, jurusan_id: str) -> Optional[dict]:
         """Get jurusan by ID"""
         client = self._get_client()
         result = client.table("jurusan").select("id,name,code,school_id,description").eq("id", jurusan_id).execute()
         return result.data[0] if result.data else None
-    
+
     @log_query_time
     def create_jurusan(self, school_id: str, name: str, code: str, description: str = None) -> str:
         """Create new jurusan"""
@@ -734,14 +781,14 @@ class SupabaseClient:
             "description": description
         }).execute()
         return result.data[0]["id"]
-    
+
     @log_query_time
     def update_jurusan(self, jurusan_id: str, **fields) -> bool:
         """Update jurusan"""
         client = self._get_client()
         result = client.table("jurusan").update(fields).eq("id", jurusan_id).execute()
         return bool(result.data)
-    
+
     @log_query_time
     def delete_jurusan(self, jurusan_id: str) -> bool:
         """Delete jurusan with cascade (remove from grades & subjects first)"""
@@ -753,7 +800,7 @@ class SupabaseClient:
         # 3. Delete jurusan
         result = client.table("jurusan").delete().eq("id", jurusan_id).execute()
         return bool(result.data)
-    
+
     # Subjects operations
     @log_query_time
     def get_all_subjects(self, school_id: str = None) -> List[dict]:
@@ -764,14 +811,14 @@ class SupabaseClient:
             query = query.eq("school_id", school_id)
         result = query.execute()
         return result.data
-    
+
     @log_query_time
     def get_subject(self, subject_id: str) -> Optional[dict]:
         """Get subject by ID"""
         client = self._get_client()
         result = client.table("subjects").select("id,name,code,jurusan_id,school_id,description").eq("id", subject_id).execute()
         return result.data[0] if result.data else None
-    
+
     @log_query_time
     def create_subject(self, name: str, code: str, jurusan_id: str, school_id: str, description: str = None) -> str:
         """Create new subject"""
@@ -784,21 +831,21 @@ class SupabaseClient:
             "description": description
         }).execute()
         return result.data[0]["id"]
-    
+
     @log_query_time
     def update_subject(self, subject_id: str, **fields) -> bool:
         """Update subject"""
         client = self._get_client()
         result = client.table("subjects").update(fields).eq("id", subject_id).execute()
         return bool(result.data)
-    
+
     @log_query_time
     def delete_subject(self, subject_id: str) -> bool:
         """Delete subject"""
         client = self._get_client()
         result = client.table("subjects").delete().eq("id", subject_id).execute()
         return bool(result.data)
-    
+
     # Grades operations
     @log_query_time
     def get_all_grades(self, school_id: str = None) -> List[dict]:
@@ -809,14 +856,14 @@ class SupabaseClient:
             query = query.eq("school_id", school_id)
         result = query.execute()
         return result.data
-    
+
     @log_query_time
     def get_grade(self, grade_id: str) -> Optional[dict]:
         """Get grade by ID"""
         client = self._get_client()
         result = client.table("grades").select("id,name,jurusan_id,school_id,grade_level").eq("id", grade_id).execute()
         return result.data[0] if result.data else None
-    
+
     @log_query_time
     def create_grade(self, jurusan_id: str, school_id: str, name: str, grade_level: int) -> str:
         """Create new grade"""
@@ -828,29 +875,29 @@ class SupabaseClient:
             "grade_level": grade_level
         }).execute()
         return result.data[0]["id"]
-    
+
     @log_query_time
     def update_grade(self, grade_id: str, **fields) -> bool:
         """Update grade"""
         client = self._get_client()
         result = client.table("grades").update(fields).eq("id", grade_id).execute()
         return bool(result.data)
-    
+
     @log_query_time
     def delete_grade(self, grade_id: str) -> bool:
         """Delete grade"""
         client = self._get_client()
         result = client.table("grades").delete().eq("id", grade_id).execute()
         return bool(result.data)
-    
+
     # Grade Schedules operations - Optimized with batch operations
     @log_query_time
     def get_all_grade_schedules(self, school_id: str = None) -> List[dict]:
         """Get all grade schedules with enriched data - OPTIMIZED BATCH VERSION"""
         client = self._get_client()
-        
+
         query = client.table("grade_schedules").select("id,grade_id,subject_id,teacher_id,room_id,day_of_week,start_time,end_time,is_active")
-        
+
         if school_id:
             # Filter by school_id via grades table
             grades_result = client.table("grades").select("id").eq("school_id", school_id).execute()
@@ -858,52 +905,52 @@ class SupabaseClient:
             if not grade_ids:
                 return []
             query = query.in_("grade_id", grade_ids)
-        
+
         result = query.execute()
         schedules = result.data or []
-        
+
         # Batch enrichment - fetch all related data in parallel
         return self._enrich_schedules_batch(client, schedules)
-    
+
     def _enrich_schedules_batch(self, client, schedules: List[dict]) -> List[dict]:
         """Batch enrich schedules with related data to avoid N+1 queries."""
         if not schedules:
             return []
-        
+
         # Collect unique IDs
         grade_ids = list(set(s["grade_id"] for s in schedules))
         subject_ids = list(set(s["subject_id"] for s in schedules))
         teacher_ids = list(set(s["teacher_id"] for s in schedules))
         room_ids = list(set(s["room_id"] for s in schedules if s.get("room_id")))
-        
+
         # Fetch all related data in parallel (batch queries)
         grades_map = {}
         if grade_ids:
             grades_result = client.table("grades").select("id,name,jurusan_id").in_("id", grade_ids).execute()
             grades_map = {g["id"]: g for g in grades_result.data}
-        
+
         subjects_map = {}
         if subject_ids:
             subjects_result = client.table("subjects").select("id,name").in_("id", subject_ids).execute()
             subjects_map = {s["id"]: s for s in subjects_result.data}
-        
+
         teachers_map = {}
         if teacher_ids:
             teachers_result = client.table("users").select("id,name").in_("id", teacher_ids).execute()
             teachers_map = {t["id"]: t for t in teachers_result.data}
-        
+
         rooms_map = {}
         if room_ids:
             rooms_result = client.table("rooms").select("id,name,room_code").in_("id", room_ids).execute()
             rooms_map = {r["id"]: r for r in rooms_result.data}
-        
+
         # Get jurusan for grades
         jurusan_ids = list(set(g.get("jurusan_id") for g in grades_map.values() if g.get("jurusan_id")))
         jurusan_map = {}
         if jurusan_ids:
             jurusan_result = client.table("jurusan").select("id,name").in_("id", jurusan_ids).execute()
             jurusan_map = {j["id"]: j for j in jurusan_result.data}
-        
+
         # Build enriched schedules
         enriched = []
         for s in schedules:
@@ -912,7 +959,7 @@ class SupabaseClient:
             teacher = teachers_map.get(s["teacher_id"], {})
             room = rooms_map.get(s["room_id"], {}) if s.get("room_id") else None
             jurusan = jurusan_map.get(grade.get("jurusan_id")) if grade.get("jurusan_id") else None
-            
+
             enriched.append({
                 **s,
                 "grade_name": grade.get("name", "N/A"),
@@ -922,38 +969,38 @@ class SupabaseClient:
                 "room_name": room.get("name") if room else None
             })
         return enriched
-    
+
     @log_query_time
     def get_grade_schedules_by_grade(self, grade_id: str) -> List[dict]:
         """Get grade schedules by grade with JOINs for names"""
         client = self._get_client()
         result = client.table("grade_schedules").select("id,grade_id,subject_id,teacher_id,room_id,day_of_week,start_time,end_time,is_active").eq("grade_id", grade_id).eq("is_active", True).execute()
         schedules = result.data or []
-        
+
         # Use batch enrichment
         return self._enrich_schedules_batch(client, schedules)
-    
+
     @log_query_time
     def get_grade_schedules_by_teacher(self, teacher_id: str) -> List[dict]:
         """Get grade schedules by teacher with JOINs for names"""
         client = self._get_client()
         result = client.table("grade_schedules").select("id,grade_id,subject_id,teacher_id,room_id,day_of_week,start_time,end_time,is_active").eq("teacher_id", teacher_id).eq("is_active", True).execute()
         schedules = result.data or []
-        
+
         # Use batch enrichment
         enriched = self._enrich_schedules_batch(client, schedules)
         # Add day name
         for s in enriched:
             s["day_name"] = get_day_name_indonesian(s.get("day_of_week", ""))
         return enriched
-    
+
     @log_query_time
     def get_grade_schedules_by_teacher_and_day(self, teacher_id: str, day_name_en: str) -> List[dict]:
         """Get grade schedules by teacher for specific day with enriched names"""
         client = self._get_client()
         result = client.table("grade_schedules").select("id,grade_id,subject_id,teacher_id,room_id,day_of_week,start_time,end_time,is_active").eq("teacher_id", teacher_id).eq("day_of_week", day_name_en).eq("is_active", True).execute()
         schedules = result.data or []
-        
+
         # Use batch enrichment
         enriched = self._enrich_schedules_batch(client, schedules)
         # Add day name
@@ -961,7 +1008,7 @@ class SupabaseClient:
         for s in enriched:
             s["day_name"] = day_indonesian
         return enriched
-    
+
     @log_query_time
     def get_grade_schedule(self, schedule_id: str) -> Optional[dict]:
         """Get grade schedule by ID with JOINs for names"""
@@ -970,13 +1017,13 @@ class SupabaseClient:
         if not result.data:
             return None
         s = result.data[0]
-        
+
         # Enrich single schedule
         grade = self.get_grade(s["grade_id"])
         subject = self.get_subject(s["subject_id"])
         teacher = self.get_user(s["teacher_id"])
         room = self.get_room(s.get("room_id")) if s.get("room_id") else None
-        
+
         return {
             **s,
             "grade_name": grade["name"] if grade else "N/A",
@@ -984,7 +1031,7 @@ class SupabaseClient:
             "teacher_name": teacher["name"] if teacher else "N/A",
             "room_name": room["name"] if room else None
         }
-    
+
     @log_query_time
     def create_grade_schedule(self, grade_id: str, subject_id: str, teacher_id: str,
                              day_of_week: str, start_time: str, end_time: str,
@@ -1001,14 +1048,14 @@ class SupabaseClient:
             "room_id": room_id
         }).execute()
         return result.data[0]["id"]
-    
+
     @log_query_time
     def update_grade_schedule(self, schedule_id: str, **fields) -> bool:
         """Update grade schedule"""
         client = self._get_client()
         result = client.table("grade_schedules").update(fields).eq("id", schedule_id).execute()
         return bool(result.data)
-    
+
     @log_query_time
     def delete_grade_schedule(self, schedule_id: str) -> bool:
         """Delete grade schedule (with cascade to qr_tokens)"""
@@ -1018,7 +1065,7 @@ class SupabaseClient:
         # Then delete the schedule
         result = client.table("grade_schedules").delete().eq("id", schedule_id).execute()
         return bool(result.data)
-    
+
     # QR Token operations
     @log_query_time
     def get_all_qr_tokens(self, active_only: bool = True) -> List[dict]:
@@ -1029,14 +1076,14 @@ class SupabaseClient:
             query = query.eq("is_active", True)
         result = query.execute()
         return result.data
-    
+
     @log_query_time
     def get_qr_tokens_by_schedule(self, schedule_id: str) -> List[dict]:
         """Get QR tokens by schedule"""
         client = self._get_client()
         result = client.table("qr_tokens").select("id,schedule_id,room_id,grade_id,subject_id,teacher_id,token,expires_at,token_type,state,is_active").eq("schedule_id", schedule_id).execute()
         return result.data
-    
+
     @log_query_time
     def create_qr_token(self, schedule_id: str, room_id: str, grade_id: str,
                        subject_id: str, teacher_id: str, token: str, expires_at: str,
@@ -1055,7 +1102,7 @@ class SupabaseClient:
             "state": state
         }).execute()
         return result.data[0]["id"]
-    
+
     @log_query_time
     def update_qr_token_state(self, token: str, state: str, scanned_at: str = None) -> bool:
         """Update QR token state (entry scanned, exit scanned, etc)"""
@@ -1065,14 +1112,14 @@ class SupabaseClient:
             update_data["scanned_at"] = scanned_at
         result = client.table("qr_tokens").update(update_data).eq("token", token).execute()
         return bool(result.data)
-    
+
     @log_query_time
     def get_qr_token(self, token: str) -> Optional[dict]:
         """Get QR token by token string"""
         client = self._get_client()
         result = client.table("qr_tokens").select("id,schedule_id,room_id,grade_id,subject_id,teacher_id,token,expires_at,token_type,state,is_active").eq("token", token).eq("is_active", True).execute()
         return result.data[0] if result.data else None
-    
+
     @log_query_time
     def get_schedules_by_room_and_day(self, room_id: str, day_of_week: str) -> List[dict]:
         """Get all grade schedules for a room on a specific day"""
@@ -1085,7 +1132,7 @@ class SupabaseClient:
             rooms(name)
         """).eq("room_id", room_id).eq("day_of_week", day_of_week).eq("is_active", True).execute()
         return result.data
-    
+
     @log_query_time
     def update_schedule_state(self, schedule_id: str, state: str, early_start: str = None) -> bool:
         """Update schedule state (for early request approval)"""
@@ -1095,14 +1142,14 @@ class SupabaseClient:
             update_data["start_time"] = early_start.split("T")[1][:5]
         result = client.table("grade_schedules").update(update_data).eq("id", schedule_id).execute()
         return bool(result.data)
-    
+
     @log_query_time
     def deactivate_qr_token(self, token_id: str) -> bool:
         """Deactivate QR token"""
         client = self._get_client()
         result = client.table("qr_tokens").update({"is_active": False}).eq("id", token_id).execute()
         return bool(result.data)
-    
+
     @log_query_time
     def create_device(self, device_id: str, room_id: str, device_name: str, status: str = "active") -> str:
         """Register new ESP32 device"""
@@ -1114,21 +1161,21 @@ class SupabaseClient:
             "status": status
         }).execute()
         return result.data[0]["id"]
-    
+
     @log_query_time
     def get_device(self, device_id: str) -> Optional[dict]:
         """Get device by device_id"""
         client = self._get_client()
         result = client.table("devices").select("*").eq("device_id", device_id).execute()
         return result.data[0] if result.data else None
-    
+
     @log_query_time
     def get_device_by_room(self, room_id: str) -> Optional[dict]:
         """Get device by room_id"""
         client = self._get_client()
         result = client.table("devices").select("*").eq("room_id", room_id).eq("status", "active").execute()
         return result.data[0] if result.data else None
-    
+
     @log_query_time
     def update_device(self, device_id: str, room_id: str = None, device_name: str = None, status: str = None) -> bool:
         """Update device info"""
@@ -1142,14 +1189,14 @@ class SupabaseClient:
             update_data["status"] = status
         result = client.table("devices").update(update_data).eq("device_id", device_id).execute()
         return bool(result.data)
-    
+
     @log_query_time
     def get_all_devices(self) -> List[dict]:
         """Get all registered devices"""
         client = self._get_client()
         result = client.table("devices").select("*").execute()
         return result.data
-    
+
     @log_query_time
     def delete_device(self, device_id: str) -> bool:
         """Delete device registration"""
