@@ -76,11 +76,11 @@ async function historyErrorMessage(cause: unknown, fallback: string): Promise<st
     { id: "guru", label: "Guru", Icon: Users },
     { id: "qr", label: "QR Ruangan", Icon: QrCode },
     { id: "izin", label: "Izin", Icon: CheckCircle },
-    { id: "jurusan", label: "Jurusan", Icon: Briefcase },
-    { id: "mapel", label: "Mata Pelajaran", Icon: BookOpen },
-    { id: "kelas", label: "Kelas", Icon: GraduationCap },
     { id: "jadwal", label: "Jadwal Kelas", Icon: CalendarDays },
     { id: "laporan", label: "History Absensi", Icon: FileOutput },
+    { id: "jurusan", label: "Jurusan", Icon: Briefcase },
+    { id: "kelas", label: "Kelas", Icon: GraduationCap },
+    { id: "mapel", label: "Mata Pelajaran", Icon: BookOpen },
   ];
 
 interface Teacher {
