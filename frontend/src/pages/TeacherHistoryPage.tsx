@@ -18,6 +18,7 @@ interface AttendanceLog {
   grade_name?: string;
   subject_name?: string;
   jurusan_name?: string;
+  jurusan_code?: string;
 }
 
 const TeacherHistoryPage = () => {
@@ -221,16 +222,20 @@ const TeacherHistoryPage = () => {
                       ) : null}
                     </div>
                     {(h.subject_name || h.grade_name) && (
-                      <div className="flex items-center gap-1.5 mt-1 text-[10px] sm:text-xs">
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[10px] sm:text-xs">
                         {h.subject_name && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300 font-medium">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300 font-medium">
                             {h.subject_name}
                           </span>
                         )}
-                        {h.grade_name && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 font-medium">
-                            {h.grade_name}
-                            {h.jurusan_name && <span className="text-[8px] opacity-75">• {h.jurusan_name}</span>}
+                        {(h.grade_name || h.jurusan_code) && (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 font-medium">
+                            {h.grade_name && (
+                              <span>{h.grade_name}</span>
+                            )}
+                            {h.jurusan_code && (
+                              <span className="text-[9px] uppercase tracking-tight opacity-75">{h.jurusan_code}</span>
+                            )}
                           </span>
                         )}
                       </div>

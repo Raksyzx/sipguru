@@ -60,6 +60,7 @@ def session_context(db, schedule_id, token_type, lateness_minutes=0):
         "subject_name": subject.get("name"),
         "jurusan_id": jurusan_id,
         "jurusan_name": (jurusan or {}).get("name"),
+        "jurusan_code": (jurusan or {}).get("code"),
         "token_type": token_type,
         "lateness_minutes": lateness_minutes or 0,
         "start_time": schedule.get("start_time"),

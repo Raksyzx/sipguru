@@ -121,10 +121,12 @@ async def get_attendance_history(
             enriched["subject_name"] = context.get("subject_name", "")
             enriched["grade_name"] = context.get("grade_name", "")
             enriched["jurusan_name"] = context.get("jurusan_name", "")
+            enriched["jurusan_code"] = context.get("jurusan_code", "")
         else:
             enriched["subject_name"] = ""
             enriched["grade_name"] = ""
             enriched["jurusan_name"] = ""
+            enriched["jurusan_code"] = ""
         
         # Parse created_at for day name
         created_at = h.get("created_at", "") or ""
