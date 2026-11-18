@@ -147,6 +147,61 @@
   .animate-stagger-5 { animation-delay: 300ms; }
 }
 
+/* Animate content only; fixed navigation and overlays keep viewport positioning. */
+.teacher-page-transition {
+  animation: teacherPageFade 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.teacher-page-content > :not(.fixed):not(.modal-fixed-overlay) {
+  animation: teacherPageRise 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes teacherPageFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes teacherPageRise {
+  from { transform: translateY(8px); }
+  to { transform: none; }
+}
+
+.attendance-dialog[open] {
+  animation: attendanceDialogEnter 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.attendance-dialog[open]::backdrop {
+  animation: teacherPageFade 220ms ease-out;
+}
+
+.attendance-dialog[data-closing] {
+  pointer-events: none;
+  animation: attendanceDialogExit 160ms ease-in forwards;
+}
+
+.attendance-dialog[data-closing]::backdrop {
+  animation: teacherPageFade 160ms ease-in reverse forwards;
+}
+
+@keyframes attendanceDialogEnter {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes attendanceDialogExit {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(8px) scale(0.98); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .teacher-page-transition,
+  .teacher-page-content > :not(.fixed):not(.modal-fixed-overlay),
+  .attendance-dialog[open],
+  .attendance-dialog[open]::backdrop {
+    animation: none;
+  }
+}
+
 @keyframes slideInRight {
   from {
     opacity: 0;

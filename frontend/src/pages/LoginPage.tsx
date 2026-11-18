@@ -212,24 +212,24 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-stone-50 dark:from-stone-950 dark:to-emerald-950/20 flex items-center justify-center py-8 px-4">
+    <div className="min-h-screen min-h-[100svh] bg-gradient-to-br from-emerald-50 to-stone-50 dark:from-stone-950 dark:to-emerald-950/20 flex items-center justify-center px-3 py-6 sm:px-5 sm:py-10 lg:px-8">
       <div className="w-full max-w-md animate-in fade-in duration-500">
         {/* Brand Header */}
-        <div className="text-center mb-8 space-y-3">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-600 to-emerald-500 shadow-[0_10px_30px_rgba(16,185,129,0.3)] dark:shadow-[0_10px_30px_rgba(16,185,129,0.4)]">
-            <Shield className="w-8 h-8 text-white" />
+        <div className="mb-6 space-y-2 text-center sm:mb-8 sm:space-y-3">
+          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-emerald-600 to-emerald-500 shadow-[0_10px_30px_rgba(16,185,129,0.3)] dark:shadow-[0_10px_30px_rgba(16,185,129,0.4)] sm:h-16 sm:w-16">
+            <Shield className="h-7 w-7 text-white sm:h-8 sm:w-8" />
           </div>
-          <h1 className="text-4xl font-bold tracking-tight text-gray-900 dark:text-white">
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
             SIPGURU
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-gray-600 dark:text-gray-400 sm:text-base">
             Sistem Presensi Guru Terpercaya
           </p>
         </div>
 
         {/* Glass Card */}
-        <div className="glass-card p-8 md:p-10 space-y-6">
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="glass-card w-full space-y-4 p-4 sm:space-y-5 sm:p-6 md:space-y-6 md:p-8">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 md:space-y-6">
           <div className="space-y-2">
             <label className="label-field">
               Alamat Email
@@ -296,7 +296,7 @@ const LoginPage = () => {
           <button
             type="submit"
             disabled={isLoading}
-            className="btn-primary w-full py-4 text-lg tracking-wide"
+            className="btn-primary w-full py-3.5 text-base sm:py-4 sm:text-lg tracking-wide"
           >
             {isLoading ? (
               <span className="flex items-center justify-center gap-2">

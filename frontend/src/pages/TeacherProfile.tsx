@@ -175,9 +175,9 @@ const TeacherProfile = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-stone-50 dark:from-stone-950 dark:to-emerald-950/20 py-6 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-stone-50 dark:from-stone-950 dark:to-emerald-950/20 pt-6 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-6 px-4">
       <ToastContainer toasts={toasts} remove={removeToast} position="top-center" />
-      <div className="max-w-lg mx-auto space-y-4">
+      <div className="max-w-lg mx-auto space-y-4 teacher-page-content">
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
           <button
