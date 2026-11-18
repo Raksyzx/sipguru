@@ -223,6 +223,10 @@ const AdminDashboard = () => {
   const [showAddScheduleModal, setShowAddScheduleModal] = useState(false);
   const [scheduleFilters, setScheduleFilters] = useState({ search: "", gradeId: "", jurusanId: "", dayOfWeek: "" });
   const [showAddTeacherModal, setShowAddTeacherModal] = useState(false);
+  const [addSubjectLoading, setAddSubjectLoading] = useState(false);
+  const [addGradeLoading, setAddGradeLoading] = useState(false);
+  const [addJurusanLoading, setAddJurusanLoading] = useState(false);
+  const [addScheduleLoading, setAddScheduleLoading] = useState(false);
   const [teacherSearch, setTeacherSearch] = useState("");
   const filteredTeachers = useMemo(() => {
     const query = teacherSearch.trim().toLocaleLowerCase();
@@ -573,8 +577,17 @@ const AdminDashboard = () => {
 
   const addSubject = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newSubject.name || !newSubject.code) return;
-    if (!newSubject.jurusan_id) { showToast("Pilih jurusan dulu untuk mapel ini", "error"); return; }
+    if (!newSubject.name || !newSubject.code) {
+      showToast("Nama dan kode mata pelajaran wajib diisi", "error");
+      setShowAddSubjectModal(false);
+      return;
+    }
+    if (!newSubject.jurusan_id) {
+      showToast("Pilih jurusan dulu untuk mapel ini", "error");
+      setShowAddSubjectModal(false);
+      return;
+    }
+    setAddSubjectLoading(true);
     try {
       console.log('[ADD SUBJECT] Payload:', newSubject);
       await api.post("/admin/subjects", newSubject);
@@ -582,16 +595,29 @@ const AdminDashboard = () => {
       setSubjects(res.data?.subjects || []);
       setNewSubject({ name: "", code: "", description: "", jurusan_id: "" });
       showToast("Mata pelajaran berhasil ditambahkan!", "success");
+      setShowAddSubjectModal(false);
     } catch (err: any) {
       console.error('[ADD SUBJECT] Error:', err.response?.status, err.response?.data);
       showToast(err?.response?.data?.detail || "Gagal menambah mata pelajaran", "error");
+      setShowAddSubjectModal(false);
+    } finally {
+      setAddSubjectLoading(false);
     }
   };
 
   const addGrade = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newGrade.name) return;
-    if (!newGrade.jurusan_id) { showToast("Pilih jurusan dulu untuk kelas ini", "error"); return; }
+    if (!newGrade.name) {
+      showToast("Nama kelas wajib diisi", "error");
+      setShowAddGradeModal(false);
+      return;
+    }
+    if (!newGrade.jurusan_id) {
+      showToast("Pilih jurusan dulu untuk kelas ini", "error");
+      setShowAddGradeModal(false);
+      return;
+    }
+    setAddGradeLoading(true);
     try {
       console.log('[ADD GRADE] Payload:', newGrade);
       const jurDetail = await api.get(`/admin/jurusan/${newGrade.jurusan_id}`);
@@ -602,15 +628,24 @@ const AdminDashboard = () => {
       setGrades(res.data?.grades || []);
       setNewGrade({ name: "", grade_level: 1, jurusan_id: "" });
       showToast("Kelas berhasil ditambahkan!", "success");
+      setShowAddGradeModal(false);
     } catch (err: any) {
       console.error('[ADD GRADE] Error:', err.response?.status, err.response?.data);
       showToast(err?.response?.data?.detail || "Gagal menambah kelas", "error");
+      setShowAddGradeModal(false);
+    } finally {
+      setAddGradeLoading(false);
     }
   };
 
   const addJurusan = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newJurusan.name || !newJurusan.code) return;
+    if (!newJurusan.name || !newJurusan.code) {
+      showToast("Nama dan kode jurusan wajib diisi", "error");
+      setShowAddJurusanModal(false);
+      return;
+    }
+    setAddJurusanLoading(true);
     try {
       console.log('[ADD JURUSAN] Payload:', newJurusan);
       // school_id default: ambil dari jurusan pertama yang ada
@@ -627,9 +662,13 @@ const AdminDashboard = () => {
       setJurusanList(res.data?.jurusan || []);
       setNewJurusan({ name: "", code: "", description: "" });
       showToast("Jurusan berhasil ditambahkan!", "success");
+      setShowAddJurusanModal(false);
     } catch (err: any) {
       console.error('[ADD JURUSAN] Error:', err.response?.status, err.response?.data);
       showToast(err?.response?.data?.detail || "Gagal menambah jurusan", "error");
+      setShowAddJurusanModal(false);
+    } finally {
+      setAddJurusanLoading(false);
     }
   };
 
@@ -660,6 +699,7 @@ const AdminDashboard = () => {
     } catch (err: any) {
       console.error('[ADD ROOM] Error:', err.response?.status, err.response?.data);
       showToast(err?.response?.data?.detail || "Gagal menambah ruangan", 'error');
+      setAddRoomModal({ open: false, name: "", room_code: "", geofence_radius: 150, geolocation: "" });
     } finally {
       setAddRoomLoading(false);
     }
@@ -720,9 +760,11 @@ const AdminDashboard = () => {
     const subject = subjects.find(s => s.id === newSchedule.subject_id);
     if (grade?.jurusan_id && subject?.jurusan_id && grade.jurusan_id !== subject.jurusan_id) {
       showToast("Mapel dan kelas harus satu jurusan!", 'error');
+      setShowAddScheduleModal(false);
       return;
     }
 
+    setAddScheduleLoading(true);
     try {
       console.log('[ADD SCHEDULE] Payload:', newSchedule);
       await api.post("/admin/grade-schedules", newSchedule);
@@ -738,9 +780,13 @@ const AdminDashboard = () => {
         room_id: "",
       });
       showToast("Jadwal kelas berhasil ditambah!", 'success');
+      setShowAddScheduleModal(false);
     } catch (err: any) {
       console.error('[ADD SCHEDULE] Error:', err.response?.status, err.response?.data);
       showToast(err?.response?.data?.detail || "Gagal menambah jadwal kelas", 'error');
+      setShowAddScheduleModal(false);
+    } finally {
+      setAddScheduleLoading(false);
     }
   };
 
@@ -810,14 +856,17 @@ const AdminDashboard = () => {
     e.preventDefault();
     if (!newTeacherForm.name || !newTeacherForm.nip || !newTeacherForm.email) {
       showToast("Nama, NIP, dan Email wajib diisi", "error");
+      setShowAddTeacherModal(false);
       return;
     }
     if (newTeacherForm.password.length < 6) {
       showToast("Password minimal 6 karakter", "error");
+      setShowAddTeacherModal(false);
       return;
     }
     if (newTeacherForm.password !== newTeacherForm.confirmPassword) {
       showToast("Password tidak cocok", "error");
+      setShowAddTeacherModal(false);
       return;
     }
 
@@ -838,6 +887,7 @@ const AdminDashboard = () => {
       setTeachers(res.data?.teachers || []);
     } catch (err: any) {
       showToast(err.response?.data?.detail || "Gagal menambah guru", 'error');
+      setShowAddTeacherModal(false);
     } finally {
       setAddTeacherLoading(false);
     }
@@ -2618,7 +2668,7 @@ const AdminDashboard = () => {
                 title="Tambah Kelas"
                 size="md"
               >
-                <form onSubmit={(e) => { e.preventDefault(); addGrade(e); setShowAddGradeModal(false); }} className="space-y-3">
+                <form onSubmit={addGrade} className="space-y-3">
                   <div className="space-y-3">
                     <select
                       value={newGrade.jurusan_id}
@@ -2658,8 +2708,8 @@ const AdminDashboard = () => {
                     >
                       Batal
                     </button>
-                    <button type="submit" className="flex-1 btn-primary py-2 text-sm">
-                      Tambah Kelas
+                    <button type="submit" disabled={addGradeLoading} className="flex-1 btn-primary py-2 text-sm disabled:opacity-50">
+                      {addGradeLoading ? "Menyimpan..." : "Tambah Kelas"}
                     </button>
                   </div>
                 </form>
@@ -2672,7 +2722,7 @@ const AdminDashboard = () => {
                 title="Tambah Mata Pelajaran"
                 size="md"
               >
-                <form onSubmit={(e) => { e.preventDefault(); addSubject(e); setShowAddSubjectModal(false); }} className="space-y-3">
+                <form onSubmit={addSubject} className="space-y-3">
                   <div className="space-y-3">
                     <select
                       value={newSubject.jurusan_id}
@@ -2719,8 +2769,8 @@ const AdminDashboard = () => {
                     >
                       Batal
                     </button>
-                    <button type="submit" className="flex-1 btn-primary py-2 text-sm">
-                      Tambah Mata Pelajaran
+                    <button type="submit" disabled={addSubjectLoading} className="flex-1 btn-primary py-2 text-sm disabled:opacity-50">
+                      {addSubjectLoading ? "Menyimpan..." : "Tambah Mata Pelajaran"}
                     </button>
                   </div>
                 </form>
@@ -2733,7 +2783,7 @@ const AdminDashboard = () => {
                 title="Tambah Jurusan"
                 size="md"
               >
-                <form onSubmit={(e) => { e.preventDefault(); addJurusan(e); setShowAddJurusanModal(false); }} className="space-y-3">
+                <form onSubmit={addJurusan} className="space-y-3">
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <input
@@ -2769,8 +2819,8 @@ const AdminDashboard = () => {
                     >
                       Batal
                     </button>
-                    <button type="submit" className="flex-1 btn-primary py-2 text-sm">
-                      Tambah Jurusan
+                    <button type="submit" disabled={addJurusanLoading} className="flex-1 btn-primary py-2 text-sm disabled:opacity-50">
+                      {addJurusanLoading ? "Menyimpan..." : "Tambah Jurusan"}
                     </button>
                   </div>
                 </form>
@@ -2783,7 +2833,7 @@ const AdminDashboard = () => {
                 title="Tambah Jadwal Kelas"
                 size="lg"
               >
-                <form onSubmit={(e) => { e.preventDefault(); addSchedule(e); setShowAddScheduleModal(false); }} className="space-y-3">
+                <form onSubmit={addSchedule} className="space-y-3">
                   <div className="space-y-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <select
@@ -2872,8 +2922,8 @@ const AdminDashboard = () => {
                     >
                       Batal
                     </button>
-                    <button type="submit" className="flex-1 btn-primary py-2 text-sm">
-                      Tambah Jadwal
+                    <button type="submit" disabled={addScheduleLoading} className="flex-1 btn-primary py-2 text-sm disabled:opacity-50">
+                      {addScheduleLoading ? "Menyimpan..." : "Tambah Jadwal"}
                     </button>
                   </div>
                 </form>
