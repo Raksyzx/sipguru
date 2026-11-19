@@ -256,7 +256,7 @@ const TeacherDashboard = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-stone-50 dark:from-stone-950 dark:to-emerald-950/20 px-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:px-4 md:pb-8 md:pl-24 lg:pl-64">
       {/* Sticky Profile Header - floating, animates on scroll */}
-      <div className="sticky top-[max(env(safe-area-inset-top),8px)] z-50 -mx-3 px-3 pt-[env(safe-area-inset-top)] sm:-mx-4 sm:px-4 md:mx-0 md:px-0 md:pt-4">
+      <div className="sticky top-0 z-50 -mx-3 px-3 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] sm:-mx-4 sm:px-4 sm:pt-[calc(env(safe-area-inset-top,0px)+1rem)] md:mx-0 md:px-0 md:pt-4">
         <div
           className="glass-card-light mx-auto overflow-hidden border p-3.5 transition-[width,max-width,padding] duration-300 ease-out motion-reduce:transition-none sm:p-4"
           style={{
@@ -336,46 +336,42 @@ const TeacherDashboard = () => {
         </div>
       </div>
 
-      {/* Main content */}
-      <div className="max-w-sm sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto space-y-3 sm:space-y-4 md:space-y-5 pt-2">
-
-        {/* Burger Dropdown Menu - rendered at root level to avoid stacking context issues */}
-        {showMenu && (
-          <>
-            <div 
-              className="fixed right-4 top-20 w-40 bg-white dark:bg-stone-800 rounded-xl shadow-2xl border-2 border-gray-200 dark:border-stone-700 py-1"
-              style={{ zIndex: 99999 }}
+      {/* Keep fixed menu elements outside the content spacing group. */}
+      {showMenu && (
+        <>
+          <div
+            className="fixed right-4 top-20 w-40 bg-white dark:bg-stone-800 rounded-xl shadow-2xl border-2 border-gray-200 dark:border-stone-700 py-1"
+            style={{ zIndex: 99999 }}
+          >
+            <button
+              onClick={() => {
+                setShowMenu(false);
+                toggleTheme();
+              }}
+              className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-stone-700 flex items-center gap-2"
             >
-              <button
-                onClick={() => {
-                  setShowMenu(false);
-                  toggleTheme();
-                }}
-                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-stone-700 flex items-center gap-2"
-              >
-                {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                {theme === "dark" ? "Mode Terang" : "Mode Gelap"}
-              </button>
-              <hr className="my-1 border-gray-200 dark:border-stone-700" />
-              <button
-                onClick={handleLogout}
-                className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2"
-              >
-                <LogOut className="w-4 h-4" />
-                Keluar
-              </button>
-            </div>
+              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              {theme === "dark" ? "Mode Terang" : "Mode Gelap"}
+            </button>
+            <hr className="my-1 border-gray-200 dark:border-stone-700" />
+            <button
+              onClick={handleLogout}
+              className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-stone-700 flex items-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+              Keluar
+            </button>
+          </div>
+          <div
+            className="fixed inset-0"
+            style={{ zIndex: 99998 }}
+            onClick={() => setShowMenu(false)}
+            aria-hidden="true"
+          />
+        </>
+      )}
 
-            {/* Backdrop overlay - only visible when menu open */}
-            <div
-              className="fixed inset-0"
-              style={{ zIndex: 99998 }}
-              onClick={() => setShowMenu(false)}
-              aria-hidden="true"
-            />
-          </>
-        )}
-
+      <div className="max-w-sm sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto space-y-3 sm:space-y-4 md:space-y-5 pt-4">
         {/* Attendance and location status */}
         <div className="grid grid-cols-1 gap-3 animate-stagger-3 sm:grid-cols-2 sm:gap-4">
           {todayStats && (
