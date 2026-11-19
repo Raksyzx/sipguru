@@ -252,6 +252,7 @@ const TeacherDashboard = () => {
   const late = history.filter((h) => h.status === "late").length;
 
   const pendingLeaves = leaves.filter((l) => l.status === "pending");
+  const avatarSize = `${56 - scrollProgress * 16}px`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-stone-50 dark:from-stone-950 dark:to-emerald-950/20 px-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:px-4 md:pb-8 md:pl-24 lg:pl-64">
@@ -272,20 +273,20 @@ const TeacherDashboard = () => {
           >
             {/* Avatar with photo support - maintains aspect ratio */}
             <div
-              className="flex flex-shrink-0 items-center justify-center"
-              style={{ width: `${56 - scrollProgress * 16}px`, height: `${56 - scrollProgress * 16}px`, minWidth: `${40 - scrollProgress * 8}px` }}
+              className="flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full"
+              style={{ width: avatarSize, height: avatarSize, minWidth: avatarSize, flexBasis: avatarSize, aspectRatio: "1 / 1" }}
             >
               {user?.avatar_url ? (
                 <img
                   src={user.avatar_url}
                   alt={user?.name || "User"}
-                  className="rounded-full object-cover"
-                  style={{ width: `${56 - scrollProgress * 16}px`, height: `${56 - scrollProgress * 16}px` }}
+                  className="block h-full w-full rounded-full object-cover"
+                  style={{ aspectRatio: "1 / 1" }}
                 />
               ) : (
                 <div
-                  className="flex items-center justify-center rounded-full bg-emerald-700 font-bold text-white"
-                  style={{ width: `${56 - scrollProgress * 16}px`, height: `${56 - scrollProgress * 16}px`, fontSize: `${24 - scrollProgress * 4}px`, minWidth: `${40 - scrollProgress * 8}px` }}
+                  className="flex h-full w-full items-center justify-center rounded-full bg-emerald-700 font-bold text-white"
+                  style={{ fontSize: `${24 - scrollProgress * 4}px`, aspectRatio: "1 / 1" }}
                 >
                   {user?.name?.charAt(0) || "G"}
                 </div>
