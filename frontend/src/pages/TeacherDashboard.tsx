@@ -258,17 +258,17 @@ const TeacherDashboard = () => {
       {/* Sticky Profile Header - floating, animates on scroll */}
       <div className="sticky top-[max(env(safe-area-inset-top),8px)] z-50 -mx-3 px-3 pt-[env(safe-area-inset-top)] sm:-mx-4 sm:px-4 md:mx-0 md:px-0 md:pt-4">
         <div
-          className="glass-card-light mx-auto overflow-hidden border p-3 transition-[width,max-width,padding] duration-300 ease-out motion-reduce:transition-none sm:p-4"
+          className="glass-card-light mx-auto overflow-hidden border p-3.5 transition-[width,max-width,padding] duration-300 ease-out motion-reduce:transition-none sm:p-4"
           style={{
             width: `${100 - scrollProgress * 80}%`,
             maxWidth: `${640 - scrollProgress * 560}px`,
             minWidth: "68px",
-            padding: `${16 - scrollProgress * 4}px`,
+            padding: `${18 - scrollProgress * 6}px`,
           }}
         >
           <div
             className="flex items-center transition-[gap] duration-300 ease-out motion-reduce:transition-none"
-            style={{ justifyContent: scrollProgress > 0.98 ? "center" : "space-between", gap: `${16 - scrollProgress * 8}px` }}
+            style={{ justifyContent: scrollProgress > 0.98 ? "center" : "space-between", gap: `${18 - scrollProgress * 10}px` }}
           >
             {/* Avatar with photo support */}
             <div
