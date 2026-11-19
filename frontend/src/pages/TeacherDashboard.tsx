@@ -270,10 +270,10 @@ const TeacherDashboard = () => {
             className="flex items-center transition-[gap] duration-300 ease-out motion-reduce:transition-none"
             style={{ justifyContent: scrollProgress > 0.98 ? "center" : "space-between", gap: `${18 - scrollProgress * 10}px` }}
           >
-            {/* Avatar with photo support */}
+            {/* Avatar with photo support - maintains aspect ratio */}
             <div
               className="flex flex-shrink-0 items-center justify-center"
-              style={{ width: `${56 - scrollProgress * 16}px`, height: `${56 - scrollProgress * 16}px` }}
+              style={{ width: `${56 - scrollProgress * 16}px`, height: `${56 - scrollProgress * 16}px`, minWidth: `${40 - scrollProgress * 8}px` }}
             >
               {user?.avatar_url ? (
                 <img
@@ -285,7 +285,7 @@ const TeacherDashboard = () => {
               ) : (
                 <div
                   className="flex items-center justify-center rounded-full bg-emerald-700 font-bold text-white"
-                  style={{ width: `${56 - scrollProgress * 16}px`, height: `${56 - scrollProgress * 16}px`, fontSize: `${24 - scrollProgress * 4}px` }}
+                  style={{ width: `${56 - scrollProgress * 16}px`, height: `${56 - scrollProgress * 16}px`, fontSize: `${24 - scrollProgress * 4}px`, minWidth: `${40 - scrollProgress * 8}px` }}
                 >
                   {user?.name?.charAt(0) || "G"}
                 </div>

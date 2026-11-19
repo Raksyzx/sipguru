@@ -188,71 +188,72 @@ const TeacherHistoryPage = () => {
               : "Belum ada riwayat bulan ini."}
           </div>
         ) : (
-          <div className="glass-card-light p-4 sm:p-5">
-            <div className="divide-y divide-gray-100 dark:divide-gray-800 max-h-[60vh] overflow-y-auto">
-              {history.map((h) => (
-                <div key={h.id} className="py-2.5 sm:py-3 flex items-center justify-between">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white truncate">
-                        {h.day_name || "N/A"},{" "}
-                        {h.date_str
-                          ? new Date(h.date_str).toLocaleDateString("id-ID", {
-                              day: "numeric",
-                              month: "short",
-                            })
-                          : "N/A"}
-                      </p>
-                      <span className="text-[10px] text-gray-400 dark:text-gray-500">•</span>
-                      <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">
-                        {h.room_name || "Unknown"}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
-                        {h.time_str || "N/A"}
-                      </p>
-                      {h.lateness_minutes ? (
-                        <>
-                          <span className="text-[10px] text-gray-400 dark:text-gray-500">•</span>
-                          <p className="text-[10px] sm:text-xs text-amber-600 dark:text-amber-400">
-                            Terlambat {h.lateness_minutes} mnt
-                          </p>
-                        </>
-                      ) : null}
-                    </div>
-                    {(h.subject_name || h.grade_name) && (
-                      <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[10px] sm:text-xs">
-                        {h.subject_name && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300 font-medium">
-                            {h.subject_name}
-                          </span>
-                        )}
-                        {(h.grade_name || h.jurusan_code) && (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 font-medium">
-                            {h.grade_name && (
-                              <span>{h.grade_name}</span>
-                            )}
-                            {h.jurusan_code && (
-                              <span className="text-[9px] uppercase tracking-tight opacity-75">{h.jurusan_code}</span>
-                            )}
-                          </span>
-                        )}
-                      </div>
-                    )}
+          <div className="glass-card-light p-4 sm:p-5 space-y-2 sm:space-y-3">
+            {history.map((h) => (
+              <div
+                key={h.id}
+                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-white/5 rounded-xl transition-colors"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-xs sm:text-sm text-gray-900 dark:text-white truncate">
+                      {h.day_name || "N/A"},{" "}
+                      {h.date_str
+                        ? new Date(h.date_str).toLocaleDateString("id-ID", {
+                            day: "numeric",
+                            month: "short",
+                          })
+                        : "N/A"}
+                    </p>
+                    <span className="text-[10px] text-gray-400 dark:text-gray-500">•</span>
+                    <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">
+                      {h.room_name || "Unknown"}
+                    </p>
                   </div>
-                  <span
-                    className={`px-2.5 py-1 text-[10px] sm:text-xs rounded-full font-medium flex-shrink-0 ml-2 ${
-                      h.status === "on_time"
-                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
-                        : "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
-                    }`}
-                  >
-                    {h.status === "on_time" ? "Tepat waktu" : "Terlambat"}
-                  </span>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
+                      {h.time_str || "N/A"}
+                    </p>
+                    {h.lateness_minutes ? (
+                      <>
+                        <span className="text-[10px] text-gray-400 dark:text-gray-500">•</span>
+                        <p className="text-[10px] sm:text-xs text-amber-600 dark:text-amber-400">
+                          Terlambat {h.lateness_minutes} mnt
+                        </p>
+                      </>
+                    ) : null}
+                  </div>
+                  {(h.subject_name || h.grade_name) && (
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[10px] sm:text-xs">
+                      {h.subject_name && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300 font-medium">
+                          {h.subject_name}
+                        </span>
+                      )}
+                      {(h.grade_name || h.jurusan_code) && (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 font-medium">
+                          {h.grade_name && (
+                            <span>{h.grade_name}</span>
+                          )}
+                          {h.jurusan_code && (
+                            <span className="text-[9px] uppercase tracking-tight opacity-75">{h.jurusan_code}</span>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
+                <span
+                  className={`px-2.5 py-1 text-[10px] sm:text-xs rounded-full font-medium flex-shrink-0 ml-2 ${
+                    h.status === "on_time"
+                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+                      : "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
+                  }`}
+                >
+                  {h.status === "on_time" ? "Tepat waktu" : "Terlambat"}
+                </span>
+              </div>
+            ))}
           </div>
         )}
       </div>
