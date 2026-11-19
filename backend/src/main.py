@@ -22,10 +22,17 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS for local + network access
+# CORS for local + production (Vercel)
+# Note: allow_credentials=True requires explicit origins, cannot use "*"
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "*",  # Fallback for local/non-browser clients
+        "https://sipguru-six.vercel.app",
+        "https://sipguru-production.up.railway.app",
+        "http://localhost:3000",
+        "http://localhost:3001",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
