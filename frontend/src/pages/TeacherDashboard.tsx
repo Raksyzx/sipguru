@@ -6,7 +6,6 @@ import { useTheme } from "../contexts/ThemeContext";
 import { LogoutConfirmModal } from "../components/LogoutConfirmModal";
 import { LeaveSection } from "../components/LeaveSection";
 import {
-  SkeletonCard,
   SkeletonStatsGrid,
   SkeletonScheduleList,
 } from "../components/SkeletonLoaders";
@@ -66,6 +65,7 @@ const CACHE_TTL_SCHEDULE = 30 * 1000; // 30 detik untuk schedule (sering berubah
 const TeacherDashboard = () => {
   const { user } = useAuth();
   const { attendanceRevision } = useAttendance();
+  const [scrollProgress, setScrollProgress] = useState(0);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [schedulesList, setSchedulesList] = useState<GradeSchedule[]>([]);
   const [day, setDay] = useState("");
@@ -225,6 +225,25 @@ const TeacherDashboard = () => {
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    let animationFrame = 0;
+    const handleScroll = () => {
+      if (animationFrame) return;
+      animationFrame = window.requestAnimationFrame(() => {
+        const scrollTop = window.scrollY || document.documentElement.scrollTop;
+        setScrollProgress(Math.min(scrollTop / 240, 1));
+        animationFrame = 0;
+      });
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.cancelAnimationFrame(animationFrame);
+    };
+  }, []);
+
   const roomName = (id: string) =>
     rooms.find((r) => r.id === id)?.name || `Ruangan ${id.slice(0, 8)}…`;
 
@@ -235,63 +254,96 @@ const TeacherDashboard = () => {
   const pendingLeaves = leaves.filter((l) => l.status === "pending");
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-stone-50 dark:from-stone-950 dark:to-emerald-950/20 pt-6 pb-6 md:pb-8 px-3 sm:pt-8 sm:px-4 md:pl-24 lg:pl-64">
-      <div className="max-w-sm sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto space-y-4 sm:space-y-5 md:space-y-6 teacher-page-content">
-        {/* Profile Card - compact */}
-        {loading ? (
-          <SkeletonCard className="animate-stagger-1" />
-        ) : (
-          <div className="glass-card-light p-4 sm:p-5 animate-stagger-1">
-            <div className="flex items-center gap-3 sm:gap-4">
-              {/* Avatar with photo support */}
-              <div className="w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0">
-                {user?.avatar_url ? (
-                  <img
-                    src={user.avatar_url}
-                    alt={user?.name || "User"}
-                    className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover shadow-[0_6px_20px_rgba(16,185,129,0.25)]"
-                  />
-                ) : (
-                  <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-tr from-emerald-600 to-emerald-500 rounded-full flex items-center justify-center text-white shadow-[0_6px_20px_rgba(16,185,129,0.25)]">
-                    <span className="text-xl sm:text-2xl font-bold">{user?.name?.charAt(0) || "G"}</span>
-                  </div>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white truncate">
-                  <span className="truncate">{user?.name}</span>
-                </h2>
-                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">{user?.email}</p>
-              </div>
-              <div className="flex items-center gap-1 flex-shrink-0 relative">
-                {/* Refresh button - separate */}
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-stone-50 dark:from-stone-950 dark:to-emerald-950/20 px-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:px-4 md:pb-8 md:pl-24 lg:pl-64">
+      {/* Sticky Profile Header - floating, animates on scroll */}
+      <div className="sticky top-0 z-50 -mx-3 px-3 pt-[env(safe-area-inset-top)] sm:-mx-4 sm:px-4 md:mx-0 md:px-0 md:pt-4">
+        <div
+          className="glass-card-light mx-auto overflow-hidden border p-3 transition-[width,max-width,padding] duration-300 ease-out motion-reduce:transition-none sm:p-4"
+          style={{
+            width: `${100 - scrollProgress * 80}%`,
+            maxWidth: `${640 - scrollProgress * 560}px`,
+            minWidth: "68px",
+            padding: `${16 - scrollProgress * 4}px`,
+          }}
+        >
+          <div
+            className="flex items-center transition-[gap] duration-300 ease-out motion-reduce:transition-none"
+            style={{ justifyContent: scrollProgress > 0.98 ? "center" : "space-between", gap: `${16 - scrollProgress * 8}px` }}
+          >
+            {/* Avatar with photo support */}
+            <div
+              className="flex flex-shrink-0 items-center justify-center"
+              style={{ width: `${56 - scrollProgress * 16}px`, height: `${56 - scrollProgress * 16}px` }}
+            >
+              {user?.avatar_url ? (
+                <img
+                  src={user.avatar_url}
+                  alt={user?.name || "User"}
+                  className="rounded-full object-cover"
+                  style={{ width: `${56 - scrollProgress * 16}px`, height: `${56 - scrollProgress * 16}px` }}
+                />
+              ) : (
+                <div
+                  className="flex items-center justify-center rounded-full bg-emerald-700 font-bold text-white"
+                  style={{ width: `${56 - scrollProgress * 16}px`, height: `${56 - scrollProgress * 16}px`, fontSize: `${24 - scrollProgress * 4}px` }}
+                >
+                  {user?.name?.charAt(0) || "G"}
+                </div>
+              )}
+            </div>
+
+            {/* Profile text and actions compact away as the avatar centers */}
+            <div
+              className="min-w-0 flex-1 overflow-hidden transition-[max-width,opacity] duration-300 ease-out motion-reduce:transition-none"
+              style={{ maxWidth: `${320 * (1 - scrollProgress)}px`, opacity: 1 - scrollProgress }}
+              aria-hidden={scrollProgress > 0.98}
+              tabIndex={scrollProgress > 0.98 ? -1 : 0}
+            >
+              <h2 className="truncate text-sm font-semibold text-gray-900 dark:text-white sm:text-base">{user?.name}</h2>
+              <p className="truncate text-xs text-gray-600 dark:text-gray-400 sm:text-sm">{user?.email}</p>
+            </div>
+
+            <div
+              className="flex flex-shrink-0 items-center gap-1 overflow-hidden transition-[max-width,opacity] duration-300 ease-out motion-reduce:transition-none"
+              style={{ maxWidth: `${96 * (1 - scrollProgress)}px`, opacity: 1 - scrollProgress }}
+              aria-hidden={scrollProgress > 0.98}
+            >
+              <div className={scrollProgress > 0.98 ? "pointer-events-none" : "contents"} aria-hidden={scrollProgress > 0.98}>
                 <button
+                  type="button"
                   onClick={handleRefresh}
                   disabled={refreshing}
-                  className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-lg transition-colors"
-                  title="Refresh jadwal"
+                  aria-label="Refresh dashboard"
+                  tabIndex={scrollProgress > 0.98 ? -1 : 0}
+                  title="Refresh"
                 >
-                  <RotateCw className={`w-5 h-5 ${refreshing ? "animate-spin" : ""}`} />
+                  <RotateCw className={`h-5 w-5 ${refreshing ? "animate-spin motion-reduce:animate-none" : ""}`} />
                 </button>
-
-                {/* Burger menu - theme and logout */}
                 <button
+                  type="button"
                   onClick={() => setShowMenu(!showMenu)}
-                  className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-lg transition-colors"
+                  aria-label="Buka menu"
+                  aria-expanded={showMenu}
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:text-gray-300 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-300 ${scrollProgress > 0.98 ? "pointer-events-none opacity-0" : ""}`}
+                  tabIndex={scrollProgress > 0.98 ? -1 : 0}
                   title="Menu"
                 >
-                  <Menu className="w-5 h-5" />
+                  <Menu className="h-5 w-5" />
                 </button>
               </div>
             </div>
           </div>
-        )}
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div className="max-w-sm sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto space-y-3 sm:space-y-4 md:space-y-5 pt-2">
 
         {/* Burger Dropdown Menu - rendered at root level to avoid stacking context issues */}
         {showMenu && (
           <>
             <div 
-              className="fixed right-4 top-16 w-40 bg-white dark:bg-stone-800 rounded-xl shadow-2xl border-2 border-gray-200 dark:border-stone-700 py-1" 
+              className="fixed right-4 top-20 w-40 bg-white dark:bg-stone-800 rounded-xl shadow-2xl border-2 border-gray-200 dark:border-stone-700 py-1"
               style={{ zIndex: 99999 }}
             >
               <button
