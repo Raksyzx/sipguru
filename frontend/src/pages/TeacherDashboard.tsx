@@ -491,7 +491,9 @@ const TeacherDashboard = () => {
             hasPending={pendingLeaves.length > 0}
             onSubmit={async (leaveData) => {
               try {
+                console.log('[Leave Submit] Starting submission:', { leaveData, baseURL: import.meta.env.VITE_API_URL });
                 const res = await api.post<{ leave_id: string }>("/teacher/leave", leaveData);
+                console.log('[Leave Submit] Success response:', res.data);
                 const schedInfo = schedulesList.find((s) => s.id === leaveData.schedule_id);
                 setLeaves((prev) => [
                   {
@@ -513,8 +515,9 @@ const TeacherDashboard = () => {
                 localStorage.removeItem("sipguru_cache_teacher_leaves");
                 return { success: true };
               } catch (err: any) {
-                const errorMsg = err?.response?.data?.detail || err?.message || "Gagal mengajukan izin";
-                console.error("[Leave Submit Error]", err);
+                console.error('[Leave Submit] Full error:', err);
+                const errorMsg = err?.response?.data?.detail || err?.message || err?.code || "Gagal mengajukan izin";
+                console.error('[Leave Submit] User-facing error:', errorMsg);
                 return { success: false, error: errorMsg };
               }
             }}
