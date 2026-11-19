@@ -244,6 +244,11 @@ const TeacherDashboard = () => {
     };
   }, []);
 
+  const avatarSize = `${Math.max(40, 56 - scrollProgress * 16)}px`;
+  const headerWidthPct = Math.max(100 - scrollProgress * 80, 68);
+  const headerMaxWidthPx = Math.max(400, 640 - scrollProgress * 560);
+  const headerPadding = Math.max(12, 18 - scrollProgress * 6);
+
   const roomName = (id: string) =>
     rooms.find((r) => r.id === id)?.name || `Ruangan ${id.slice(0, 8)}…`;
 
@@ -252,7 +257,6 @@ const TeacherDashboard = () => {
   const late = history.filter((h) => h.status === "late").length;
 
   const pendingLeaves = leaves.filter((l) => l.status === "pending");
-  const avatarSize = `${56 - scrollProgress * 16}px`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-stone-50 dark:from-stone-950 dark:to-emerald-950/20 px-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:px-4 md:pb-8 md:pl-24 lg:pl-64">
@@ -261,17 +265,17 @@ const TeacherDashboard = () => {
         <div
           className="glass-card-light mx-auto overflow-hidden border p-3.5 transition-[width,max-width,padding] duration-300 ease-out motion-reduce:transition-none sm:p-4"
           style={{
-            width: `${100 - scrollProgress * 80}%`,
-            maxWidth: `${640 - scrollProgress * 560}px`,
+            width: `${headerWidthPct}%`,
+            maxWidth: `${headerMaxWidthPx}px`,
             minWidth: "68px",
-            padding: `${18 - scrollProgress * 6}px`,
+            padding: `${headerPadding}px`,
           }}
         >
           <div
             className="flex items-center transition-[gap] duration-300 ease-out motion-reduce:transition-none"
-            style={{ justifyContent: scrollProgress > 0.98 ? "center" : "space-between", gap: `${18 - scrollProgress * 10}px` }}
+            style={{ justifyContent: scrollProgress > 0.98 ? "center" : "space-between", gap: `${Math.max(12, 18 - scrollProgress * 10)}px` }}
           >
-            {/* Avatar with photo support - maintains aspect ratio */}
+            {/* Avatar with photo support - maintains circular aspect ratio */}
             <div
               className="flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full"
               style={{ width: avatarSize, height: avatarSize, minWidth: avatarSize, flexBasis: avatarSize, aspectRatio: "1 / 1" }}
@@ -286,7 +290,7 @@ const TeacherDashboard = () => {
               ) : (
                 <div
                   className="flex h-full w-full items-center justify-center rounded-full bg-emerald-700 font-bold text-white"
-                  style={{ fontSize: `${24 - scrollProgress * 4}px`, aspectRatio: "1 / 1" }}
+                  style={{ fontSize: `${Math.max(20, 24 - scrollProgress * 4)}px`, aspectRatio: "1 / 1" }}
                 >
                   {user?.name?.charAt(0) || "G"}
                 </div>
