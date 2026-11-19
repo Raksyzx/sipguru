@@ -512,8 +512,10 @@ const TeacherDashboard = () => {
                 ]);
                 localStorage.removeItem("sipguru_cache_teacher_leaves");
                 return { success: true };
-              } catch {
-                return { success: false, error: "Gagal mengajukan izin" };
+              } catch (err: any) {
+                const errorMsg = err?.response?.data?.detail || err?.message || "Gagal mengajukan izin";
+                console.error("[Leave Submit Error]", err);
+                return { success: false, error: errorMsg };
               }
             }}
           />
