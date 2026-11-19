@@ -247,8 +247,8 @@ const TeacherDashboard = () => {
   const avatarSize = `${Math.max(40, 56 - scrollProgress * 16)}px`;
   const headerWidthPct = 100 - scrollProgress * 89.33;  // 100% → ~10.67% (40px on 375px screen)
   const headerMaxWidthPx = 640 - scrollProgress * 600;  // 640px → 40px (perfect square with avatar)
-  const headerPadding = Math.max(0, 18 - scrollProgress * 18);  // 18px → 0px (no padding at max scroll)
-  const gapSize = Math.max(0, 18 - scrollProgress * 18);  // 18px → 0px
+  const headerPadding = Math.max(0, 16 - scrollProgress * 16);  // 16px → 0px (exact, no extra padding)
+  const gapSize = Math.max(0, 16 - scrollProgress * 16);  // 16px → 0px
 
   const roomName = (id: string) =>
     rooms.find((r) => r.id === id)?.name || `Ruangan ${id.slice(0, 8)}…`;
@@ -264,7 +264,7 @@ const TeacherDashboard = () => {
       {/* Sticky Profile Header - floating, animates on scroll */}
       <div className="sticky top-0 z-50 -mx-3 px-3 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] sm:-mx-4 sm:px-4 sm:pt-[calc(env(safe-area-inset-top,0px)+1rem)] md:mx-0 md:px-0 md:pt-4">
         <div
-          className="glass-card-light mx-auto overflow-hidden border p-3.5 transition-[width,max-width,padding] duration-300 ease-out motion-reduce:transition-none sm:p-4"
+          className="glass-card-light mx-auto overflow-hidden border transition-[width,max-width,padding] duration-300 ease-out motion-reduce:transition-none"
           style={{
             width: `${headerWidthPct}%`,
             maxWidth: `${headerMaxWidthPx}px`,
@@ -273,7 +273,7 @@ const TeacherDashboard = () => {
           }}
         >
           <div
-            className="flex items-center transition-[gap] duration-300 ease-out motion-reduce:transition-none"
+            className="flex items-center justify-center transition-[gap] duration-300 ease-out motion-reduce:transition-none"
             style={{ justifyContent: scrollProgress > 0.98 ? "center" : "space-between", gap: `${gapSize}px` }}
           >
             {/* Avatar with photo support - maintains circular aspect ratio */}
