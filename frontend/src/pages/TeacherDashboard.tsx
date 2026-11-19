@@ -245,9 +245,9 @@ const TeacherDashboard = () => {
   }, []);
 
   const avatarSize = `${Math.max(40, 56 - scrollProgress * 16)}px`;
-  const headerWidthPct = 100 - scrollProgress * 32;  // 100% → 68%
-  const headerMaxWidthPx = 640 - scrollProgress * 572;  // 640px → 68px (avatar min)
-  const headerPadding = Math.max(8, 18 - scrollProgress * 10);  // 18px → 8px
+  const headerWidthPct = 100 - scrollProgress * 89.33;  // 100% → ~10.67% (40px on 375px screen)
+  const headerMaxWidthPx = 640 - scrollProgress * 600;  // 640px → 40px (perfect square with avatar)
+  const headerPadding = Math.max(0, 18 - scrollProgress * 18);  // 18px → 0px (no padding at max scroll)
   const gapSize = Math.max(0, 18 - scrollProgress * 18);  // 18px → 0px
 
   const roomName = (id: string) =>
@@ -268,7 +268,7 @@ const TeacherDashboard = () => {
           style={{
             width: `${headerWidthPct}%`,
             maxWidth: `${headerMaxWidthPx}px`,
-            minWidth: "68px",
+            minWidth: "40px",
             padding: `${headerPadding}px`,
           }}
         >
