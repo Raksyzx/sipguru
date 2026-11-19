@@ -245,9 +245,10 @@ const TeacherDashboard = () => {
   }, []);
 
   const avatarSize = `${Math.max(40, 56 - scrollProgress * 16)}px`;
-  const headerWidthPct = Math.max(100 - scrollProgress * 80, 68);
-  const headerMaxWidthPx = Math.max(400, 640 - scrollProgress * 560);
-  const headerPadding = Math.max(12, 18 - scrollProgress * 6);
+  const headerWidthPct = 100 - scrollProgress * 32;  // 100% → 68%
+  const headerMaxWidthPx = 640 - scrollProgress * 572;  // 640px → 68px (avatar min)
+  const headerPadding = Math.max(8, 18 - scrollProgress * 10);  // 18px → 8px
+  const gapSize = Math.max(0, 18 - scrollProgress * 18);  // 18px → 0px
 
   const roomName = (id: string) =>
     rooms.find((r) => r.id === id)?.name || `Ruangan ${id.slice(0, 8)}…`;
@@ -273,7 +274,7 @@ const TeacherDashboard = () => {
         >
           <div
             className="flex items-center transition-[gap] duration-300 ease-out motion-reduce:transition-none"
-            style={{ justifyContent: scrollProgress > 0.98 ? "center" : "space-between", gap: `${Math.max(12, 18 - scrollProgress * 10)}px` }}
+            style={{ justifyContent: scrollProgress > 0.98 ? "center" : "space-between", gap: `${gapSize}px` }}
           >
             {/* Avatar with photo support - maintains circular aspect ratio */}
             <div
