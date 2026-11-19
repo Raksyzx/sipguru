@@ -256,7 +256,7 @@ const TeacherDashboard = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-stone-50 dark:from-stone-950 dark:to-emerald-950/20 px-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:px-4 md:pb-8 md:pl-24 lg:pl-64">
       {/* Sticky Profile Header - floating, animates on scroll */}
-      <div className="sticky top-0 z-50 -mx-3 px-3 pt-[env(safe-area-inset-top)] sm:-mx-4 sm:px-4 md:mx-0 md:px-0 md:pt-4">
+      <div className="sticky top-[max(env(safe-area-inset-top),8px)] z-50 -mx-3 px-3 pt-[env(safe-area-inset-top)] sm:-mx-4 sm:px-4 md:mx-0 md:px-0 md:pt-4">
         <div
           className="glass-card-light mx-auto overflow-hidden border p-3 transition-[width,max-width,padding] duration-300 ease-out motion-reduce:transition-none sm:p-4"
           style={{
