@@ -51,8 +51,8 @@ const TeacherSchedulePage = () => {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-stone-50 dark:from-stone-950 dark:to-emerald-950/20 pt-6 pb-6 md:pb-8 px-3 sm:pt-8 sm:px-4 md:pl-24 lg:pl-64">
-      <div className="max-w-sm sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto space-y-4 sm:space-y-5 md:space-y-6 teacher-page-content">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-stone-50 dark:from-stone-950 dark:to-emerald-950/20 px-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:px-4 md:pb-8 md:pl-24 lg:pl-64">
+      <div className="max-w-sm sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto space-y-4 sm:space-y-5 md:space-y-6 pt-2">
         {/* Header */}
         <div className="glass-card-light p-4 sm:p-5">
           <div className="flex items-center gap-3">
