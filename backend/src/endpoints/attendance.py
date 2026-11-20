@@ -279,13 +279,13 @@ async def last_scan(room_code: str):
     from datetime import date, timezone, timedelta
     today = date.today().isoformat()
     
-    # Use raw SQL via Supabase REST API
+    # Use raw SQL via Supabase REST API - fetch logs first
     import httpx
     supabase_url = settings.SUPABASE_URL
     supabase_key = settings.SUPABASE_ANON_KEY
     
-    # Query attendance_logs for today with teacher info
-    query_url = f"{supabase_url}/rest/v1/attendance_logs?select=*,users(name)&room_id=eq.{room['id']}&created_at=gt.{today}T00:00:00&order=created_at.desc&limit=1"
+    # Query attendance_logs for today (without join)
+    query_url = f"{supabase_url}/rest/v1/attendance_logs?select=*&room_id=eq.{room['id']}&created_at=gt.{today}T00:00:00&order=created_at.desc&limit=1"
     
     try:
         async with httpx.AsyncClient() as client:
@@ -305,8 +305,25 @@ async def last_scan(room_code: str):
     
     # Get the most recent scan
     latest = logs[0]
-    teacher_data = latest.get("users")
-    teacher_name = teacher_data.get("name", "") if teacher_data else ""
+    teacher_id = latest.get("teacher_id", "")
+    
+    # Fetch teacher name separately
+    teacher_name = ""
+    if teacher_id:
+        try:
+            teacher_url = f"{supabase_url}/rest/v1/users?select=name&id=eq.{teacher_id}"
+            async with httpx.AsyncClient() as client:
+                teacher_resp = await client.get(
+                    teacher_url,
+                    headers={"apikey": supabase_key, "Authorization": f"Bearer {supabase_key}"},
+                    timeout=5.0
+                )
+                teacher_resp.raise_for_status()
+                teachers = teacher_resp.json()
+                if teachers and len(teachers) > 0:
+                    teacher_name = teachers[0].get("name", "")
+        except Exception as e:
+            print(f"[LAST_SCAN] Error fetching teacher: {e}")
     
     # Parse created_at to WIB time
     scan_time_str = latest.get("created_at", "")
