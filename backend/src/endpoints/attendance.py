@@ -276,24 +276,42 @@ async def last_scan(room_code: str):
         return {"has_scanned": False, "teacher_name": None, "scan_time": None}
     
     # Get latest attendance log for this room today
-    from datetime import date
+    from datetime import date, timezone, timedelta
     today = date.today().isoformat()
-    logs = db.get_attendance_logs_by_room_and_date(room["id"], today)
+    
+    # Use raw SQL via Supabase REST API
+    import httpx
+    supabase_url = settings.SUPABASE_URL
+    supabase_key = settings.SUPABASE_ANON_KEY
+    
+    # Query attendance_logs for today with teacher info
+    query_url = f"{supabase_url}/rest/v1/attendance_logs?select=*,users(name)&room_id=eq.{room['id']}&created_at=gt.{today}T00:00:00&order=created_at.desc&limit=1"
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                query_url,
+                headers={"apikey": supabase_key, "Authorization": f"Bearer {supabase_key}"},
+                timeout=5.0
+            )
+            response.raise_for_status()
+            logs = response.json()
+    except Exception as e:
+        print(f"[LAST_SCAN] Error querying Supabase: {e}")
+        return {"has_scanned": False, "teacher_name": None, "scan_time": None}
     
     if not logs or len(logs) == 0:
         return {"has_scanned": False, "teacher_name": None, "scan_time": None}
     
     # Get the most recent scan
-    latest = logs[-1]
-    teacher_id = latest.get("teacher_id")
-    teacher_data = db.get_user(teacher_id)
+    latest = logs[0]
+    teacher_data = latest.get("users")
     teacher_name = teacher_data.get("name", "") if teacher_data else ""
     
     # Parse created_at to WIB time
     scan_time_str = latest.get("created_at", "")
     scan_time_display = ""
     if scan_time_str:
-        from datetime import timezone, timedelta
         try:
             scan_dt = datetime.fromisoformat(scan_time_str.replace("Z", "+00:00"))
             wib_tz = timezone(timedelta(hours=7))
