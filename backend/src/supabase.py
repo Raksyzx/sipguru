@@ -626,13 +626,33 @@ class SupabaseClient:
 
     @log_query_time
     def get_all_leaves(self, status: str = None) -> List[dict]:
-        """Get all leave requests"""
+        """Get all leave requests (admin) with teacher info"""
         client = self._get_client()
-        query = client.table("leave_requests").select("id,teacher_id,start_date,end_date,reason,status,approved_by")
+        # Supabase: join with users table via teacher_id foreign key
+        query = client.table("leave_requests").select("""
+            id,
+            teacher_id,
+            start_date,
+            end_date,
+            reason,
+            status,
+            approved_by,
+            schedule_id,
+            created_at,
+            users:teacher_id(name, nip, email)
+        """)
         if status:
             query = query.eq("status", status)
         result = query.execute()
-        return result.data
+        
+        # Flatten user data for frontend compatibility
+        leaves = result.data or []
+        for leave in leaves:
+            if leave.get("users"):
+                leave["teacher_name"] = leave["users"]["name"]
+                leave["teacher_nip"] = leave["users"]["nip"]
+                leave["teacher_email"] = leave["users"]["email"]
+        return leaves
 
     @log_query_time
     def update_leave_status(self, leave_id: str, status: str,

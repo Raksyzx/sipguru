@@ -1633,7 +1633,13 @@ const AdminDashboard = () => {
                   {leaves.map((l) => (
                     <div key={l.id} className="p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
                       <div className="flex items-start justify-between mb-2">
-                        <span className="font-medium text-gray-900 dark:text-white">{l.teacher_name || l.teacher_id.slice(0, 8)}…</span>
+                        <div className="min-w-0 flex-1">
+                          <span className="font-medium text-gray-900 dark:text-white block truncate">{l.teacher_name || "Guru"}</span>
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-0.5">
+                            <span className="text-xs text-gray-500 dark:text-gray-400">{l.teacher_email}</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">NIP: {l.teacher_nip || "-"}</span>
+                          </div>
+                        </div>
                         <span
                           className={`px-2 py-1 text-xs rounded-full font-medium ${
                             l.status === "pending"
