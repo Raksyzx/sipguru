@@ -171,15 +171,21 @@ const TeacherDashboard = () => {
   };
 
   const loadData = useCallback(async (forceRefresh = false) => {
+    // Hitung hari ini dalam bahasa Indonesia
+    const dayNameMap: Record<string, string> = {
+      Monday: "Senin", Tuesday: "Selasa", Wednesday: "Rabu",
+      Thursday: "Kamis", Friday: "Jumat", Saturday: "Sabtu", Sunday: "Minggu"
+    };
+    const todayDayName = dayNameMap[new Date().toLocaleDateString("en-US", { weekday: "long" })];
+    
     if (!forceRefresh) {
-      const cachedDay = getFromCache<string>("schedule_day");
       const cachedLeaves = getFromCache<LeaveRequest[]>("teacher_leaves");
       const cachedSchedulesList = getFromCache<GradeSchedule[]>("my_schedules");
 
       if (cachedSchedulesList) {
-        setDay(cachedDay || "");
         setLeaves(cachedLeaves || []);
         setSchedulesList(cachedSchedulesList);
+        setDay(todayDayName);
         setLoading(false);
         return;
       }
@@ -194,13 +200,10 @@ const TeacherDashboard = () => {
       const leavesData = leavesRes.data?.leaves || [];
       const schedulesListData = mySchedRes.data?.schedules || [];
 
-      const dayData = schedulesListData.filter((s: GradeSchedule) => s.day_of_week === day)[0]?.day_of_week || "";
-      
-      setDay(dayData);
       setLeaves(leavesData);
       setSchedulesList(schedulesListData);
+      setDay(todayDayName);
 
-      setInCache("schedule_day", dayData, CACHE_TTL_SCHEDULE);
       setInCache("teacher_leaves", leavesData, CACHE_TTL);
       setInCache("my_schedules", schedulesListData, CACHE_TTL_SCHEDULE);
     } catch {
