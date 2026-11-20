@@ -20,9 +20,62 @@ class GenerateBoundQRRequest(BaseModel):
     room_id: str
 
 
+class ESP32TokenRequest(BaseModel):
+    schedule_id: str
+    room_code: str
+    token_type: str = "entry"  # "entry" or "exit"
+
+
 class ValidateQRRequest(BaseModel):
     token: str
     room_id: str
+
+
+@router.post("/esp32/token")
+async def generate_esp32_token(data: ESP32TokenRequest):
+    """Generate QR token for ESP32 device (no auth required - device trusts backend)"""
+    # Validate schedule exists
+    schedule = db.get_grade_schedule(data.schedule_id)
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    
+    # Validate room_code matches
+    room = db.get_room_by_code(data.room_code)
+    if not room or room["id"] != schedule.get("room_id"):
+        raise HTTPException(status_code=400, detail="Room code mismatch")
+    
+    # Generate token
+    from datetime import datetime, timedelta
+    expiry = settings.QR_EXPIRY_SECONDS
+    token = generate_hmac_token(
+        room_id=schedule["room_id"],
+        schedule_id=data.schedule_id,
+        subject_id=schedule.get("subject_id"),
+        teacher_id=schedule.get("teacher_id"),
+        grade_id=schedule.get("grade_id"),
+        expiry_seconds=expiry,
+        secret=settings.JWT_SECRET
+    )
+    
+    expires_at = (datetime.now() + timedelta(seconds=expiry)).isoformat()
+    
+    # Store in qr_tokens table
+    qr_id = db.create_qr_token(
+        schedule_id=data.schedule_id,
+        room_id=schedule["room_id"],
+        grade_id=schedule["grade_id"],
+        subject_id=schedule["subject_id"],
+        teacher_id=schedule["teacher_id"],
+        token=token,
+        expires_at=expires_at,
+    )
+    
+    return {
+        "token": token,
+        "expires_at": expires_at,
+        "schedule_id": data.schedule_id,
+        "token_type": data.token_type
+    }
 
 
 @router.post("/generate")
