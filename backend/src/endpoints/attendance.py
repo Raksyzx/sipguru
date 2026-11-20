@@ -83,9 +83,16 @@ def _validate_schedule(teacher_id: str, room_id: str, now: datetime, schedule_id
         # Debug: print all schedule IDs for comparison
         print(f"[SCHEDULE DEBUG] available schedule IDs: {[s.get('id') for s in schedules]}")
         print(f"[SCHEDULE DEBUG] schedule_id type: {type(schedule_id)}, db id types: {[type(s.get('id')) for s in schedules]}")
+        
+        # If schedule_id from QR token not found, reject with clear message
+        if not schedule:
+            return False, {
+                "reason": f"QR token tidak valid - jadwal sudah diubah/dihapus. Minta admin generate QR baru.",
+                "schedule_id_mismatch": True
+            }
     
-    # Fallback: filter by room_id if no schedule_id match or not provided
-    if not schedule and room_id and schedules:
+    # Fallback: filter by room_id only if no schedule_id was provided
+    if not schedule and room_id and schedules and not schedule_id:
         schedule = next((s for s in schedules if s.get("room_id") == room_id), None)
         print(f"[SCHEDULE DEBUG] filtered schedule for room {room_id}: {schedule}")
     
