@@ -29,9 +29,11 @@ app.add_middleware(
     allow_origins=[
         "*",  # Fallback for local/non-browser clients
         "https://sipguru-six.vercel.app",
+        "https://ipguru-six.vercel.app",
         "https://sipguru-production.up.railway.app",
         "http://localhost:3000",
         "http://localhost:3001",
+        "http://localhost:5173",
     ],
     allow_credentials=True,
     allow_methods=["*"],

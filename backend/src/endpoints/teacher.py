@@ -1,12 +1,17 @@
 from src.config import settings
 from src.database import get_db
 
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Body
 from src.deps import get_current_user as verify_jwt
 from src.supabase import get_day_name_indonesian
+from pydantic import BaseModel
+from typing import Optional
 import datetime
 import asyncio
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 db = get_db()
@@ -187,21 +192,34 @@ async def get_attendance_history(
         "late": len([h for h in enriched_history if h.get("status") == "late"]),
     }
 
+class LeaveRequest(BaseModel):
+    start_date: str
+    end_date: str
+    reason: str
+    schedule_id: Optional[str] = None
+
 @router.post("/leave")
 async def submit_leave(
-    request: dict,
+    request: LeaveRequest,
     auth_user: dict = Depends(verify_jwt)
 ):
     """Submit leave request"""
-    leave_id = db.create_leave_request(
-        teacher_id=auth_user["user_id"],
-        start_date=request["start_date"],
-        end_date=request["end_date"],
-        reason=request["reason"],
-        schedule_id=request.get("schedule_id")
-    )
-    
-    return {"message": "Leave request submitted", "leave_id": leave_id}
+    try:
+        logger.info(f'[LEAVE] Submitting leave for teacher {auth_user["user_id"]}: {request}')
+        
+        leave_id = db.create_leave_request(
+            teacher_id=auth_user["user_id"],
+            start_date=request.start_date,
+            end_date=request.end_date,
+            reason=request.reason,
+            schedule_id=request.schedule_id
+        )
+        
+        logger.info(f'[LEAVE] Success: leave_id={leave_id}')
+        return {"message": "Leave request submitted", "leave_id": leave_id}
+    except Exception as e:
+        logger.error(f'[LEAVE] Failed: {str(e)}')
+        raise HTTPException(status_code=500, detail=f"Gagal mengajukan izin: {str(e)}")
 
 @router.get("/leave")
 async def get_leaves(
