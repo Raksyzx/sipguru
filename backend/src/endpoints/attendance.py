@@ -266,3 +266,45 @@ async def today_attendance(auth_user: dict = Depends(get_current_user)):
     )
     todays = [h for h in history if str(h.get("created_at", ""))[:10] == today]
     return {"date": today, "submitted": len(todays) > 0, "logs": todays, "stats": stats}
+
+
+@router.get("/last-scan/{room_code}")
+async def last_scan(room_code: str):
+    """Get last successful scan for a room (for ESP32 display)."""
+    room = db.get_room_by_code(room_code)
+    if not room:
+        return {"has_scanned": False, "teacher_name": None, "scan_time": None}
+    
+    # Get latest attendance log for this room today
+    from datetime import date
+    today = date.today().isoformat()
+    logs = db.get_attendance_logs_by_room_and_date(room["id"], today)
+    
+    if not logs or len(logs) == 0:
+        return {"has_scanned": False, "teacher_name": None, "scan_time": None}
+    
+    # Get the most recent scan
+    latest = logs[-1]
+    teacher_id = latest.get("teacher_id")
+    teacher_data = db.get_user(teacher_id)
+    teacher_name = teacher_data.get("name", "") if teacher_data else ""
+    
+    # Parse created_at to WIB time
+    scan_time_str = latest.get("created_at", "")
+    scan_time_display = ""
+    if scan_time_str:
+        from datetime import timezone, timedelta
+        try:
+            scan_dt = datetime.fromisoformat(scan_time_str.replace("Z", "+00:00"))
+            wib_tz = timezone(timedelta(hours=7))
+            scan_wib = scan_dt.astimezone(wib_tz)
+            scan_time_display = scan_wib.strftime("%H:%M:%S")
+        except:
+            scan_time_display = scan_time_str[:19]  # Fallback
+    
+    return {
+        "has_scanned": True,
+        "teacher_name": teacher_name,
+        "scan_time": scan_time_display,
+        "scan_timestamp": scan_time_str
+    }
