@@ -65,7 +65,6 @@ const CACHE_TTL_SCHEDULE = 30 * 1000; // 30 detik untuk schedule (sering berubah
 const TeacherDashboard = () => {
   const { user } = useAuth();
   const { attendanceRevision } = useAttendance();
-  const [scrollProgress, setScrollProgress] = useState(0);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [schedulesList, setSchedulesList] = useState<GradeSchedule[]>([]);
   const [day, setDay] = useState("");
@@ -225,31 +224,6 @@ const TeacherDashboard = () => {
     loadData();
   }, [loadData]);
 
-  useEffect(() => {
-    let animationFrame = 0;
-    const handleScroll = () => {
-      if (animationFrame) return;
-      animationFrame = window.requestAnimationFrame(() => {
-        const scrollTop = window.scrollY || document.documentElement.scrollTop;
-        setScrollProgress(Math.min(scrollTop / 240, 1));
-        animationFrame = 0;
-      });
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    handleScroll();
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-      window.cancelAnimationFrame(animationFrame);
-    };
-  }, []);
-
-  const avatarSize = `${Math.max(40, 56 - scrollProgress * 16)}px`;
-  const headerWidthPct = 100 - scrollProgress * 89.33;  // 100% → ~10.67% (40px on 375px screen)
-  const headerMaxWidthPx = 640 - scrollProgress * 600;  // 640px → 40px (perfect square with avatar)
-  const headerPadding = Math.max(0, 16 - scrollProgress * 16);  // 16px → 0px (exact, no extra padding)
-  const gapSize = Math.max(0, 16 - scrollProgress * 16);  // 16px → 0px
-
   const roomName = (id: string) =>
     rooms.find((r) => r.id === id)?.name || `Ruangan ${id.slice(0, 8)}…`;
 
@@ -261,82 +235,51 @@ const TeacherDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-stone-50 dark:from-stone-950 dark:to-emerald-950/20 px-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:px-4 md:pb-8 md:pl-24 lg:pl-64">
-      {/* Sticky Profile Header - floating, animates on scroll */}
+      {/* Sticky Profile Header - floating, fixed size */}
       <div className="sticky top-0 z-50 -mx-3 px-3 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] sm:-mx-4 sm:px-4 sm:pt-[calc(env(safe-area-inset-top,0px)+1rem)] md:mx-0 md:px-0 md:pt-4">
-        <div
-          className="glass-card-light mx-auto overflow-hidden border transition-[width,max-width,padding] duration-300 ease-out motion-reduce:transition-none"
-          style={{
-            width: `${headerWidthPct}%`,
-            maxWidth: `${headerMaxWidthPx}px`,
-            minWidth: "40px",
-            padding: `${headerPadding}px`,
-          }}
-        >
-          <div
-            className="flex items-center justify-center transition-[gap] duration-300 ease-out motion-reduce:transition-none"
-            style={{ justifyContent: scrollProgress > 0.98 ? "center" : "space-between", gap: `${gapSize}px` }}
-          >
-            {/* Avatar with photo support - maintains circular aspect ratio */}
-            <div
-              className="flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full"
-              style={{ width: avatarSize, height: avatarSize, minWidth: avatarSize, flexBasis: avatarSize, aspectRatio: "1 / 1" }}
-            >
+        <div className="glass-card-light mx-auto overflow-hidden border">
+          <div className="flex items-center justify-between gap-4 px-4 py-3 sm:px-5">
+            {/* Avatar with photo support - fixed size */}
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full">
               {user?.avatar_url ? (
                 <img
                   src={user.avatar_url}
                   alt={user?.name || "User"}
                   className="block h-full w-full rounded-full object-cover"
-                  style={{ aspectRatio: "1 / 1" }}
                 />
               ) : (
-                <div
-                  className="flex h-full w-full items-center justify-center rounded-full bg-emerald-700 font-bold text-white"
-                  style={{ fontSize: `${Math.max(20, 24 - scrollProgress * 4)}px`, aspectRatio: "1 / 1" }}
-                >
+                <div className="flex h-full w-full items-center justify-center rounded-full bg-emerald-700 text-lg font-bold text-white">
                   {user?.name?.charAt(0) || "G"}
                 </div>
               )}
             </div>
 
-            {/* Profile text and actions compact away as the avatar centers */}
-            <div
-              className="min-w-0 flex-1 overflow-hidden transition-[max-width,opacity] duration-300 ease-out motion-reduce:transition-none"
-              style={{ maxWidth: `${320 * (1 - scrollProgress)}px`, opacity: 1 - scrollProgress }}
-              aria-hidden={scrollProgress > 0.98}
-              tabIndex={scrollProgress > 0.98 ? -1 : 0}
-            >
+            {/* Profile text - always visible */}
+            <div className="min-w-0 flex-1">
               <h2 className="truncate text-sm font-semibold text-gray-900 dark:text-white sm:text-base">{user?.name}</h2>
               <p className="truncate text-xs text-gray-600 dark:text-gray-400 sm:text-sm">{user?.email}</p>
             </div>
 
-            <div
-              className="flex flex-shrink-0 items-center gap-1 overflow-hidden transition-[max-width,opacity] duration-300 ease-out motion-reduce:transition-none"
-              style={{ maxWidth: `${96 * (1 - scrollProgress)}px`, opacity: 1 - scrollProgress }}
-              aria-hidden={scrollProgress > 0.98}
-            >
-              <div className={scrollProgress > 0.98 ? "pointer-events-none" : "contents"} aria-hidden={scrollProgress > 0.98}>
-                <button
-                  type="button"
-                  onClick={handleRefresh}
-                  disabled={refreshing}
-                  aria-label="Refresh dashboard"
-                  tabIndex={scrollProgress > 0.98 ? -1 : 0}
-                  title="Refresh"
-                >
-                  <RotateCw className={`h-5 w-5 ${refreshing ? "animate-spin motion-reduce:animate-none" : ""}`} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowMenu(!showMenu)}
-                  aria-label="Buka menu"
-                  aria-expanded={showMenu}
-                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:text-gray-300 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-300 ${scrollProgress > 0.98 ? "pointer-events-none opacity-0" : ""}`}
-                  tabIndex={scrollProgress > 0.98 ? -1 : 0}
-                  title="Menu"
-                >
-                  <Menu className="h-5 w-5" />
-                </button>
-              </div>
+            {/* Action buttons - always visible */}
+            <div className="flex flex-shrink-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                aria-label="Refresh dashboard"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:text-gray-300 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-300"
+              >
+                <RotateCw className={`h-5 w-5 ${refreshing ? "animate-spin motion-reduce:animate-none" : ""}`} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowMenu(!showMenu)}
+                aria-label="Buka menu"
+                aria-expanded={showMenu}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 dark:text-gray-300 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-300"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
             </div>
           </div>
         </div>
