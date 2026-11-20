@@ -72,7 +72,6 @@ const TeacherDashboard = () => {
   const [day, setDay] = useState("");
   const [history, setHistory] = useState<AttendanceLog[]>([]);
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
-  const [rooms, setRooms] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -174,13 +173,11 @@ const TeacherDashboard = () => {
   const loadData = useCallback(async (forceRefresh = false) => {
     if (!forceRefresh) {
       const cachedDay = getFromCache<string>("schedule_day");
-      const cachedRooms = getFromCache<{ id: string; name: string }[]>("teacher_rooms");
       const cachedLeaves = getFromCache<LeaveRequest[]>("teacher_leaves");
       const cachedSchedulesList = getFromCache<GradeSchedule[]>("my_schedules");
 
-      if (cachedRooms && cachedSchedulesList) {
+      if (cachedSchedulesList) {
         setDay(cachedDay || "");
-        setRooms(cachedRooms);
         setLeaves(cachedLeaves || []);
         setSchedulesList(cachedSchedulesList);
         setLoading(false);
@@ -189,25 +186,21 @@ const TeacherDashboard = () => {
     }
 
     try {
-      const [rmRes, leavesRes, mySchedRes] = await Promise.all([
-        api.get("/teacher/rooms").catch(() => ({ data: { rooms: [] } })),
+      const [leavesRes, mySchedRes] = await Promise.all([
         api.get("/teacher/leave").catch(() => ({ data: { leaves: [] } })),
         api.get("/teacher/my-schedules").catch(() => ({ data: { schedules: [] } })),
       ]);
 
-      const roomsData = rmRes.data?.rooms || [];
       const leavesData = leavesRes.data?.leaves || [];
       const schedulesListData = mySchedRes.data?.schedules || [];
 
       const dayData = schedulesListData.filter((s: GradeSchedule) => s.day_of_week === day)[0]?.day_of_week || "";
       
       setDay(dayData);
-      setRooms(roomsData);
       setLeaves(leavesData);
       setSchedulesList(schedulesListData);
 
       setInCache("schedule_day", dayData, CACHE_TTL_SCHEDULE);
-      setInCache("teacher_rooms", roomsData, CACHE_TTL);
       setInCache("teacher_leaves", leavesData, CACHE_TTL);
       setInCache("my_schedules", schedulesListData, CACHE_TTL_SCHEDULE);
     } catch {

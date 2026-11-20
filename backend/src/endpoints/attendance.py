@@ -80,6 +80,9 @@ def _validate_schedule(teacher_id: str, room_id: str, now: datetime, schedule_id
         # Priority: match by schedule_id from QR token
         schedule = next((s for s in schedules if s.get("id") == schedule_id), None)
         print(f"[SCHEDULE DEBUG] filtered schedule by schedule_id {schedule_id}: {schedule}")
+        # Debug: print all schedule IDs for comparison
+        print(f"[SCHEDULE DEBUG] available schedule IDs: {[s.get('id') for s in schedules]}")
+        print(f"[SCHEDULE DEBUG] schedule_id type: {type(schedule_id)}, db id types: {[type(s.get('id')) for s in schedules]}")
     
     # Fallback: filter by room_id if no schedule_id match or not provided
     if not schedule and room_id and schedules:
