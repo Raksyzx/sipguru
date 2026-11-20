@@ -13,12 +13,15 @@ import api from "../lib/api";
 import { getFromCache, setInCache } from "../lib/cache";
 import { useAttendance } from "../contexts/AttendanceContext";
 
-interface Schedule {
+interface GradeSchedule {
   id: string;
-  room_id: string;
+  grade_name: string;
+  subject_name: string;
+  teacher_name: string;
   day_of_week: string;
   start_time: string;
   end_time: string;
+  room_name?: string;
 }
 
 interface AttendanceLog {
@@ -65,7 +68,6 @@ const CACHE_TTL_SCHEDULE = 30 * 1000; // 30 detik untuk schedule (sering berubah
 const TeacherDashboard = () => {
   const { user } = useAuth();
   const { attendanceRevision } = useAttendance();
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [schedulesList, setSchedulesList] = useState<GradeSchedule[]>([]);
   const [day, setDay] = useState("");
   const [history, setHistory] = useState<AttendanceLog[]>([]);
@@ -171,44 +173,39 @@ const TeacherDashboard = () => {
 
   const loadData = useCallback(async (forceRefresh = false) => {
     if (!forceRefresh) {
-      const cachedSchedules = getFromCache<Schedule[]>("todays_schedule");
       const cachedDay = getFromCache<string>("schedule_day");
       const cachedRooms = getFromCache<{ id: string; name: string }[]>("teacher_rooms");
       const cachedLeaves = getFromCache<LeaveRequest[]>("teacher_leaves");
       const cachedSchedulesList = getFromCache<GradeSchedule[]>("my_schedules");
 
-      if (cachedSchedules && cachedRooms) {
-        setSchedules(cachedSchedules);
+      if (cachedRooms && cachedSchedulesList) {
         setDay(cachedDay || "");
         setRooms(cachedRooms);
         setLeaves(cachedLeaves || []);
-        setSchedulesList(cachedSchedulesList || []);
+        setSchedulesList(cachedSchedulesList);
         setLoading(false);
         return;
       }
     }
 
     try {
-      const [schedRes, rmRes, leavesRes, mySchedRes] = await Promise.all([
-        api.get("/teacher/todays-schedule").catch(() => ({ data: { schedules: [], day: "" } })),
+      const [rmRes, leavesRes, mySchedRes] = await Promise.all([
         api.get("/teacher/rooms").catch(() => ({ data: { rooms: [] } })),
         api.get("/teacher/leave").catch(() => ({ data: { leaves: [] } })),
         api.get("/teacher/my-schedules").catch(() => ({ data: { schedules: [] } })),
       ]);
 
-      const schedulesData = schedRes.data?.schedules || [];
-      const dayData = schedRes.data?.day || "";
       const roomsData = rmRes.data?.rooms || [];
       const leavesData = leavesRes.data?.leaves || [];
       const schedulesListData = mySchedRes.data?.schedules || [];
 
-      setSchedules(schedulesData);
+      const dayData = schedulesListData.filter((s: GradeSchedule) => s.day_of_week === day)[0]?.day_of_week || "";
+      
       setDay(dayData);
       setRooms(roomsData);
       setLeaves(leavesData);
       setSchedulesList(schedulesListData);
 
-      setInCache("todays_schedule", schedulesData, CACHE_TTL_SCHEDULE);
       setInCache("schedule_day", dayData, CACHE_TTL_SCHEDULE);
       setInCache("teacher_rooms", roomsData, CACHE_TTL);
       setInCache("teacher_leaves", leavesData, CACHE_TTL);
@@ -223,9 +220,6 @@ const TeacherDashboard = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  const roomName = (id: string) =>
-    rooms.find((r) => r.id === id)?.name || `Ruangan ${id.slice(0, 8)}…`;
 
   const thisMonth = history.length;
   const onTime = history.filter((h) => h.status === "on_time").length;
@@ -402,24 +396,27 @@ const TeacherDashboard = () => {
               <CalendarCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               Jadwal Hari Ini {day && <span className="text-gray-500 dark:text-gray-400 font-normal text-xs sm:text-sm">({day})</span>}
             </h3>
-            {schedules.length === 0 ? (
+            {schedulesList.filter((s) => s.day_of_week === day).length === 0 ? (
               <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Tidak ada jadwal hari ini.</p>
             ) : (
               <div className="space-y-2 sm:space-y-3">
-                {schedules.map((s) => (
-                  <div
-                    key={s.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-white/5 rounded-xl transition-colors"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-xs sm:text-sm text-gray-900 dark:text-white truncate">{roomName(s.room_id)}</p>
-                      <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">{s.day_of_week}</p>
+                {schedulesList
+                  .filter((s) => s.day_of_week === day)
+                  .map((s) => (
+                    <div
+                      key={s.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-white/5 rounded-xl transition-colors"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-xs sm:text-sm text-gray-900 dark:text-white truncate">
+                          {s.grade_name} - {s.subject_name}
+                        </p>
+                        <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {s.day_of_week} • {s.start_time} – {s.end_time} • {s.room_name || "Ruangan TBA"}
+                        </p>
+                      </div>
                     </div>
-                    <span className="text-xs sm:text-sm font-semibold text-emerald-600 dark:text-emerald-400 flex-shrink-0 ml-2">
-                      {s.start_time} – {s.end_time}
-                    </span>
-                  </div>
-                ))}
+                  ))}
               </div>
             )}
           </div>
