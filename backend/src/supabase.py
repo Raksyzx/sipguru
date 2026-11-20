@@ -599,15 +599,18 @@ class SupabaseClient:
     # Leave operations
     @log_query_time
     def create_leave_request(self, teacher_id: str, start_date: str,
-                            end_date: str, reason: str) -> str:
+                            end_date: str, reason: str, schedule_id: str = None) -> str:
         """Create new leave request"""
         client = self._get_client()
-        result = client.table("leave_requests").insert({
+        data = {
             "teacher_id": teacher_id,
             "start_date": start_date,
             "end_date": end_date,
             "reason": reason
-        }).execute()
+        }
+        if schedule_id:
+            data["schedule_id"] = schedule_id
+        result = client.table("leave_requests").insert(data).execute()
         return result.data[0]["id"]
 
     @log_query_time
