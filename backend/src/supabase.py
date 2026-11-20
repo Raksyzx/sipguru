@@ -628,7 +628,8 @@ class SupabaseClient:
     def get_all_leaves(self, status: str = None) -> List[dict]:
         """Get all leave requests (admin) with teacher info"""
         client = self._get_client()
-        # Supabase: join with users table via teacher_id foreign key
+        
+        # Get all leave requests
         query = client.table("leave_requests").select("""
             id,
             teacher_id,
@@ -638,20 +639,32 @@ class SupabaseClient:
             status,
             approved_by,
             schedule_id,
-            created_at,
-            users:teacher_id(name, nip, email)
+            created_at
         """)
         if status:
             query = query.eq("status", status)
         result = query.execute()
         
-        # Flatten user data for frontend compatibility
         leaves = result.data or []
+        if not leaves:
+            return []
+        
+        # Collect unique teacher_ids
+        teacher_ids = list(set(leave["teacher_id"] for leave in leaves if leave.get("teacher_id")))
+        
+        # Fetch user info for all teachers in one query
+        users_data = {}
+        if teacher_ids:
+            users_result = client.table("users").select("id, name, nip, email").in_("id", teacher_ids).execute()
+            users_data = {u["id"]: u for u in (users_result.data or [])}
+        
+        # Merge user info into leaves
         for leave in leaves:
-            if leave.get("users"):
-                leave["teacher_name"] = leave["users"]["name"]
-                leave["teacher_nip"] = leave["users"]["nip"]
-                leave["teacher_email"] = leave["users"]["email"]
+            user = users_data.get(leave["teacher_id"], {})
+            leave["teacher_name"] = user.get("name")
+            leave["teacher_nip"] = user.get("nip")
+            leave["teacher_email"] = user.get("email")
+        
         return leaves
 
     @log_query_time
